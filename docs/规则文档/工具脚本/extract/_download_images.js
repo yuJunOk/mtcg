@@ -2,10 +2,10 @@
  * 从微信公众号文章 HTML 中提取图片并下载到本地。
  *
  * 用法：
- *   node _download_images.js <html文件路径> <输出目录> [图片格式]
+ *   node _download_images.js <html文件路径> <输出目录> [前缀] [图片格式]
  *
  * 示例：
- *   node _download_images.js ../snapshots/_temp_qa1.html ../../QA图片-第1期 png
+ *   node _download_images.js ../snapshots/_temp_qa1.html ../../QA图片-第1期 qa1- png
  */
 const fs = require('fs');
 const path = require('path');
@@ -14,7 +14,8 @@ const http = require('http');
 
 const htmlPath = process.argv[2];
 const outDir = process.argv[3];
-const ext = process.argv[4] || 'png';
+const prefix = process.argv[4] || '';
+const ext = process.argv[5] || 'png';
 
 if (!htmlPath || !outDir) {
   console.log('用法: node _download_images.js <html文件路径> <输出目录> [图片格式]');
@@ -73,7 +74,7 @@ async function main() {
 
   for (let i = 0; i < imgs.length; i++) {
     const url = imgs[i];
-    const dest = path.join(absOutDir, `${String(i + 1).padStart(3, '0')}.${ext}`);
+    const dest = path.join(absOutDir, `${prefix}${String(i + 1).padStart(3, '0')}.${ext}`);
     try {
       await download(url, dest);
       const size = fs.statSync(dest).size;
