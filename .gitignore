@@ -1,0 +1,40 @@
+### OS ###
+.DS_Store
+Thumbs.db
+
+### IDE ###
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.cursor/
+
+### Java / Maven (mtcg-server) ###
+target/
+*.class
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### Local Config ###
+application-local.yml
+*.local.yml
+
+### Data ###
+data/*.db
+data/*.db-shm
+data/*.db-wal
+!data/.gitkeep
+
+### Logs ###
+logs/
+*.log
+
+### Node (mtcg-client-*) ###
+node_modules/
+dist/
+.vite/
+*.local

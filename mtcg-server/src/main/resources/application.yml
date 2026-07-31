@@ -1,0 +1,40 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /api
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: mtcg
+  datasource:
+    url: jdbc:postgresql://localhost:5432/db_mtcg
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/init.sql
+      continue-on-error: false
+      encoding: UTF-8
+
+mybatis-flex:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    print-banner: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    com.aris.mtcg: INFO
