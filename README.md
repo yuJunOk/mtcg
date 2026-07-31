@@ -45,7 +45,7 @@ mtcg/                          ← 仓库根目录
 │   ├── docs/                  ← 后端技术方案研究
 │   ├── README.md
 │   └── ...
-├── mtcg-client-admin/         ← 管理后台（Vue 3，开发中）
+├── mtcg-admin-web/            ← 管理后台（Vue 3，开发中）
 ├── mtcg-client-web/           ← 玩家 Web 端（Vue 3，未来）
 ├── .gitignore
 └── README.md
@@ -58,7 +58,7 @@ mtcg/                          ← 仓库根目录
 | 模块 | 技术 | 说明 |
 | --- | --- | --- |
 | **mtcg-server** | Java 17 / Spring Boot / MyBatis-Flex / PostgreSQL 16 | 后端服务 |
-| **mtcg-client-admin** | Vue 3 | 管理后台（开发中） |
+| **mtcg-admin-web** | Vue 3 | 管理后台（开发中） |
 | **mtcg-client-web** | Vue 3 | 玩家 Web 端（未来） |
 
 ---
