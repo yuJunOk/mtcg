@@ -218,7 +218,78 @@ public class CardDO {
 
 ---
 
-## 8. 设计文档引用
+## 8. 前端规范
+
+### 8.1 模块命名
+
+| 模块 | 目录名 | 说明 |
+| --- | --- | --- |
+| 后端 | `mtcg-server` | Java + Spring Boot |
+| 管理后台 | `mtcg-client-admin` | Vue 3，**禁止**写成 `admin-web` / `mtcg-admin-web` / `mtcg-client-admin-web` |
+| 玩家端 | `mtcg-client-web` | Vue 3，**禁止**写成 `client-web` / `mtcg-web` |
+
+### 8.2 前端目录结构
+
+```
+src/
+├── api/             // 接口请求（OpenAPI 生成 + 手写补充）
+├── assets/          // 静态资源
+├── components/      // 通用组件
+├── layouts/         // 布局组件
+├── router/          // 路由配置（含路由守卫）
+├── stores/          // Pinia 状态管理
+├── utils/           // 工具函数
+├── views/           // 页面视图
+└── main.ts
+```
+
+### 8.3 接口请求规范
+
+- 使用 **OpenAPI Generator** 根据后端 Swagger 文档自动生成 API 请求方法，保证前后端接口契约一致
+- 后端 Swagger JSON 地址：`http://localhost:8081/api/v3/api-docs`
+- 生成的代码放在 `src/api/generated/`，**禁止手动修改**生成代码
+- 手写补充接口放在 `src/api/` 对应模块文件中
+- axios 实例封装在 `src/utils/request.ts`，处理 baseURL、token、统一错误拦截
+
+### 8.4 枚举对齐规范
+
+- 前端枚举必须与后端 `common/enums` 下的枚举**逐一对应**，不可随意增减
+- 每个后端枚举类对应一个前端枚举文件，**不合并到同一个文件**：
+
+| 后端 | 前端 | 说明 |
+| --- | --- | --- |
+| `EnumCardType.java` | `src/utils/enums/card-type.ts` | 卡牌类型 |
+| `EnumColor.java` | `src/utils/enums/color.ts` | 颜色 |
+| `EnumRarity.java` | `src/utils/enums/rarity.ts` | 稀有度 |
+| `EnumProductType.java` | `src/utils/enums/product-type.ts` | 产品类型 |
+
+- 格式统一为 `{ code, desc }` 数组，提供 `codeToDesc(options, code)` 工具函数
+
+### 8.5 鉴权与路由保护
+
+- 路由 `meta.requiresAuth` 标记是否需要登录
+- 路由守卫检查 token，未登录跳转登录页
+- 管理后台路由 `meta.requiresAdmin` 标记需要管理员权限
+- axios 请求拦截器自动携带 `Authorization: Bearer <token>` 头
+- 响应拦截器识别 401 自动跳转登录页
+
+---
+
+## 9. 实现步骤状态跟踪
+
+每完成一个实现步骤，需更新实现步骤文档中对应步骤的状态标记：
+
+| 标记 | 含义 |
+| --- | --- |
+| `🔲` | 未开始 |
+| `🚧` | 进行中 |
+| `✅` | 已完成 |
+
+调整实现步骤时，**不得覆盖已完成步骤的状态**，只增改未完成部分。
+
+---
+
+## 10. 设计文档引用
 
 编码前必须对照对应迭代的详细设计文档：
 
