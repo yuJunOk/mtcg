@@ -2,9 +2,9 @@
 
 <img src="./assets/banner-1.png" alt="漫威对战卡牌·超英击战" width="380">
 
-# 超英击战 · MTCG
+# MTCG
 
-**漫威对战卡牌规则引擎与在线对战平台**
+**MTCG 规则引擎与在线对战平台**
 
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green.svg)](https://spring.io/projects/spring-boot)
