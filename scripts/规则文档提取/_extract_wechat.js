@@ -97,7 +97,7 @@ async function main() {
       'utf8'
     );
 
-    const imgDir = path.join(docsDir, '..', art.outDir);
+    const imgDir = path.join(docsDir, '..', '..', 'docs', '规则文档', art.outDir);
     fs.mkdirSync(imgDir, { recursive: true });
 
     let ok = 0;

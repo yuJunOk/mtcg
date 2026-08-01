@@ -5,7 +5,7 @@
  *   node _download_images.js <html文件路径> <输出目录> [前缀] [图片格式]
  *
  * 示例：
- *   node _download_images.js ../snapshots/_temp_qa1.html ../../QA图片-第1期 qa1- png
+ *   node _download_images.js _temp_qa1.html ../docs/规则文档/QA图片-第1期 qa1- png
  */
 const fs = require('fs');
 const path = require('path');

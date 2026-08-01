@@ -6,7 +6,7 @@
  *   node _ocr_recognize.js <图片目录> <输出文件>
  *
  * 示例：
- *   node _ocr_recognize.js ../../QA图片-第1期 ../snapshots/qa1_ocr.txt
+ *   node _ocr_recognize.js ../docs/规则文档/QA图片-第1期 qa1_ocr.txt
  */
 const fs = require('fs');
 const path = require('path');
