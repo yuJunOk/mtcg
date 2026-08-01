@@ -6,9 +6,15 @@ const route = useRoute()
 
 <template>
   <el-container class="layout">
-    <el-aside width="200px">
-      <div class="logo">MTCG 管理后台</div>
-      <el-menu :default-active="route.path" router>
+    <el-aside width="220px" class="sidebar">
+      <div class="logo-area">
+        <span class="logo-text">MTCG 管理后台</span>
+      </div>
+      <el-menu
+        :default-active="route.path"
+        router
+        class="nav-menu"
+      >
         <el-menu-item index="/dashboard">
           <el-icon><Monitor /></el-icon>
           <span>仪表盘</span>
@@ -23,6 +29,7 @@ const route = useRoute()
         </el-menu-item>
       </el-menu>
     </el-aside>
+
     <el-container class="right-container">
       <el-header class="header">
         <span class="title">{{ route.meta.title }}</span>
@@ -34,51 +41,57 @@ const route = useRoute()
       </el-main>
     </el-container>
   </el-container>
+</template>
 
 <style scoped>
 .layout {
   height: 100vh;
 }
 
-.right-container {
-  min-height: 0;
-  flex-direction: column;
-  display: flex;
+.sidebar {
+  background: #304156;
 }
 
-.el-aside {
-  background: #1a1a2e;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.logo {
+.logo-area {
   height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #e0e0e0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo-text {
+  color: #fff;
   font-size: 16px;
-  font-weight: bold;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+}
+
+.nav-menu {
+  border-right: none;
 }
 
 .el-menu {
-  border-right: none;
-  background: #1a1a2e;
+  background: #304156;
 }
 
 .el-menu-item {
-  color: #a0a0a0;
+  color: #bfcbd9;
 }
 
 .el-menu-item:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: #e0e0e0;
+  color: #fff;
 }
 
 .el-menu-item.is-active {
-  background: #4a90d9;
+  background: #409EFF;
   color: #fff;
+}
+
+.right-container {
+  min-height: 0;
+  flex-direction: column;
+  display: flex;
 }
 
 .header {
@@ -88,15 +101,18 @@ const route = useRoute()
   background: #fff;
   border-bottom: 1px solid #e8e8e8;
   height: 56px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
 .title {
   font-size: 16px;
   font-weight: 500;
+  color: #303133;
 }
 
 .el-main {
-  background: #f5f5f5;
+  background: #f0f2f5;
   padding: 20px;
   min-height: 0;
   display: flex;

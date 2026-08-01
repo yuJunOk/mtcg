@@ -9,7 +9,7 @@ function createWindow() {
     height: 900,
     minWidth: 1280,
     minHeight: 720,
-    title: 'Hero Rush TCG',
+    title: 'MTCG',
     icon: path.join(__dirname, '../public/icon.png'),
     webPreferences: {
       nodeIntegration: false,

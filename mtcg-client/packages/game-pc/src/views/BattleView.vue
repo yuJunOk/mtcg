@@ -6,6 +6,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@mtcg/common/stores'
 
+const emit = defineEmits<{
+  navigate: [view: string]
+}>()
+
 const store = useGameStore()
 const canvasContainer = ref<HTMLDivElement>()
 
@@ -22,39 +26,61 @@ onUnmounted(() => {
   <div class="battle-pc">
     <!-- 顶部 HUD -->
     <header class="hud-top">
-      <div class="opponent-info">
-        <span class="phase-badge">{{ store.gameState?.currentPhase }}</span>
-        <span class="turn-info">回合 {{ store.gameState?.turnCount }}</span>
-        <span class="player-name">对手: {{ store.opponent?.playerId }}</span>
+      <div class="hud-left">
+        <button class="btn-back" @click="emit('navigate', 'home')">← 返回</button>
+        <span class="phase-badge">{{ store.gameState?.currentPhase || '部署阶段' }}</span>
+        <span class="turn-info">回合 {{ store.gameState?.turnCount || 1 }}</span>
       </div>
-      <div class="timeline-bar">
-        <div class="timeline-progress" :style="{ width: ((store.opponent?.timeline.length ?? 0) / 9 * 100) + '%' }"></div>
-        <span class="timeline-text">{{ store.opponent?.timeline.length ?? 0 }} / 9</span>
+      <div class="opponent-info">
+        <span class="player-name">对手: {{ store.opponent?.playerId || 'AI_Opponent' }}</span>
+        <div class="timeline-bar">
+          <div class="timeline-progress" :style="{ width: ((store.opponent?.timeline.length ?? 3) / 9 * 100) + '%' }"></div>
+          <span class="timeline-text">{{ store.opponent?.timeline.length ?? 3 }} / 9</span>
+        </div>
       </div>
     </header>
 
     <!-- 中间：PixiJS 游戏画布 -->
     <main class="canvas-area" ref="canvasContainer">
-      <div id="game-canvas" class="game-canvas"></div>
+      <div id="game-canvas" class="game-canvas">
+        <!-- 占位战区示意 -->
+        <div class="battlefield-mock">
+          <div class="zone-row opponent-zone">
+            <div class="zone-card" v-for="i in 4" :key="'opp'+i">
+              <div class="card-back">?</div>
+              <span class="zone-label">{{ ['后', '侧', '侧', '前'][i-1] }}</span>
+            </div>
+          </div>
+          <div class="timeline-mid">
+            <span class="mid-label">时间线区域</span>
+          </div>
+          <div class="zone-row local-zone">
+            <div class="zone-card" v-for="i in 4" :key="'local'+i">
+              <div class="card-back">?</div>
+              <span class="zone-label">{{ ['前', '侧', '侧', '后'][i-1] }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- 底部 HUD -->
     <footer class="hud-bottom">
-      <div class="timeline-bar">
-        <div class="timeline-progress" :style="{ width: ((store.localPlayer?.timeline.length ?? 0) / 9 * 100) + '%' }"></div>
-        <span class="timeline-text">{{ store.localPlayer?.timeline.length ?? 0 }} / 9</span>
+      <div class="hand-area">
+        <span class="hand-label">手牌</span>
+        <div class="hand-cards">
+          <div class="hand-card" v-for="i in 5" :key="i">
+            <div class="mini-card">{{ i }}</div>
+          </div>
+        </div>
       </div>
       <div class="action-bar">
-        <button
-          v-if="store.isLocalPlayerActive"
-          class="btn-action"
-          @click="store.doAction('END_PHASE')"
-        >
-          结束阶段
-        </button>
-        <button class="btn-action btn-danger" @click="store.doAction('SURRENDER')">
-          认输
-        </button>
+        <div class="timeline-bar">
+          <div class="timeline-progress" :style="{ width: ((store.localPlayer?.timeline.length ?? 2) / 9 * 100) + '%' }"></div>
+          <span class="timeline-text">{{ store.localPlayer?.timeline.length ?? 2 }} / 9</span>
+        </div>
+        <button class="btn-action btn-primary">结束阶段</button>
+        <button class="btn-action btn-danger">认输</button>
       </div>
     </footer>
   </div>
@@ -66,7 +92,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: #0a0a1a;
+  background: var(--bg-base);
 }
 
 /* ===== 顶部 HUD ===== */
@@ -74,53 +100,76 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.6);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px var(--space-md);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
   height: 48px;
   flex-shrink: 0;
+}
+
+.hud-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.btn-back {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-back:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .opponent-info {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 14px;
+  gap: var(--space-md);
+  font-size: var(--font-size-base);
 }
 
 .phase-badge {
-  background: #4a90d9;
+  background: var(--accent-blue);
   color: #fff;
   padding: 2px 10px;
   border-radius: 10px;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .turn-info {
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .player-name {
-  color: #ccc;
+  color: var(--text-primary);
 }
 
 /* ===== 时间线进度条 ===== */
 .timeline-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   width: 200px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-base);
   border-radius: 10px;
   overflow: hidden;
   position: relative;
+  border: 1px solid var(--border);
 }
 
 .timeline-progress {
   height: 100%;
-  background: linear-gradient(90deg, #f0c040, #f08020);
+  background: linear-gradient(90deg, var(--accent-gold), var(--accent));
   border-radius: 10px;
   transition: width 0.3s ease;
 }
@@ -130,7 +179,7 @@ onUnmounted(() => {
   width: 100%;
   text-align: center;
   font-size: 11px;
-  font-weight: bold;
+  font-weight: 600;
   color: #fff;
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
 }
@@ -147,43 +196,153 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* ===== 底部 HUD ===== */
-.hud-bottom {
+/* ===== 战区占位示意 ===== */
+.battlefield-mock {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-md);
+  gap: var(--space-md);
+}
+
+.zone-row {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+  flex: 1;
+}
+
+.opponent-zone {
+  align-items: flex-end;
+}
+
+.local-zone {
+  align-items: flex-start;
+}
+
+.zone-card {
+  width: 100px;
+  height: 140px;
+  background: var(--bg-surface);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+.card-back {
+  font-size: 28px;
+  color: var(--text-disabled);
+  font-weight: 700;
+}
+
+.zone-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.timeline-mid {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.6);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  height: 48px;
+  justify-content: center;
+  height: 32px;
+}
+
+.mid-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-disabled);
+  letter-spacing: 2px;
+}
+
+/* ===== 底部 HUD ===== */
+.hud-bottom {
+  padding: 8px var(--space-md);
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.hand-area {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+}
+
+.hand-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.hand-cards {
+  display: flex;
+  gap: 4px;
+}
+
+.hand-card {
+  width: 60px;
+  height: 84px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.hand-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-4px);
+}
+
+.mini-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: var(--font-size-xs);
+  color: var(--text-disabled);
 }
 
 .action-bar {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .btn-action {
   padding: 6px 20px;
-  background: #4a90d9;
-  color: #fff;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
 }
 
-.btn-action:hover {
-  background: #357abd;
+.btn-primary {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.15);
 }
 
 .btn-danger {
-  background: #c0392b;
+  background: var(--accent);
+  color: #fff;
 }
 
 .btn-danger:hover {
-  background: #a93226;
+  filter: brightness(1.15);
 }
 </style>

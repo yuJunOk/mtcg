@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.aris.mtcg.pc",
-    "productName": "Hero Rush TCG",
+    "productName": "MTCG",
     "directories": {
       "output": "dist-electron"
     },

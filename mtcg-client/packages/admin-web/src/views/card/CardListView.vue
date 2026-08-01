@@ -139,7 +139,7 @@ onMounted(() => {
 .table-card :deep(.el-card__footer) {
   flex-shrink: 0;
   padding: 12px 16px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid #ebeef5;
 }
 
 .table-card :deep(.el-table) {
