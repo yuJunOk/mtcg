@@ -62,22 +62,9 @@
 
 ### 3.1 类型定义
 
-- 页面只定义实际用到的字段，不复制后端 VO 的所有字段
 - 类型名使用语义化命名（如 `CardVO`、`CardQueryDTO`）
 - 前后端共享类型定义在 `packages/common/src/types/`
-
-```ts
-// ✅ 只定义页面用到的字段
-export interface CardVO {
-  id: number
-  cardCode: string
-  cardName: string
-  cardType: string
-  // 只写实际用到的字段
-}
-
-// ❌ 复制后端所有字段，包括用不到的
-```
+- 迭代早期，VO 可以复制后端全部字段，避免后续扩展时反复补字段；后期稳定后再按需精简
 
 ### 3.2 字段命名
 
