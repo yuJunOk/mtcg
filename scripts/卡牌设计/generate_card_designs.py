@@ -1,36 +1,55 @@
 #!/usr/bin/env python3
 """
-生成 MTCG 5 张卡背/卡面（747x1042, radius=41）
+MTCG 卡牌设计 v5 — 清爽大气全新设计
 
-v4: 参考宝可梦/MTG 卡背设计原则重做
-- MTCG logo 缩小（占高度约 12%）
-- 中心主视觉符号占 40-50%（真正的主角）
-- 对称布局、大量留白
-- 品牌色统一、底部小字版权
+设计理念：
+  - 每张卡背有独立色彩主题，金色为统一点缀色
+  - 几何图案为主视觉，简洁有力
+  - 大量留白，克制装饰
+  - 先后卡面用冷暖对比区分
+
+输出：747×1042 圆角 R41 透明 PNG
 """
+
 from pathlib import Path
 import math
 import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+# ===== 常量 =====
 SIZE = (747, 1042)
 RADIUS = 41
 OUT_DIR = Path(r"d:\pengYuJun\Project\mtcg\assets\card\designs")
 TEX_DIR = Path(__file__).parent / "tex"
 
+# 字体
 FONT_IMPACT = "C:/Windows/Fonts/impact.ttf"
 FONT_ARIAL = "C:/Windows/Fonts/arialbd.ttf"
 FONT_SIMHEI = "C:/Windows/Fonts/simhei.ttf"
 
-RED = (200, 16, 46, 255)
-DARKRED = (139, 0, 0, 255)
-SOFTRED = (215, 38, 61, 255)
-BLACK = (10, 10, 10, 255)
+# 通用色板
+GOLD = (201, 168, 76, 255)          # 优雅金
+GOLD_DIM = (160, 130, 55, 255)       # 暗金
+GOLD_LIGHT = (220, 195, 120, 255)    # 淡金
+SILVER = (192, 196, 204, 255)        # 银
+SILVER_DIM = (150, 155, 165, 255)    # 暗银
 WHITE = (255, 255, 255, 255)
-DARK = (34, 34, 34, 255)
-GOLD = (212, 175, 55, 255)
-DARKGOLD = (160, 130, 40, 255)
+BLACK = (10, 10, 10, 255)
 
+# 主题色 —— 每张卡背独立
+NAVY_TOP = (11, 26, 48)              # 计分卡 深海蓝
+NAVY_BOT = (22, 38, 62)
+CHARCOAL_TOP = (26, 26, 28)          # 角色卡 曜石黑
+CHARCOAL_BOT = (14, 14, 16)
+BURGUNDY_TOP = (31, 12, 20)          # 先后卡背 勃艮第红
+BURGUNDY_BOT = (45, 17, 28)
+CREAM_TOP = (250, 248, 242)          # 先手卡面 象牙白
+CREAM_BOT = (238, 230, 208)
+SLATE_TOP = (28, 30, 35)             # 后手卡面 暗夜灰
+SLATE_BOT = (42, 45, 53)
+
+
+# ===== 工具函数 =====
 
 def get_font(path, size):
     return ImageFont.truetype(path, size)
@@ -62,7 +81,7 @@ def apply_corner(img, radius=RADIUS):
     return Image.fromarray(arr)
 
 
-def make_gradient_bg_fast(size, top_color, bottom_color):
+def make_gradient_bg(size, top_color, bottom_color):
     w, h = size
     arr = np.zeros((h, w, 4), dtype=np.uint8)
     for c in range(3):
@@ -79,21 +98,6 @@ def load_texture(name):
     return None
 
 
-def composite_texture_centered(base, tex, cx, cy, target_size, alpha=120, blur=0):
-    if tex is None:
-        return
-    tex_resized = tex.resize(target_size, Image.LANCZOS)
-    if blur > 0:
-        tex_resized = tex_resized.filter(ImageFilter.GaussianBlur(blur))
-    arr = np.array(tex_resized)
-    if arr.shape[2] == 4:
-        arr[:, :, 3] = (arr[:, :, 3] * alpha // 255).clip(0, 255)
-    tex_resized = Image.fromarray(arr)
-    x = cx - target_size[0] // 2
-    y = cy - target_size[1] // 2
-    base.alpha_composite(tex_resized, (x, y))
-
-
 def composite_texture_fill(base, tex, alpha=100, blur=0):
     if tex is None:
         return
@@ -103,12 +107,34 @@ def composite_texture_fill(base, tex, alpha=100, blur=0):
     arr = np.array(tex_resized)
     if arr.shape[2] == 4:
         arr[:, :, 3] = (arr[:, :, 3] * alpha // 255).clip(0, 255)
-    tex_resized = Image.fromarray(arr)
-    base.alpha_composite(tex_resized)
+    base.alpha_composite(Image.fromarray(arr))
 
 
-def draw_glow_text(img, cx, cy, text, font, fill, glow_color,
-                   glow_radius=12, glow_alpha=120):
+def composite_texture_centered(base, tex, cx, cy, target_w, target_h, alpha=120, blur=0):
+    if tex is None:
+        return
+    tex_resized = tex.resize((target_w, target_h), Image.LANCZOS)
+    if blur > 0:
+        tex_resized = tex_resized.filter(ImageFilter.GaussianBlur(blur))
+    arr = np.array(tex_resized)
+    if arr.shape[2] == 4:
+        arr[:, :, 3] = (arr[:, :, 3] * alpha // 255).clip(0, 255)
+    base.alpha_composite(Image.fromarray(arr), (cx - target_w // 2, cy - target_h // 2))
+
+
+def draw_glow_ellipse(img, cx, cy, radius, color, blur_radius=20, alpha=80):
+    pad = blur_radius * 3
+    size = radius * 2 + pad * 2
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    draw.ellipse((pad, pad, pad + radius * 2, pad + radius * 2), fill=color)
+    layer = layer.filter(ImageFilter.GaussianBlur(blur_radius))
+    arr = np.array(layer)
+    arr[:, :, 3] = (arr[:, :, 3] * alpha // 255).clip(0, 255)
+    img.alpha_composite(Image.fromarray(arr), (cx - radius - pad, cy - radius - pad))
+
+
+def draw_glow_text(img, cx, cy, text, font, fill, glow_color, glow_radius=12, glow_alpha=120):
     tmp = ImageDraw.Draw(img)
     bbox = tmp.textbbox((0, 0), text, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -125,318 +151,317 @@ def draw_glow_text(img, cx, cy, text, font, fill, glow_color,
     draw.text((x, y), text, font=font, fill=fill)
 
 
-def draw_glow_ellipse(img, cx, cy, radius, color, blur_radius=20, alpha=80):
-    pad = blur_radius * 3
-    layer = Image.new("RGBA", (radius * 2 + pad * 2, radius * 2 + pad * 2), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(layer)
-    draw.ellipse((pad, pad, pad + radius * 2, pad + radius * 2), fill=color)
-    layer = layer.filter(ImageFilter.GaussianBlur(blur_radius))
-    arr = np.array(layer)
-    arr[:, :, 3] = (arr[:, :, 3] * alpha // 255).clip(0, 255)
-    layer = Image.fromarray(arr)
-    img.alpha_composite(layer, (cx - radius - pad, cy - radius - pad))
+# ===== 装饰元素绘制 =====
+
+def draw_elegant_border(draw, W, H, color, inner_color=None):
+    """细双线框 —— 优雅克制"""
+    draw.rounded_rectangle((28, 28, W - 28, H - 28), RADIUS - 3,
+                           outline=(color[0], color[1], color[2], 100), width=1)
+    inner = inner_color or color
+    draw.rounded_rectangle((38, 38, W - 38, H - 38), RADIUS - 8,
+                           outline=inner, width=2)
 
 
-def draw_outer_frame(draw, W, H, color1, color2, w1=2, w2=4):
-    """统一外框：细线 + 粗线双框"""
-    draw.rounded_rectangle((30, 30, W - 30, H - 30), RADIUS - 3, outline=color1, width=w1)
-    draw.rounded_rectangle((40, 40, W - 40, H - 40), RADIUS - 8, outline=color2, width=w2)
+def draw_mtcg_top(draw, W, color, size=34):
+    """顶部小号 MTCG 标识"""
+    draw_text_centered(draw, W // 2, 90, "MTCG",
+                       get_font(FONT_IMPACT, size), color)
+
+
+def draw_divider(draw, W, y, color, has_diamond=True):
+    """分隔线 + 菱形点缀"""
+    alpha = (color[0], color[1], color[2], 80)
+    draw.line((160, y, W // 2 - 18, y), fill=alpha, width=1)
+    draw.line((W // 2 + 18, y, W - 160, y), fill=alpha, width=1)
+    if has_diamond:
+        sz = 5
+        draw.polygon([(W // 2 - sz, y), (W // 2, y - sz),
+                      (W // 2 + sz, y), (W // 2, y + sz)], fill=color)
 
 
 def draw_copyright(draw, W, H, text="MTCG · MARVEL TRADING CARD GAME", color=None):
-    """统一底部版权小字"""
     if color is None:
-        color = (150, 150, 150, 255)
-    f = get_font(FONT_ARIAL, 13)
-    draw_text_centered(draw, W // 2, H - 55, text, f, color)
+        color = (140, 140, 140, 255)
+    f = get_font(FONT_ARIAL, 12)
+    draw_text_centered(draw, W // 2, H - 50, text, f, color)
 
 
-def draw_mtcg_small(draw, cx, cy, color, size=36):
-    """小号 MTCG logo（顶部品牌标识）"""
-    draw_text_centered(draw, cx, cy, "MTCG", get_font(FONT_IMPACT, size), color,
-                       stroke_w=1, stroke_fill=color)
+def draw_corner_brackets(draw, W, H, color, inset=60, length=50, width=2):
+    """四角 L 形装饰 —— 像画框角码"""
+    pts = [
+        (inset, inset), (W - inset, inset),
+        (inset, H - inset), (W - inset, H - inset),
+    ]
+    for px, py in pts:
+        dx = length if px == inset else -length
+        dy = length if py == inset else -length
+        # 水平线
+        draw.line((px, py, px + dx, py), fill=color, width=width)
+        # 垂直线
+        draw.line((px, py, px, py + dy), fill=color, width=width)
 
 
-# ========== 1. Rush Point 卡背（白色主色调） ==========
+def draw_concentric_rings(draw, cx, cy, outer_r, inner_r, color, tick_count=12, tick_len=8):
+    """同心圆环 + 刻度线 —— 用于计分卡"""
+    # 外圈
+    draw.ellipse((cx - outer_r, cy - outer_r, cx + outer_r, cy + outer_r),
+                 outline=color, width=2)
+    # 内圈
+    draw.ellipse((cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r),
+                 outline=(color[0], color[1], color[2], 120), width=1)
+    # 刻度线
+    for i in range(tick_count):
+        angle = math.radians(i * 360 / tick_count - 90)
+        x1 = cx + (outer_r - 2) * math.cos(angle)
+        y1 = cy + (outer_r - 2) * math.sin(angle)
+        x2 = cx + (outer_r - tick_len) * math.cos(angle)
+        y2 = cy + (outer_r - tick_len) * math.sin(angle)
+        draw.line((x1, y1, x2, y2), fill=color, width=1)
+
+
+def draw_compass_cross(draw, cx, cy, arm_len, color, width=2):
+    """罗盘十字 —— 用于先后卡背"""
+    # 四个方向臂
+    draw.line((cx, cy - arm_len, cx, cy + arm_len), fill=color, width=width)
+    draw.line((cx - arm_len, cy, cx + arm_len, cy), fill=color, width=width)
+    # 对角细线
+    diag = int(arm_len * 0.6)
+    alpha = (color[0], color[1], color[2], 80)
+    draw.line((cx - diag, cy - diag, cx + diag, cy + diag), fill=alpha, width=1)
+    draw.line((cx + diag, cy - diag, cx - diag, cy + diag), fill=alpha, width=1)
+    # 端点小圆
+    dot_r = 4
+    for angle in [0, 90, 180, 270]:
+        rad = math.radians(angle)
+        dx = int(arm_len * math.cos(rad))
+        dy = int(arm_len * math.sin(rad))
+        draw.ellipse((cx + dx - dot_r, cy + dy - dot_r,
+                      cx + dx + dot_r, cy + dy + dot_r), fill=color)
+
+
+# ===== 1. 计分卡卡背 —— 深海蓝 + 金 =====
 
 def make_rush_point_back():
     W, H = SIZE
-    img = Image.new("RGBA", (W, H), WHITE)
+    img = make_gradient_bg(SIZE, NAVY_TOP, NAVY_BOT)
     draw = ImageDraw.Draw(img, "RGBA")
 
+    # 纹理：极淡钻石纹理
     tex_diamond = load_texture("_tex_diamond.png")
+    composite_texture_fill(img, tex_diamond, alpha=12, blur=1)
 
-    # 1. 背景：极淡钻石纹理
-    composite_texture_fill(img, tex_diamond, alpha=20, blur=1)
+    # 边框
+    draw_elegant_border(draw, W, H, GOLD)
 
-    # 2. 外框
-    draw_outer_frame(draw, W, H, GOLD, (220, 220, 220, 255), w1=2, w2=3)
+    # 顶部 MTCG
+    draw_mtcg_top(draw, W, GOLD, size=34)
 
-    # 3. 顶部小 MTCG
-    draw_mtcg_small(draw, W // 2, 100, DARK, size=40)
+    # 分隔线
+    draw_divider(draw, W, 130, GOLD)
 
-    # 4. 顶部小装饰线
-    draw.line((180, 140, W // 2 - 20, 140), fill=(200, 200, 200, 255), width=1)
-    draw.line((W // 2 + 20, 140, W - 180, 140), fill=(200, 200, 200, 255), width=1)
-    draw.polygon([(W // 2 - 6, 140), (W // 2, 134),
-                  (W // 2 + 6, 140), (W // 2, 146)], fill=GOLD)
+    # 中心主视觉：同心圆环 + RP
+    cx, cy = W // 2, 475
+    draw_glow_ellipse(img, cx, cy, 150, (201, 168, 76, 255), blur_radius=30, alpha=20)
+    draw_concentric_rings(draw, cx, cy, 145, 125, GOLD, tick_count=12, tick_len=8)
+    # RP 文字
+    draw_text_centered(draw, cx, cy, "RP", get_font(FONT_IMPACT, 85), GOLD)
 
-    # 5. 中心主视觉：大型 RP 圆形徽章（占中心 40%）
-    cx, cy = W // 2, 480
-    # 外环（金色粗）
-    draw.ellipse((cx - 130, cy - 130, cx + 130, cy + 130), outline=GOLD, width=4)
-    # 中环（灰色细）
-    draw.ellipse((cx - 115, cy - 115, cx + 115, cy + 115), outline=(180, 180, 180, 255), width=1)
-    # 内圆白底
-    draw.ellipse((cx - 100, cy - 100, cx + 100, cy + 100), fill=(250, 250, 250, 255))
-    # 红色内圈
-    draw.ellipse((cx - 85, cy - 85, cx + 85, cy + 85), fill=RED)
-    # 中心 RP 大字
-    draw_text_centered(draw, cx, cy, "RP", get_font(FONT_IMPACT, 80), WHITE)
+    # 标题
+    draw_text_centered(draw, W // 2, 700, "SCORE CARD",
+                       get_font(FONT_IMPACT, 36), GOLD)
 
-    # 6. 下方：RUSH POINT 标题
-    draw_text_centered(draw, W // 2, 680, "RUSH POINT",
-                       get_font(FONT_IMPACT, 42), DARK)
+    # 副标题
+    draw_text_centered(draw, W // 2, 742, "RUSH POINT",
+                       get_font(FONT_ARIAL, 17), (201, 168, 76, 160))
 
-    # 7. 副标题
-    draw_text_centered(draw, W // 2, 725, "SCORE CARD",
-                       get_font(FONT_ARIAL, 20), (150, 150, 150, 255))
-
-    # 8. 9 点计分刻度（超英击战 9 点规则）
-    dot_y = 810
+    # 9 点计分刻度
+    dot_y = 820
     n_dots = 9
-    margin = 100
+    margin = 120
     spacing = (W - margin * 2) // (n_dots - 1)
-    r = 9
+    r = 7
+    line_color = (201, 168, 76, 60)
+    draw.line((margin, dot_y, W - margin, dot_y), fill=line_color, width=1)
     for i in range(n_dots):
         dx = margin + i * spacing
         draw.ellipse((dx - r, dot_y - r, dx + r, dot_y + r),
-                     fill=WHITE, outline=GOLD, width=2)
-        draw.ellipse((dx - 3, dot_y - 3, dx + 3, dot_y + 3), fill=RED)
-    draw.line((margin, dot_y, W - margin, dot_y), fill=(200, 200, 200, 255), width=1)
+                     fill=GOLD, outline=(201, 168, 76, 180), width=1)
 
-    # 9. 底部版权
-    draw_copyright(draw, W, H, color=(160, 160, 160, 255))
-
+    draw_copyright(draw, W, H, color=(140, 160, 180, 180))
     return apply_corner(img)
 
 
-# ========== 2. 角色卡卡背（黑色主色调） ==========
+# ===== 2. 角色卡卡背 —— 曜石黑 + 金 =====
 
 def make_character_back():
     W, H = SIZE
-    img = Image.new("RGBA", (W, H), BLACK)
+    img = make_gradient_bg(SIZE, CHARCOAL_TOP, CHARCOAL_BOT)
     draw = ImageDraw.Draw(img, "RGBA")
 
+    # 纹理：极淡爆炸光芒（中心）
     tex_burst = load_texture("_tex_burst.png")
+    composite_texture_centered(img, tex_burst, W // 2, 480, 700, 700, alpha=18, blur=3)
 
-    # 1. 背景：爆炸光芒（极低透明度）
-    composite_texture_centered(img, tex_burst, W // 2, 500, (800, 800), alpha=35, blur=3)
+    # 边框
+    draw_elegant_border(draw, W, H, GOLD)
 
-    # 2. 外框
-    draw_outer_frame(draw, W, H, RED, (60, 60, 60, 255), w1=2, w2=3)
+    # 四角 L 形装饰
+    draw_corner_brackets(draw, W, H, GOLD, inset=70, length=55, width=2)
 
-    # 3. 顶部小 MTCG（白色发光）
-    draw_glow_text(img, W // 2, 110, "MTCG", get_font(FONT_IMPACT, 40),
-                   WHITE, RED, glow_radius=12, glow_alpha=80)
+    # 顶部 MTCG
+    draw_mtcg_top(draw, W, GOLD, size=34)
 
-    # 4. 分隔线
-    draw.line((180, 155, W // 2 - 20, 155), fill=(60, 60, 60, 255), width=1)
-    draw.line((W // 2 + 20, 155, W - 180, 155), fill=(60, 60, 60, 255), width=1)
-    draw.polygon([(W // 2 - 6, 155), (W // 2, 149),
-                  (W // 2 + 6, 155), (W // 2, 161)], fill=RED)
+    # 分隔线
+    draw_divider(draw, W, 130, GOLD)
 
-    # 5. 中心主视觉：大型 C 圆形徽章（角色卡标志）
-    cx, cy = W // 2, 500
-    # 红色光晕
-    draw_glow_ellipse(img, cx, cy, 160, (200, 30, 50, 255), blur_radius=40, alpha=40)
-    # 灰色模糊背景圆
-    bg = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    bdraw = ImageDraw.Draw(bg)
-    bdraw.ellipse((cx - 140, cy - 170, cx + 140, cy + 170), fill=(25, 25, 25, 100))
-    bg = bg.filter(ImageFilter.GaussianBlur(20))
-    img.alpha_composite(bg)
-    # 双环
-    d2 = ImageDraw.Draw(img, "RGBA")
-    d2.ellipse((cx - 130, cy - 130, cx + 130, cy + 130), outline=(80, 80, 80, 200), width=2)
-    d2.ellipse((cx - 118, cy - 118, cx + 118, cy + 118), outline=(50, 50, 50, 150), width=1)
-    # 中心大 C 字母
-    draw_text_centered(d2, cx, cy, "C", get_font(FONT_IMPACT, 140), (70, 70, 70, 220))
+    # 中心主视觉：金色圆环 + C
+    cx, cy = W // 2, 485
+    draw_glow_ellipse(img, cx, cy, 140, (201, 168, 76, 255), blur_radius=35, alpha=22)
+    # 外圈
+    draw.ellipse((cx - 140, cy - 140, cx + 140, cy + 140),
+                 outline=GOLD, width=2)
+    # 内圈
+    draw.ellipse((cx - 122, cy - 122, cx + 122, cy + 122),
+                 outline=(201, 168, 76, 100), width=1)
+    # C 字母
+    draw_text_centered(draw, cx, cy, "C", get_font(FONT_IMPACT, 135), GOLD)
 
-    # 6. 下方标题
-    draw_text_centered(draw, W // 2, 700, "CHARACTER",
-                       get_font(FONT_IMPACT, 38), (180, 30, 50, 255))
+    # 标题
+    draw_text_centered(draw, W // 2, 715, "CHARACTER",
+                       get_font(FONT_IMPACT, 34), GOLD)
 
-    # 7. 副标题
-    draw_text_centered(draw, W // 2, 745, "HERO CARD",
-                       get_font(FONT_ARIAL, 18), (100, 100, 100, 255))
+    # 副标题
+    draw_text_centered(draw, W // 2, 758, "HERO CARD",
+                       get_font(FONT_ARIAL, 16), (201, 168, 76, 140))
 
-    # 8. 底部装饰线
-    draw.line((180, 830, W - 180, 830), fill=(50, 50, 50, 255), width=1)
-
-    # 9. 底部版权
-    draw_copyright(draw, W, H, color=(80, 80, 80, 255))
-
+    draw_copyright(draw, W, H, color=(100, 100, 100, 180))
     return apply_corner(img)
 
 
-# ========== 3. 先后卡卡背（红色主色调） ==========
+# ===== 3. 先后卡卡背 —— 勃艮第红 + 金 =====
 
 def make_order_back():
     W, H = SIZE
-    # 深红渐变背景（和 First 卡面的亮红区分）
-    img = make_gradient_bg_fast(SIZE, (90, 5, 18), (50, 0, 10))
+    img = make_gradient_bg(SIZE, BURGUNDY_TOP, BURGUNDY_BOT)
     draw = ImageDraw.Draw(img, "RGBA")
 
+    # 纹理：极淡半色调
     tex_halftone = load_texture("_tex_halftone.png")
+    composite_texture_centered(img, tex_halftone, W // 2, H // 2, 800, 1100, alpha=14, blur=2)
 
-    # 1. 背景：半色调网点（低透明度，金色调）
-    composite_texture_centered(img, tex_halftone, W // 2, H // 2, (900, 1200), alpha=25, blur=2)
+    # 边框
+    draw_elegant_border(draw, W, H, GOLD)
 
-    # 2. 外框：金色 + 暗红双线
-    draw_outer_frame(draw, W, H, GOLD, (120, 10, 25, 255), w1=2, w2=3)
+    # 顶部 MTCG
+    draw_mtcg_top(draw, W, GOLD, size=34)
 
-    # 3. 顶部小 MTCG（金色）
-    draw_mtcg_small(draw, W // 2, 100, GOLD, size=40)
+    # 分隔线
+    draw_divider(draw, W, 130, GOLD)
 
-    # 4. 分隔线
-    draw.line((180, 140, W // 2 - 20, 140), fill=(212, 175, 55, 100), width=1)
-    draw.line((W // 2 + 20, 140, W - 180, 140), fill=(212, 175, 55, 100), width=1)
-    draw.polygon([(W // 2 - 6, 140), (W // 2, 134),
-                  (W // 2 + 6, 140), (W // 2, 146)], fill=GOLD)
+    # 中心主视觉：罗盘十字 + O
+    cx, cy = W // 2, 485
+    draw_glow_ellipse(img, cx, cy, 130, (201, 168, 76, 255), blur_radius=25, alpha=18)
+    draw_compass_cross(draw, cx, cy, 130, GOLD, width=2)
+    # 中心圆
+    draw.ellipse((cx - 50, cy - 50, cx + 50, cy + 50),
+                 outline=GOLD, width=2)
+    draw.ellipse((cx - 42, cy - 42, cx + 42, cy + 42),
+                 fill=(35, 14, 22, 255), outline=(201, 168, 76, 80), width=1)
+    # O 字母
+    draw_text_centered(draw, cx, cy, "O", get_font(FONT_IMPACT, 62), GOLD)
 
-    # 5. 中心主视觉：盾牌徽章（先后顺序符号）
-    cx, cy = W // 2, 500
-    draw_glow_ellipse(img, cx, cy, 140, (212, 175, 55, 255), blur_radius=25, alpha=25)
-    # 盾牌（金色边）
-    shield = [(cx, cy - 110), (cx + 95, cy - 85), (cx + 95, cy + 15),
-              (cx, cy + 110), (cx - 95, cy + 15), (cx - 95, cy - 85)]
-    draw.polygon(shield, fill=GOLD)
-    inner = [(cx, cy - 90), (cx + 78, cy - 70), (cx + 78, cy + 10),
-             (cx, cy + 90), (cx - 78, cy + 10), (cx - 78, cy - 70)]
-    draw.polygon(inner, fill=(50, 0, 10, 255))
-    # 上下双箭头（金色）
-    draw.polygon([(cx, cy - 55), (cx - 22, cy - 22), (cx - 9, cy - 22),
-                  (cx - 9, cy + 5), (cx + 9, cy + 5),
-                  (cx + 9, cy - 22), (cx + 22, cy - 22)], fill=GOLD)
-    draw.polygon([(cx, cy + 55), (cx + 22, cy + 22), (cx + 9, cy + 22),
-                  (cx + 9, cy - 5), (cx - 9, cy - 5),
-                  (cx - 9, cy + 22), (cx - 22, cy + 22)], fill=GOLD)
+    # 标题
+    draw_text_centered(draw, W // 2, 715, "ORDER",
+                       get_font(FONT_IMPACT, 38), GOLD)
 
-    # 6. 下方标题（金色）
-    draw_text_centered(draw, W // 2, 700, "ORDER",
-                       get_font(FONT_IMPACT, 42), GOLD)
+    # 副标题
+    draw_text_centered(draw, W // 2, 758, "ORDER OF PLAY",
+                       get_font(FONT_ARIAL, 16), (201, 168, 76, 140))
 
-    # 7. 副标题
-    draw_text_centered(draw, W // 2, 745, "ORDER OF PLAY",
-                       get_font(FONT_ARIAL, 18), (180, 140, 40, 255))
-
-    # 8. 底部装饰线
-    draw.line((180, 830, W - 180, 830), fill=(212, 175, 55, 60), width=1)
-
-    # 9. 底部版权
-    draw_copyright(draw, W, H, color=(180, 140, 40, 180))
-
+    draw_copyright(draw, W, H, color=(180, 140, 70, 160))
     return apply_corner(img)
 
 
-# ========== 4. First 先后卡卡面 ==========
+# ===== 4. 先手卡面 —— 象牙白 + 暗金 =====
 
 def make_order_first():
     W, H = SIZE
-    img = make_gradient_bg_fast(SIZE, (215, 38, 61), (140, 10, 25))
+    img = make_gradient_bg(SIZE, CREAM_TOP, CREAM_BOT)
     draw = ImageDraw.Draw(img, "RGBA")
 
-    tex_halftone = load_texture("_tex_halftone.png")
+    # 边框
+    draw_elegant_border(draw, W, H, GOLD_DIM)
 
-    # 1. 背景半色调（极淡）
-    composite_texture_centered(img, tex_halftone, W // 2, 420, (700, 900), alpha=25, blur=4)
+    # 顶部 MTCG
+    draw_mtcg_top(draw, W, GOLD_DIM, size=30)
 
-    # 2. 外框
-    draw_outer_frame(draw, W, H, WHITE, (255, 200, 210, 100), w1=3, w2=2)
+    # 分隔线
+    draw_divider(draw, W, 125, GOLD_DIM)
 
-    # 3. 顶部小 MTCG
-    draw_mtcg_small(draw, W // 2, 95, (255, 220, 225, 255), size=32)
-
-    # 4. 分隔线
-    draw.line((200, 130, W // 2 - 15, 130), fill=(255, 255, 255, 80), width=1)
-    draw.line((W // 2 + 15, 130, W - 200, 130), fill=(255, 255, 255, 80), width=1)
-    draw.polygon([(W // 2 - 5, 130), (W // 2, 125),
-                  (W // 2 + 5, 130), (W // 2, 135)], fill=WHITE)
-
-    # 5. 中心主视觉：巨大数字 "1"（占 45%）
-    cy_num = 420
-    draw_glow_text(img, W // 2, cy_num, "1", get_font(FONT_IMPACT, 360),
-                   WHITE, (255, 255, 255, 255), glow_radius=35, glow_alpha=50)
+    # 中心主视觉：巨大 "1"
+    cy_num = 440
+    num_color = (120, 85, 20, 255)     # 深暗金
+    draw_glow_text(img, W // 2, cy_num, "1", get_font(FONT_IMPACT, 380),
+                   num_color, (200, 180, 130, 255), glow_radius=30, glow_alpha=35)
     draw = ImageDraw.Draw(img, "RGBA")
-    draw_text_centered(draw, W // 2, cy_num, "1", get_font(FONT_IMPACT, 360),
-                       WHITE, stroke_w=4, stroke_fill=RED)
+    draw_text_centered(draw, W // 2, cy_num, "1", get_font(FONT_IMPACT, 380),
+                       num_color, stroke_w=3, stroke_fill=GOLD_DIM)
 
-    # 6. 下方 FIRST
-    draw_glow_text(img, W // 2, 700, "FIRST", get_font(FONT_IMPACT, 65),
-                   WHITE, (255, 200, 200, 255), glow_radius=15, glow_alpha=80)
+    # FIRST 标题
+    draw_text_centered(draw, W // 2, 720, "FIRST",
+                       get_font(FONT_IMPACT, 58), GOLD_DIM)
 
-    # 7. 底部说明
-    draw.line((180, 800, W - 180, 800), fill=(255, 255, 255, 50), width=1)
-    draw_text_centered(draw, W // 2, 840, "FIRST HAND",
-                       get_font(FONT_IMPACT, 24), (255, 220, 225, 255))
-    draw_text_centered(draw, W // 2, 880, "先手 · 先攻 · 先出牌",
-                       get_font(FONT_SIMHEI, 18), (255, 220, 225, 200))
+    # 底部说明
+    draw.line((180, 800, W - 180, 800), fill=(139, 105, 20, 60), width=1)
+    draw_text_centered(draw, W // 2, 845, "FIRST HAND",
+                       get_font(FONT_IMPACT, 22), (139, 105, 20, 200))
+    draw_text_centered(draw, W // 2, 885, "先手 · 先攻 · 先出牌",
+                       get_font(FONT_SIMHEI, 17), (139, 105, 20, 180))
 
-    # 8. 底部版权
-    draw_copyright(draw, W, H, color=(255, 200, 200, 180))
-
+    draw_copyright(draw, W, H, color=(160, 140, 100, 180))
     return apply_corner(img)
 
 
-# ========== 5. Second 先后卡卡面 ==========
+# ===== 5. 后手卡面 —— 暗夜灰 + 银 =====
 
 def make_order_second():
     W, H = SIZE
-    img = make_gradient_bg_fast(SIZE, (17, 17, 17), (102, 7, 7))
+    img = make_gradient_bg(SIZE, SLATE_TOP, SLATE_BOT)
     draw = ImageDraw.Draw(img, "RGBA")
 
-    tex_burst = load_texture("_tex_burst.png")
+    # 边框
+    draw_elegant_border(draw, W, H, SILVER, inner_color=SILVER_DIM)
 
-    # 1. 背景：爆炸光芒
-    composite_texture_centered(img, tex_burst, W // 2, 420, (700, 900), alpha=30, blur=4)
+    # 顶部 MTCG
+    draw_mtcg_top(draw, W, SILVER, size=30)
 
-    # 2. 外框
-    draw_outer_frame(draw, W, H, RED, (100, 10, 20, 255), w1=3, w2=2)
+    # 分隔线
+    draw_divider(draw, W, 125, SILVER)
 
-    # 3. 顶部小 MTCG
-    draw_mtcg_small(draw, W // 2, 95, (200, 60, 80, 255), size=32)
-
-    # 4. 分隔线
-    draw.line((200, 130, W // 2 - 15, 130), fill=(200, 30, 50, 120), width=1)
-    draw.line((W // 2 + 15, 130, W - 200, 130), fill=(200, 30, 50, 120), width=1)
-    draw.polygon([(W // 2 - 5, 130), (W // 2, 125),
-                  (W // 2 + 5, 130), (W // 2, 135)], fill=RED)
-
-    # 5. 中心主视觉：巨大数字 "2"
-    cy_num = 420
-    draw_glow_text(img, W // 2, cy_num, "2", get_font(FONT_IMPACT, 360),
-                   RED, (200, 30, 50, 255), glow_radius=40, glow_alpha=80)
+    # 中心主视觉：巨大 "2"
+    cy_num = 440
+    draw_glow_text(img, W // 2, cy_num, "2", get_font(FONT_IMPACT, 380),
+                   SILVER, (192, 196, 204, 255), glow_radius=35, glow_alpha=45)
     draw = ImageDraw.Draw(img, "RGBA")
-    draw_text_centered(draw, W // 2, cy_num, "2", get_font(FONT_IMPACT, 360),
-                       RED, stroke_w=3, stroke_fill=WHITE)
+    draw_text_centered(draw, W // 2, cy_num, "2", get_font(FONT_IMPACT, 380),
+                       SILVER, stroke_w=3, stroke_fill=SILVER_DIM)
 
-    # 6. 下方 SECOND
-    draw_glow_text(img, W // 2, 700, "SECOND", get_font(FONT_IMPACT, 55),
-                   RED, (200, 30, 50, 255), glow_radius=15, glow_alpha=80)
+    # SECOND 标题
+    draw_text_centered(draw, W // 2, 720, "SECOND",
+                       get_font(FONT_IMPACT, 50), SILVER)
 
-    # 7. 底部说明
-    draw.line((180, 800, W - 180, 800), fill=(200, 30, 50, 80), width=1)
-    draw_text_centered(draw, W // 2, 840, "SECOND HAND",
-                       get_font(FONT_IMPACT, 24), (255, 180, 180, 255))
-    draw_text_centered(draw, W // 2, 880, "后手 · 后攻 · 后出牌",
-                       get_font(FONT_SIMHEI, 18), (255, 180, 180, 200))
+    # 底部说明
+    draw.line((180, 800, W - 180, 800), fill=(192, 196, 204, 60), width=1)
+    draw_text_centered(draw, W // 2, 845, "SECOND HAND",
+                       get_font(FONT_IMPACT, 22), (192, 196, 204, 200))
+    draw_text_centered(draw, W // 2, 885, "后手 · 后攻 · 后出牌",
+                       get_font(FONT_SIMHEI, 17), (192, 196, 204, 180))
 
-    # 8. 底部版权
-    draw_copyright(draw, W, H, color=(255, 180, 180, 180))
-
+    draw_copyright(draw, W, H, color=(160, 165, 175, 180))
     return apply_corner(img)
 
+
+# ===== 主入口 =====
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
