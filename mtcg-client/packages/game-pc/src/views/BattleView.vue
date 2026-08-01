@@ -169,7 +169,7 @@ onUnmounted(() => {
 
 .timeline-progress {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-gold), var(--accent));
+  background: linear-gradient(90deg, var(--accent), var(--accent-blue));
   border-radius: 10px;
   transition: width 0.3s ease;
 }

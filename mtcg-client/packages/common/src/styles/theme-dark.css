@@ -1,0 +1,32 @@
+/* ============================================
+   MTCG 暗色主题（默认）
+   暗蓝灰 + 青绿魔法色
+   ============================================ */
+
+:root,
+[data-theme="dark"] {
+  --bg-base:       #1B1E2B;
+  --bg-elevated:   #1F2230;
+  --bg-surface:    #232738;
+  --bg-surface-2:  #2B3040;
+  --bg-surface-3:  #343A4D;
+
+  --border:        #2E3344;
+  --border-light:  #3A4055;
+
+  --text-primary:    rgba(255, 255, 255, 0.90);
+  --text-secondary:  rgba(255, 255, 255, 0.55);
+  --text-disabled:   rgba(255, 255, 255, 0.35);
+  --text-link:       #00D4AA;
+
+  --accent:         #00D4AA;
+  --accent-blue:    #5C6BC0;
+  --accent-green:   #4CAF50;
+  --accent-purple:  #AB47BC;
+  --accent-red:     #E53935;
+
+  --shadow-sm:   0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md:   0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(0, 212, 170, 0.25);
+}

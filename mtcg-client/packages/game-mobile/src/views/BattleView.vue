@@ -154,7 +154,7 @@ onUnmounted(() => {
 
 .timeline-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-gold), var(--accent));
+  background: linear-gradient(90deg, var(--accent), var(--accent-blue));
   border-radius: 8px;
   transition: width 0.3s ease;
 }

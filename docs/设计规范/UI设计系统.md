@@ -2,9 +2,9 @@
 
 > 本文件是 MTCG 前端 UI 的唯一设计标准。所有页面生成必须严格遵循本文档，确保跨工具、跨模型的一致性。
 >
-> **设计理念**：暗色基调 + 卡片优先 + 清爽大气 + 漫威漫画质感（仅限游戏端）
+> **设计理念**：暗色基调 + 卡片优先 + 清爽大气 + 漫威质感（仅限游戏端）
 >
-> **主题策略**：管理后台使用 Element Plus 默认白色主题，游戏端使用暗色主题。
+> **主题策略**：游戏端支持暗色（默认）/ 亮色双主题切换，管理后台使用 Element Plus 默认白色主题。
 
 ---
 
@@ -16,7 +16,7 @@
 | --- | --- |
 | **卡片优先** | UI 服务于卡牌展示，卡牌始终是视觉焦点，UI 元素不抢夺注意力 |
 | **暗色钢琴玻璃** | 深色背景 + 半透明玻璃质感面板，参考 Marvel Snap 的 "dark piano glass" |
-| **漫画未来感** | 致敬漫威漫画起源，融入半调网点、全息投影光感等微妙元素 |
+| **舒适耐看** | 避免大面积红色，UI 主色用金/蓝，红色仅用于战斗语义（攻击/HP/危险），长时间游戏不疲劳 |
 | **清爽克制** | 每屏核心信息控制在 5-9 项，减少认知负担，大面积留白 |
 | **性能优先** | 优先 CSS 变量实现主题，避免运行时计算；动画用 transform/opacity |
 
@@ -25,103 +25,33 @@
 | 场景 | 渲染方式 | 主题 | 样式来源 |
 | --- | --- | --- | --- |
 | 管理后台（admin-web） | Vue 3 + Element Plus | Element Plus 默认白色 | 无额外样式，使用 Element Plus 原生 |
-| 游戏客户端（game-pc / game-mobile） | Vue 3 外壳 + PixiJS 画布 | 暗色主题 | `game-theme.css` CSS 变量 + PixiJS 内联样式 |
-| 公共组件（common） | Vue 3 通用组件 | 跟随宿主 | 暗色主题 CSS 变量（`game-theme.css`） |
+| 游戏客户端（game-pc / game-mobile） | Vue 3 外壳 + PixiJS 画布 | 暗色（默认）/ 亮色，用户可切换 | `theme-base.css` + `theme-dark.css` / `theme-light.css` + Pinia themeStore |
 
 ---
 
 ## 2. 色彩系统
 
-### 2.1 基础色板
+> 游戏端支持暗色 / 亮色双主题，通过 `data-theme="dark"|"light"` 属性切换 CSS 变量。
 
-```
-深色底色（由深到浅，用于 elevation 层级）：
-  --color-bg-base:       #0D0D0D    ← 最底层背景
-  --color-bg-elevated:   #121212    ← 主背景（Material Design 推荐值）
-  --color-bg-surface:    #1A1A2E    ← 卡片/面板（带微蓝调）
-  --color-bg-surface-2:  #24243A    ← 悬浮面板
-  --color-bg-surface-3:  #2E2E4A    ← 弹窗/模态框
-  --color-border:        #2A2A3E    ← 边框/分割线
-  --color-border-light:  #3A3A50    ← 弱边框
+### 2.1 暗色主题（默认）
 
-文字色：
-  --color-text-primary:   rgba(255,255,255,0.92)   ← 主文字
-  --color-text-secondary: rgba(255,255,255,0.60)   ← 辅助文字
-  --color-text-disabled:  rgba(255,255,255,0.38)   ← 禁用文字
-  --color-text-link:      #6C9FFF                    ← 链接文字
+| 变量 | 色值 | 说明 |
+| --- | --- | --- |
+| `--bg-base` | `#1B1E2B` | 暗蓝灰底，比纯黑柔和 |
+| `--bg-surface` | `#232738` | 卡片/面板 |
+| `--accent` | `#00D4AA` | 青绿魔法色，主强调 |
+| `--accent-blue` | `#5C6BC0` | 靛蓝，辅助/信息 |
+| `--accent-red` | `#E53935` | 仅战斗/危险 |
 
-漫威主题色：
-  --color-marvel-red:     #E23636    ← 主强调色（能量/攻击/危险）
-  --color-marvel-gold:    #F78F3F    ← 辅助强调色（稀有/胜利/高亮）
-  --color-marvel-blue:    #518CCA    ← 信息色（防御/链接/冷静）
-  --color-marvel-green:   #2ECC71    ← 成功色（回复/确认/安全）
-  --color-marvel-purple:  #9B59B6    ← 特殊色（效果/魔力/稀有）
-```
+### 2.2 亮色主题
 
-### 2.2 CSS 变量定义
-
-```css
-:root {
-  /* 背景层级 */
-  --bg-base:       #0D0D0D;
-  --bg-elevated:   #121212;
-  --bg-surface:    #1A1A2E;
-  --bg-surface-2:  #24243A;
-  --bg-surface-3:  #2E2E4A;
-
-  /* 边框 */
-  --border:        #2A2A3E;
-  --border-light:  #3A3A50;
-
-  /* 文字 */
-  --text-primary:    rgba(255, 255, 255, 0.92);
-  --text-secondary:  rgba(255, 255, 255, 0.60);
-  --text-disabled:   rgba(255, 255, 255, 0.38);
-  --text-link:       #6C9FFF;
-
-  /* 主题色 */
-  --accent:         #E23636;   /* 主强调 */
-  --accent-gold:    #F78F3F;   /* 辅助强调 */
-  --accent-blue:    #518CCA;   /* 信息 */
-  --accent-green:   #2ECC71;   /* 成功 */
-  --accent-purple:  #9B59B6;   /* 特殊 */
-
-  /* 圆角 */
-  --radius-sm:  4px;
-  --radius-md:  8px;
-  --radius-lg:  12px;
-  --radius-xl:  16px;
-
-  /* 阴影 */
-  --shadow-sm:   0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-md:   0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 20px rgba(226, 54, 54, 0.3);  /* 红色辉光 */
-
-  /* 间距 */
-  --space-xs:  4px;
-  --space-sm:  8px;
-  --space-md:  16px;
-  --space-lg:  24px;
-  --space-xl:  32px;
-  --space-2xl: 48px;
-
-  /* 字体 */
-  --font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
-  --font-size-xs:   12px;
-  --font-size-sm:   13px;
-  --font-size-base: 14px;
-  --font-size-md:   16px;
-  --font-size-lg:   20px;
-  --font-size-xl:   24px;
-  --font-size-2xl:  32px;
-
-  /* 过渡 */
-  --transition-fast: 150ms ease;
-  --transition-base: 250ms ease;
-  --transition-slow: 400ms ease;
-}
-```
+| 变量 | 色值 | 说明 |
+| --- | --- | --- |
+| `--bg-base` | `#F2F0EB` | 漫画纸米白 |
+| `--bg-surface` | `#FFFFFF` | 卡片/面板 |
+| `--accent` | `#E17055` | 珊瑚橙，温暖不刺眼 |
+| `--accent-blue` | `#1565C0` | 美队盾蓝，辅助/信息 |
+| `--accent-red` | `#D32F2F` | 仅战斗/危险 |
 
 ### 2.3 色彩使用规则
 
@@ -130,15 +60,19 @@
 | 页面背景 | `--bg-base` | 全局底色 |
 | 卡片/面板 | `--bg-surface` | 表格、信息卡、侧边栏 |
 | 弹窗 | `--bg-surface-3` | 模态框、下拉菜单 |
-| 主按钮 | `--accent`（红底白字） | 提交、确认、攻击 |
-| 次按钮 | `--bg-surface-2`（暗底白字） | 取消、返回 |
-| 危险按钮 | `--accent`（红底白字） | 删除、重置 |
+| 主按钮 | `--accent`（主题色） | 提交、确认、开始对战 |
+| 次按钮 | `--bg-surface-2` | 取消、返回 |
+| 导航选中 | `--accent` | 侧边栏/Tab 当前项 |
+| 危险按钮 | `--accent-red` | 删除、重置、退出对战 |
 | 成功状态 | `--accent-green` | 操作成功提示 |
-| 警告状态 | `--accent-gold` | 警告提示 |
+| 警告状态 | `--accent` | 警告提示 |
+| 攻击/HP/伤害 | `--accent-red` | 战斗界面中的攻击力、HP 条 |
 | 普通文字 | `--text-primary` | 正文、标题 |
 | 辅助文字 | `--text-secondary` | 描述、标签、时间戳 |
 | 边框分割 | `--border` | 表格线、卡片边框 |
 | 卡片悬浮 | `--bg-surface-2` + `--shadow-md` | hover 状态 |
+
+> **红色使用禁令**：`--accent-red` 仅限战斗场景。常规 UI 导航、按钮、标签、统计数字等一律使用 `--accent`（主题色）或 `--accent-blue`。
 
 ---
 
@@ -230,7 +164,7 @@
 | 主按钮 | `--accent` | `#FFF` | 无 | `--radius-sm` | 32px |
 | 次按钮 | `--bg-surface-2` | `--text-primary` | `--border` | `--radius-sm` | 32px |
 | 文字按钮 | 透明 | `--text-link` | 无 | - | - |
-| 危险按钮 | `--accent` | `#FFF` | 无 | `--radius-sm` | 32px |
+| 危险按钮 | `--accent-red` | `#FFF` | 无 | `--radius-sm` | 32px |
 
 - 最小可点击区域：32×32px（PC），44×44px（移动端）
 - 按钮间距：`--space-sm`（8px）
@@ -316,10 +250,10 @@ PixiJS 内渲染时，直接用 16 进制色值，与 CSS 变量保持一致：
 
 | 元素 | 色值 |
 | --- | --- |
-| 游戏背景 | `0x0D0D0D` |
-| 战区面板 | `0x1A1A2E` |
-| 战区边框 | `0x2A2A3E` |
-| 高亮战区 | `0xE23636`（辉光） |
+| 游戏背景 | `0x1B1E2B`（暗）/ `0xF2F0EB`（亮） |
+| 战区面板 | `0x232738`（暗）/ `0xFFFFFF`（亮） |
+| 战区边框 | `0x2E3344`（暗）/ `0xE0DED8`（亮） |
+| 高亮战区 | `0x00D4AA`（暗）/ `0xE17055`（亮） |
 | 手牌背景 | `0x121212` |
 | 卡牌文字 | `0xFFFFFF`（主）、`0x999999`（辅） |
 
@@ -327,7 +261,7 @@ PixiJS 内渲染时，直接用 16 进制色值，与 CSS 变量保持一致：
 
 - 卡牌尺寸：120×168px（PC），按比例缩放（移动端）
 - 卡图用 `PIXI.Sprite` 加载，保持原始比例
-- 卡牌选中：红色辉光边框（`--shadow-glow`）
+- 卡牌选中：金色辉光边框（`--shadow-glow`）
 - 卡牌悬停：`scale: 1.05`，`zIndex` 提升
 
 ### 8.3 对战布局
@@ -382,7 +316,7 @@ PixiJS 内渲染时，直接用 16 进制色值，与 CSS 变量保持一致：
 - [ ] 背景色使用 `--bg-base`（非纯黑 `#000`）
 - [ ] 卡片/面板使用 `--bg-surface` 系列
 - [ ] 文字使用 `--text-primary` / `--text-secondary`
-- [ ] 主色使用 `--accent`（红），不自行定义主色
+- [ ] 主色使用 `--accent`（主题色），不自行定义主色；红色仅用于 `--accent-red`（战斗/危险）
 - [ ] 圆角使用 `--radius-*` 变量
 - [ ] 间距使用 `--space-*` 变量（4px 倍数）
 - [ ] 按钮最小 32px 高度
@@ -392,3 +326,31 @@ PixiJS 内渲染时，直接用 16 进制色值，与 CSS 变量保持一致：
 - [ ] 游戏客户端 PixiJS 色值与 CSS 变量保持一致
 - [ ] 页面内容区撑满剩余高度（flex: 1）
 - [ ] 分页/操作栏固定在底部
+
+---
+
+## 12. 参考来源
+
+| 参考 | 链接 | 借鉴要点 |
+| --- | --- | --- |
+| TCG ONE | https://tcg.one/ | 功能模块卡片网格、Hero Banner + 统计数据、热门排行、Explore 卡片设计 |
+| One Piece TCG Online | https://www.onepieceonlinetcg.com/play | 清爽蓝/海军色主题、3 列功能卡片、简洁克制配色、克制红色使用 |
+| TCGSecret | https://tcgsecret.com/ | Hero CTA 双按钮、统计计数器、"How it works" 步骤引导、Coming Soon 占位、分类网格 |
+| Marvel Snap | — | 暗色钢琴玻璃质感、卡片悬浮辉光效果、漫画半调网点元素 |
+| PTCG Live | — | 系统预设头像方案、卡牌 3D 旋转动画、战区布局 |
+
+### 12.1 色彩策略总结
+
+游戏端支持暗色 / 亮色双主题，通过 `data-theme` 属性切换：
+- **暗色（默认）**：暗蓝灰底 + 青绿魔法色，沉浸感强，长时间不疲劳
+- **亮色**：漫画纸米白 + 珊瑚橙暖色，干净清爽，像翻漫画书
+- 红色仅用于战斗/危险，两个主题均保持克制使用
+
+### 12.2 主题切换实现
+
+- 主题状态通过 Pinia `useThemeStore` 管理，持久化到 `localStorage`
+- CSS 变量通过 `data-theme="dark"|"light"` 属性切换
+- 文件结构：
+  - `theme-base.css` — 重置 + 共享变量（圆角、间距、字体、过渡）
+  - `theme-dark.css` — 暗色主题变量（`:root, [data-theme="dark"]`）
+  - `theme-light.css` — 亮色主题变量（`[data-theme="light"]`）

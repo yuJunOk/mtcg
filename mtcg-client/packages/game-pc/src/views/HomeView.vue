@@ -1,21 +1,71 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useThemeStore } from '@mtcg/common/stores'
 
 const emit = defineEmits<{
   navigate: [view: string]
 }>()
 
-const modes = [
-  { key: 'quick', icon: '⚡', label: '快速匹配', desc: '随机匹配对手' },
-  { key: 'ranked', icon: '🏆', label: '排位赛', desc: '青铜 · 进行 3/10 定级赛' },
-  { key: 'friend', icon: '🤝', label: '好友对战', desc: '与好友切磋' },
-  { key: 'ai', icon: '🤖', label: 'AI 训练', desc: '练习模式' },
+const theme = useThemeStore()
+
+const exploreModules = [
+  {
+    key: 'cards',
+    icon: '📇',
+    title: '卡牌图鉴',
+    desc: '浏览全部卡牌，支持按类型、颜色、稀有度筛选',
+    cta: '浏览图鉴',
+  },
+  {
+    key: 'deck-builder',
+    icon: '🃏',
+    title: '卡组构筑',
+    desc: '可视化卡组编辑器，支持格式校验与导入导出',
+    cta: '构筑卡组',
+  },
+  {
+    key: 'my-decks',
+    icon: '📦',
+    title: '我的卡组',
+    desc: '管理已保存的卡组，分享或设为私密',
+    cta: '查看卡组',
+  },
+  {
+    key: 'collection',
+    icon: '📚',
+    title: '我的收藏',
+    desc: '登记拥有的卡牌，追踪收集进度',
+    cta: '查看收藏',
+  },
+  {
+    key: 'leaderboard',
+    icon: '🏆',
+    title: '排行榜',
+    desc: '全服排位、赛季战绩、胜率统计',
+    cta: '查看排行',
+  },
+  {
+    key: 'career',
+    icon: '📈',
+    title: '生涯记录',
+    desc: '对局历史、成就徽章、打牌习惯分析',
+    cta: '查看生涯',
+  },
 ]
 
-const news = [
-  { title: '新卡包「时空裂隙」现已上线', date: '08-01', tag: '新卡包', color: 'var(--accent-gold)' },
-  { title: '排位赛 S1 赛季开启', date: '07-28', tag: '赛季', color: 'var(--accent)' },
-  { title: '平衡性调整公告 v1.0.2', date: '07-25', tag: '公告', color: 'var(--accent-blue)' },
+const popularDecks = [
+  { rank: 1, name: '复仇者突击', format: '标准', wins: 2456 },
+  { rank: 2, name: '银河护卫队', format: '标准', wins: 1892 },
+  { rank: 3, name: 'X战警控制', format: '标准', wins: 1567 },
+  { rank: 4, name: '灭霸快攻', format: '扩展', wins: 1342 },
+  { rank: 5, name: '蜘蛛侠联动', format: '标准', wins: 1108 },
+]
+
+const stats = [
+  { value: '248', label: '收集卡牌', cssVar: '--accent-red' },
+  { value: '12', label: '卡组', cssVar: '--accent' },
+  { value: '67', label: '胜场', cssVar: '--accent-blue' },
+  { value: '54%', label: '胜率', cssVar: '--accent-green' },
 ]
 </script>
 
@@ -37,16 +87,20 @@ const news = [
           <span>对战</span>
         </a>
         <a class="nav-item">
-          <span class="nav-icon">📦</span>
-          <span>我的收藏</span>
+          <span class="nav-icon">📇</span>
+          <span>图鉴</span>
         </a>
         <a class="nav-item">
           <span class="nav-icon">🃏</span>
-          <span>卡组构筑</span>
+          <span>卡组</span>
         </a>
         <a class="nav-item">
-          <span class="nav-icon">🛒</span>
-          <span>商店</span>
+          <span class="nav-icon">📚</span>
+          <span>收藏</span>
+        </a>
+        <a class="nav-item">
+          <span class="nav-icon">🏆</span>
+          <span>排行</span>
         </a>
       </nav>
       <div class="user-info">
@@ -56,70 +110,83 @@ const news = [
           <div class="rank">青铜 III</div>
         </div>
       </div>
+      <div class="theme-toggle" @click="theme.toggle()">
+        {{ theme.theme === 'dark' ? '☀️ 亮色' : '🌙 暗色' }}
+      </div>
     </aside>
 
     <!-- 主内容区 -->
     <main class="main-content">
-      <!-- 顶部 -->
-      <header class="top-bar">
-        <div class="greeting">欢迎回来，PlayerOne</div>
-        <div class="resources">
-          <span class="resource">🪙 1,280</span>
-          <span class="resource">💎 320</span>
+      <!-- Hero Banner -->
+      <section class="hero">
+        <div class="hero-content">
+          <h1 class="hero-title">MTCG 超英集换式卡牌</h1>
+          <p class="hero-desc">全自动规则引擎 · 漫威英雄集结 · 策略对战</p>
+          <div class="hero-stats">
+            <span class="hero-stat"><strong>248</strong> 张卡牌</span>
+            <span class="hero-stat"><strong>12</strong> 个扩展</span>
+            <span class="hero-stat"><strong>4</strong> 种赛制</span>
+          </div>
+          <button class="hero-cta" @click="emit('navigate', 'battle')">
+            开始对战
+          </button>
         </div>
-      </header>
+      </section>
 
-      <!-- 对战模式 -->
+      <!-- 个人统计 -->
+      <section class="stats-bar">
+        <div class="stat-item" v-for="s in stats" :key="s.label">
+          <span class="stat-value" :style="{ color: `var(${s.cssVar})` }">{{ s.value }}</span>
+          <span class="stat-label">{{ s.label }}</span>
+        </div>
+      </section>
+
+      <!-- 功能模块 Explore Grid -->
       <section class="section">
-        <h2 class="section-title">选择模式</h2>
-        <div class="mode-grid">
+        <h2 class="section-title">探索</h2>
+        <div class="explore-grid">
           <div
-            v-for="m in modes"
+            v-for="m in exploreModules"
             :key="m.key"
-            class="mode-card"
-            @click="emit('navigate', 'battle')"
+            class="explore-card"
+            @click="m.key === 'deck-builder' ? emit('navigate', 'battle') : null"
           >
-            <span class="mode-icon">{{ m.icon }}</span>
-            <div class="mode-info">
-              <div class="mode-label">{{ m.label }}</div>
-              <div class="mode-desc">{{ m.desc }}</div>
+            <span class="explore-icon">{{ m.icon }}</span>
+            <div class="explore-info">
+              <h3 class="explore-title">{{ m.title }}</h3>
+              <p class="explore-desc">{{ m.desc }}</p>
             </div>
+            <span class="explore-cta">{{ m.cta }} →</span>
           </div>
         </div>
       </section>
 
-      <!-- 新闻 + 统计 -->
+      <!-- 热门卡组 + 社区 -->
       <div class="bottom-row">
-        <section class="section news-section">
-          <h2 class="section-title">最新消息</h2>
-          <div class="news-list">
-            <div v-for="n in news" :key="n.title" class="news-item">
-              <span class="news-tag" :style="{ background: n.color }">{{ n.tag }}</span>
-              <span class="news-title">{{ n.title }}</span>
-              <span class="news-date">{{ n.date }}</span>
+        <section class="section popular-section">
+          <h2 class="section-title">热门卡组</h2>
+          <div class="popular-list">
+            <div
+              v-for="d in popularDecks"
+              :key="d.rank"
+              class="popular-item"
+            >
+              <span class="popular-rank">#{{ d.rank }}</span>
+              <div class="popular-info">
+                <span class="popular-name">{{ d.name }}</span>
+                <span class="popular-meta">{{ d.format }} · {{ d.wins }} 胜</span>
+              </div>
             </div>
           </div>
         </section>
 
-        <section class="section stats-section">
-          <h2 class="section-title">我的战绩</h2>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value accent">67</div>
-              <div class="stat-label">总胜场</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value gold">54%</div>
-              <div class="stat-label">胜率</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value blue">12</div>
-              <div class="stat-label">收藏卡组</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value purple">248</div>
-              <div class="stat-label">收集卡牌</div>
-            </div>
+        <section class="section community-section">
+          <h2 class="section-title">加入社区</h2>
+          <p class="community-desc">与数千名玩家一起对战、交流、构筑卡组。</p>
+          <div class="community-links">
+            <a class="community-link">💬 Discord</a>
+            <a class="community-link">📋 论坛</a>
+            <a class="community-link">📖 规则书</a>
           </div>
         </section>
       </div>
@@ -234,175 +301,111 @@ const news = [
 
 .rank {
   font-size: var(--font-size-xs);
-  color: var(--accent-gold);
+  color: var(--accent);
+}
+
+.theme-toggle {
+  padding: 8px var(--space-md);
+  border-top: 1px solid var(--border);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.theme-toggle:hover {
+  color: var(--accent);
+  background: var(--bg-surface-2);
 }
 
 /* ===== 主内容区 ===== */
 .main-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
 }
 
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* ===== Hero Banner ===== */
+.hero {
+  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-elevated) 50%, var(--bg-surface) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2xl) var(--space-xl);
 }
 
-.greeting {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
+.hero-content {
+  max-width: 800px;
 }
 
-.resources {
-  display: flex;
-  gap: var(--space-md);
-}
-
-.resource {
-  background: var(--bg-surface);
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-}
-
-/* ===== 区块 ===== */
-.section {
-  flex-shrink: 0;
-}
-
-.section-title {
-  font-size: var(--font-size-md);
-  font-weight: 600;
+.hero-title {
+  font-size: 28px;
+  font-weight: 700;
   color: var(--text-primary);
   margin-bottom: var(--space-sm);
 }
 
-/* ===== 模式卡片 ===== */
-.mode-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-md);
+.hero-desc {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
 }
 
-.mode-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  cursor: pointer;
-  transition: all var(--transition-fast);
+.hero-stats {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--space-sm);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
 }
 
-.mode-card:hover {
-  background: var(--bg-surface-2);
-  border-color: var(--accent);
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-2px);
+.hero-stat {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
-.mode-icon {
-  font-size: 36px;
+.hero-stat strong {
+  color: var(--accent);
+  font-size: var(--font-size-lg);
+  margin-right: 4px;
 }
 
-.mode-label {
+.hero-cta {
+  display: inline-block;
+  padding: 12px 32px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
   font-size: var(--font-size-md);
   font-weight: 600;
-  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.mode-desc {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+.hero-cta:hover {
+  filter: brightness(1.1);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-1px);
 }
 
-/* ===== 底部双栏 ===== */
-.bottom-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-  flex: 1;
-  min-height: 0;
-}
-
-.news-section {
-  min-width: 0;
-}
-
-.news-list {
+/* ===== 统计条 ===== */
+.stats-bar {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-md);
+  padding: 0 var(--space-xl);
 }
 
-.news-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: 10px var(--space-md);
-  background: var(--bg-surface);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  transition: background var(--transition-fast);
-}
-
-.news-item:hover {
-  background: var(--bg-surface-2);
-}
-
-.news-tag {
-  font-size: var(--font-size-xs);
-  padding: 2px 8px;
-  border-radius: 10px;
-  color: #fff;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.news-title {
+.stat-item {
   flex: 1;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.news-date {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-/* ===== 统计卡片 ===== */
-.stats-section {
-  min-width: 0;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-sm);
-}
-
-.stat-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-md);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .stat-value {
@@ -410,14 +413,164 @@ const news = [
   font-weight: 700;
 }
 
-.stat-value.accent { color: var(--accent); }
-.stat-value.gold { color: var(--accent-gold); }
-.stat-value.blue { color: var(--accent-blue); }
-.stat-value.purple { color: var(--accent-purple); }
-
 .stat-label {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
-  margin-top: 4px;
+}
+
+/* ===== 区块 ===== */
+.section {
+  padding: 0 var(--space-xl);
+}
+
+.section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+}
+
+/* ===== Explore 网格 ===== */
+.explore-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+.explore-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.explore-card:hover {
+  background: var(--bg-surface-2);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.explore-icon {
+  font-size: 32px;
+}
+
+.explore-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.explore-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+  flex: 1;
+}
+
+.explore-cta {
+  font-size: var(--font-size-sm);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ===== 底部双栏 ===== */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  padding: 0 var(--space-xl) var(--space-xl);
+}
+
+.popular-section {
+  padding: 0;
+}
+
+.popular-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.popular-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px var(--space-md);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  transition: background var(--transition-fast);
+  cursor: pointer;
+}
+
+.popular-item:hover {
+  background: var(--bg-surface-2);
+}
+
+.popular-rank {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  width: 40px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.popular-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.popular-name {
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.popular-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* ===== 社区 ===== */
+.community-section {
+  padding: 0;
+}
+
+.community-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+  line-height: 1.6;
+}
+
+.community-links {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.community-link {
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.community-link:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: var(--bg-surface-2);
 }
 </style>

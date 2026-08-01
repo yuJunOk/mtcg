@@ -1,0 +1,31 @@
+/* ============================================
+   MTCG 亮色主题
+   漫画纸米白 + 珊瑚橙暖色
+   ============================================ */
+
+[data-theme="light"] {
+  --bg-base:       #F2F0EB;
+  --bg-elevated:   #F8F7F4;
+  --bg-surface:    #FFFFFF;
+  --bg-surface-2:  #F5F5F5;
+  --bg-surface-3:  #EDEDED;
+
+  --border:        #E0DED8;
+  --border-light:  #EBE9E4;
+
+  --text-primary:    rgba(0, 0, 0, 0.87);
+  --text-secondary:  rgba(0, 0, 0, 0.55);
+  --text-disabled:   rgba(0, 0, 0, 0.38);
+  --text-link:       #1565C0;
+
+  --accent:         #E17055;
+  --accent-blue:    #1565C0;
+  --accent-green:   #2E7D32;
+  --accent-purple:  #7B1FA2;
+  --accent-red:     #D32F2F;
+
+  --shadow-sm:   0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md:   0 2px 12px rgba(0, 0, 0, 0.10);
+  --shadow-lg:   0 4px 24px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(225, 112, 85, 0.25);
+}

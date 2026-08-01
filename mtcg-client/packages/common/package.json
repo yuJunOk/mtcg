@@ -10,7 +10,9 @@
     "./stores": "./src/stores/index.ts",
     "./api": "./src/api/index.ts",
     "./types": "./src/types/index.ts",
-    "./styles": "./src/styles/game-theme.css"
+    "./styles": "./src/styles/theme-base.css",
+    "./styles/dark": "./src/styles/theme-dark.css",
+    "./styles/light": "./src/styles/theme-light.css"
   },
   "dependencies": {
     "axios": "^1.7.0"
