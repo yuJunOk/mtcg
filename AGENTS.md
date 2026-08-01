@@ -2,8 +2,11 @@
 
 > **每次编码前必须读取以下文件：**
 >
-> 1. [docs/AI编码规范.md](./docs/AI编码规范.md) — 分层、命名、枚举、注释等强制规范
-> 2. 对应迭代的详细设计文档（见下方索引表）
+> 1. [后端编码规范](./docs/编码规范/后端AI编码规范.md) — 分层、命名、枚举、注释等强制规范
+> 2. [前端编码规范](./docs/编码规范/前端AI编码规范.md) — Vue 3 / TS / Element Plus / Pinia 等强制规范
+> 3. 对应迭代的详细设计文档（见下方索引表）
+
+---
 
 ## 设计文档索引
 
@@ -31,6 +34,23 @@
 | [术语表与关键词速查](./docs/规则文档/03-术语表与关键词速查.md) | 引擎枚举映射 |
 | [区域模型与回合流程](./docs/规则文档/04-区域模型与回合流程.md) | 代码建模参考 |
 | [规则 Q&A 第一期](./docs/规则文档/05-规则Q&A-第1期.md) | 边缘情况判例，效果结算顺序澄清，可作测试场景 |
+
+## 工程结构
+
+```
+mtcg/
+├── docs/                       ← 全局文档（规则 + 设计 + 编码规范）
+├── mtcg-server/                ← 后端（Java + Spring Boot）
+├── mtcg-client/                ← 前端 Monorepo
+│   └── packages/
+│       ├── common/             ← 共享包
+│       ├── admin-web/          ← 管理后台（Vue 3 + Element Plus）
+│       ├── game-pc/            ← PC 游戏端（Vue 3 + PixiJS + Electron）
+│       └── game-mobile/        ← 移动游戏端（Vue 3 + PixiJS + Capacitor）
+├── assets/                     ← 静态资源
+├── scripts/                    ← 工具脚本
+└── AGENTS.md                   ← 本文件
+```
 
 ## 当前迭代
 
