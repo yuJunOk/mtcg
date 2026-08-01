@@ -6,6 +6,8 @@
 > 2. [前端编码规范](./docs/编码规范/前端AI编码规范.md) — Vue 3 / TS / Element Plus / Pinia 等强制规范
 > 3. 对应迭代的详细设计文档（见下方索引表）
 
+**提交规范**：git commit message 必须使用中文
+
 ---
 
 ## 设计文档索引
