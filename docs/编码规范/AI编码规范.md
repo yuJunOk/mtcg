@@ -231,6 +231,20 @@ public class CardDO {
 | 移动游戏端 | `mtcg-client/packages/game-mobile` | Vue 3 + PixiJS + Capacitor，**禁止**写成 `mtcg-mobile` / `game-mobile-web` |
 | 前端共享包 | `mtcg-client/packages/common` | TS 类型 / API 封装 / Pinia / PixiJS 基类，**禁止**写成 `shared` / `common-web` |
 
+### 8.1.1 自有项目 vs 官方游戏命名区分（重要）
+
+**自有文档中，MTCG 和官方游戏名称必须区分使用，禁止混用：**
+
+| 上下文 | 使用名称 | 示例 |
+| --- | --- | --- |
+| 我们开发的项目/系统/代码 | `MTCG` | `MTCG 后端程序`、`MTCG_USER` 表、`MTCG_JWT_SECRET` |
+| 官方游戏本身 | `《超英击战》` | `《超英击战》规则`、`《超英击战》卡牌游戏` |
+| 官方规则书/文档 | 保留原名 | 标题 `《超英击战》综合规则书`、来源 `官方微信公众号` |
+| 版权声明 | 保留原名 | `Hero Rush © Card Fun`、`Marvel ©2026 MARVEL` |
+| 官方译名 | `Hero Rush TCG` | 仅在引用官方英文名时使用 |
+
+**判断标准**：描述的是"我们做的系统"用 MTCG，描述的是"官方游戏/规则/概念"用《超英击战》或 Hero Rush TCG。
+
 ### 8.2 前端目录结构
 
 ```
