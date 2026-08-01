@@ -1,0 +1,15 @@
+{
+  "name": "mtcg-client",
+  "private": true,
+  "workspaces": [
+    "packages/common",
+    "packages/game-pc",
+    "packages/game-mobile"
+  ],
+  "scripts": {
+    "dev:pc": "npm -w @mtcg/game-pc run dev",
+    "dev:mobile": "npm -w @mtcg/game-mobile run dev",
+    "build:pc": "npm -w @mtcg/game-pc run build",
+    "build:mobile": "npm -w @mtcg/game-mobile run build"
+  }
+}

@@ -63,7 +63,11 @@ docs/
 ├── mtcg-server/             ← 后端模块
 │   ├── docs/                ← 后端专属技术文档
 │   └── AGENTS.md            ← AI 规则入口
-├── mtcg-admin-web/          ← 前端模块
+├── mtcg-client/             ← 前端 Monorepo
+│   ├── packages/
+│   │   ├── common/          ← 共享包（PixiJS、Pinia、API）
+│   │   ├── game-pc/         ← PC 端（Electron）
+│   │   └── game-mobile/     ← 移动端（Capacitor）
 │   └── docs/                ← 前端专属技术文档
 └── README.md
 ```
@@ -200,15 +204,18 @@ docs/
 ```
 mtcg/                        ← 仓库根目录（项目代号）
 ├── mtcg-server/             ← 后端服务
-├── mtcg-admin-web/          ← 管理后台前端
-├── mtcg-client-web/         ← 玩家 Web 端（未来）
-├── mtcg-client-desktop/     ← 桌面端（未来）
+├── mtcg-client/             ← 前端 Monorepo（PC + 移动端游戏客户端）
+│   ├── packages/common/     ← 共享包
+│   ├── packages/game-pc/    ← PC 端
+│   └── packages/game-mobile/← 移动端
+├── assets/                  ← 静态资源
+├── scripts/                 ← 工具脚本
 └── docs/                    ← 全局文档
 ```
 
 **为什么用前缀**：
 - 未来拆分为多模块时，命名天然支持
-- 不同面向用户（admin/client）、不同终端（web/desktop）可扩展
+- 不同终端（PC/移动端）在 Monorepo 内以 packages 区分
 - GitHub 仓库搜索友好
 
 #### 5.2 技术栈确定
@@ -221,24 +228,31 @@ mtcg/                        ← 仓库根目录（项目代号）
 | AI 框架 | Spring AI | 后端集成 AI 能力 |
 | 前端框架 | Vue 3 + Vite | 管理后台首选 |
 
-#### 5.3 前端工程结构
+#### 5.3 前端工程结构（Monorepo）
 
 ```
-mtcg-admin-web/
-├── docs/                    ← 前端专属文档
-├── src/
-│   ├── assets/             ← 静态资源
-│   ├── components/          ← 公共组件
-│   ├── views/              ← 页面
-│   ├── stores/              ← Pinia 状态管理
-│   ├── router/             ← 路由
-│   ├── api/                 ← API 封装
-│   ├── utils/               ← 工具函数
-│   └── styles/              ← 样式
-├── index.html
-├── package.json
-└── README.md
+mtcg-client/
+├── package.json                 ← npm workspaces 根配置
+├── docs/                        ← 前端专属文档
+├── packages/
+│   ├── common/                  ← 共享包（PC + 移动端共用）
+│   │   └── src/
+│   │       ├── types/           ← TS 类型定义（对应后端 GameState）
+│   │       ├── api/             ← Axios REST API 封装
+│   │       ├── stores/          ← Pinia 状态管理
+│   │       └── engine/          ← PixiJS 游戏画布（共用）
+│   ├── game-pc/                 ← PC 端（横屏 + Electron 打包）
+│   │   ├── electron/main.js     ← Electron 主进程
+│   │   └── src/views/           ← PC 专属视图
+│   └── game-mobile/             ← 移动端（竖屏 + Capacitor 打包）
+│       └── src/views/           ← 移动端专属视图
 ```
+
+**核心设计**：
+- `packages/common`：PixiJS 游戏引擎、Pinia 状态管理、API 封装 —— PC 和移动端共用，view 分开
+- `packages/game-pc`：横屏布局，Electron 打包为 Windows exe
+- `packages/game-mobile`：竖屏布局，Capacitor 打包为 Android apk / iOS ipa
+- 管理后台（`packages/admin-web`）后续按需添加，复用 common 的 API 和类型
 
 **经验总结**：
 - 管理后台应优先开发（数据录入是后续开发的基础）
@@ -353,14 +367,18 @@ mtcg-admin-web/
 ```
 mtcg-                  ← 项目前缀
 ├── server             ← 后端不带终端后缀
-├── admin-web          ← admin（面向）+ web（终端）
-├── client-web         ← client（面向）+ web（终端）
-└── client-desktop     ← client（面向）+ desktop（终端，未来）
+└── client             ← 前端 Monorepo（PC + 移动端）
+    └── packages/
+        ├── common     ← 共享包
+        ├── game-pc    ← PC 端（Electron）
+        └── game-mobile← 移动端（Capacitor）
 ```
 
 ### 3.5 前后端协同规范专题
 
 **枚举对齐**：前端枚举文件必须与后端 `common/enums` 下的枚举类**逐一对应**，每个后端枚举类对应一个独立前端文件，不合并到同一文件。增删改查时能快速定位。
+
+**Monorepo 共享**：`packages/common` 是 PC 和移动端的共享层，包含 PixiJS 引擎、Pinia 状态、API 封装、TS 类型定义。两端只需各自实现 view 层，游戏逻辑和状态管理不重复维护。
 
 **OpenAPI 生成请求方法**：后端 SpringDoc 提供 `/v3/api-docs`，前端用 `openapi-typescript-codegen` 自动生成 TS 请求方法，保证接口契约一致。后端接口变更后重新生成，避免手写 URL 和参数错误。生成的代码禁止手动修改。
 

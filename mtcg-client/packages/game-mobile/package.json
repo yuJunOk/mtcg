@@ -1,0 +1,32 @@
+{
+  "name": "@mtcg/game-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "cap:init": "npx cap init 'Hero Rush TCG' com.aris.mtcg.mobile",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
+  },
+  "dependencies": {
+    "@mtcg/common": "*",
+    "pinia": "^2.2.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.4.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/ios": "^6.1.0",
+    "@vitejs/plugin-vue": "^5.1.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vue-tsc": "^2.1.0"
+  }
+}
