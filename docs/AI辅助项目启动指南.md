@@ -235,12 +235,19 @@ mtcg-client/
 ├── package.json                 ← npm workspaces 根配置
 ├── docs/                        ← 前端专属文档
 ├── packages/
-│   ├── common/                  ← 共享包（PC + 移动端共用）
+│   ├── common/                  ← 共享包（所有端共用）
 │   │   └── src/
 │   │       ├── types/           ← TS 类型定义（对应后端 GameState）
 │   │       ├── api/             ← Axios REST API 封装
 │   │       ├── stores/          ← Pinia 状态管理
 │   │       └── engine/          ← PixiJS 游戏画布（共用）
+│   ├── admin-web/               ← 管理后台（Vue 3 + Element Plus）
+│   │   ├── src/
+│   │   │   ├── layouts/         ← 侧边栏 + 顶部标题栏布局
+│   │   │   ├── views/dashboard/ ← 仪表盘
+│   │   │   ├── views/card/      ← 卡牌管理 CRUD 页面
+│   │   │   └── views/product/   ← 产品管理 CRUD 页面
+│   │   └── package.json
 │   ├── game-pc/                 ← PC 端（横屏 + Electron 打包）
 │   │   ├── electron/main.js     ← Electron 主进程
 │   │   └── src/views/           ← PC 专属视图
@@ -249,10 +256,14 @@ mtcg-client/
 ```
 
 **核心设计**：
-- `packages/common`：PixiJS 游戏引擎、Pinia 状态管理、API 封装 —— PC 和移动端共用，view 分开
+- `packages/common`：PixiJS 游戏引擎、Pinia 状态管理、API 封装 —— 所有端共用，view 分开
+- `packages/admin-web`：管理后台，使用 Element Plus 组件库，复用 common 的 API 和类型
 - `packages/game-pc`：横屏布局，Electron 打包为 Windows exe
 - `packages/game-mobile`：竖屏布局，Capacitor 打包为 Android apk / iOS ipa
-- 管理后台（`packages/admin-web`）后续按需添加，复用 common 的 API 和类型
+- `pixi.js` 作为 `peerDependency` 下放到 `game-pc`/`game-mobile`，`admin-web` 不依赖重型渲染库
+
+**历史调整**：
+- 曾考虑独立目录 `mtcg-admin-web`，现已废弃，合并到 `mtcg-client/packages/admin-web`
 
 **经验总结**：
 - 管理后台应优先开发（数据录入是后续开发的基础）
@@ -367,12 +378,17 @@ mtcg-client/
 ```
 mtcg-                  ← 项目前缀
 ├── server             ← 后端不带终端后缀
-└── client             ← 前端 Monorepo（PC + 移动端）
+└── client             ← 前端 Monorepo
     └── packages/
         ├── common     ← 共享包
-        ├── game-pc    ← PC 端（Electron）
-        └── game-mobile← 移动端（Capacitor）
+        ├── admin-web  ← 管理后台（Vue 3 + Element Plus）
+        ├── game-pc    ← PC 端游戏（Electron）
+        └── game-mobile← 移动端游戏（Capacitor）
 ```
+
+**已废弃名称**：
+- `mtcg-admin-web` —— 管理后台不再作为独立目录，已合并到 `mtcg-client/packages/admin-web`
+- `mtcg-client-web` —— 玩家端统一在 `mtcg-client` Monorepo 内，不再使用此命名
 
 ### 3.5 前后端协同规范专题
 

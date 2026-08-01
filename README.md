@@ -44,11 +44,12 @@ mtcg/                          ← 仓库根目录
 │   ├── docs/                  ← 后端技术方案研究
 │   ├── README.md
 │   └── ...
-├── mtcg-client/               ← 前端 Monorepo（Vue 3 + PixiJS）
+├── mtcg-client/               ← 前端 Monorepo（Vue 3 + PixiJS + Element Plus）
 │   ├── packages/
-│   │   ├── common/            ← 共享包：PixiJS 引擎、Pinia 状态、API
-│   │   ├── game-pc/           ← PC 端：横屏布局 + Electron 打包
-│   │   └── game-mobile/       ← 移动端：竖屏布局 + Capacitor 打包
+│   │   ├── common/            ← 共享包：类型、API 封装、Pinia 状态、PixiJS 基类
+│   │   ├── admin-web/         ← 管理后台：Vue 3 + Element Plus
+│   │   ├── game-pc/           ← PC 游戏端：横屏布局 + Electron 打包
+│   │   └── game-mobile/       ← 移动游戏端：竖屏布局 + Capacitor 打包
 │   └── package.json
 ├── assets/                    ← 静态资源（卡图、Banner）
 ├── scripts/                   ← 工具脚本
@@ -63,7 +64,7 @@ mtcg/                          ← 仓库根目录
 | 模块 | 技术 | 说明 |
 | --- | --- | --- |
 | **mtcg-server** | Java 17 / Spring Boot 3.5 / MyBatis-Flex / PostgreSQL 16 | 后端服务 |
-| **mtcg-client** | Vue 3 / PixiJS / Pinia / Electron / Capacitor | 前端 Monorepo（PC + 移动端游戏客户端） |
+| **mtcg-client** | Vue 3 / PixiJS / Pinia / Electron / Capacitor | 前端 Monorepo（管理后台 + PC/移动游戏客户端） |
 
 ---
 

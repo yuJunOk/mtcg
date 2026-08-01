@@ -225,8 +225,11 @@ public class CardDO {
 | 模块 | 目录名 | 说明 |
 | --- | --- | --- |
 | 后端 | `mtcg-server` | Java + Spring Boot |
-| 管理后台 | `mtcg-admin-web` | Vue 3，**禁止**写成 `admin-web` / `mtcg-client-admin` / `mtcg-client-admin-web` |
-| 玩家端 | `mtcg-client-web` | Vue 3，**禁止**写成 `client-web` / `mtcg-web` |
+| 前端 Monorepo | `mtcg-client` | Vue 3 系列项目，含管理后台 + 游戏客户端 |
+| 管理后台 | `mtcg-client/packages/admin-web` | Vue 3 + Element Plus，**禁止**写成 `mtcg-admin-web` / `mtcg-client-admin` / `mtcg-client-admin-web` |
+| PC 游戏端 | `mtcg-client/packages/game-pc` | Vue 3 + PixiJS + Electron，**禁止**写成 `mtcg-pc` / `game-pc-web` |
+| 移动游戏端 | `mtcg-client/packages/game-mobile` | Vue 3 + PixiJS + Capacitor，**禁止**写成 `mtcg-mobile` / `game-mobile-web` |
+| 前端共享包 | `mtcg-client/packages/common` | TS 类型 / API 封装 / Pinia / PixiJS 基类，**禁止**写成 `shared` / `common-web` |
 
 ### 8.2 前端目录结构
 
