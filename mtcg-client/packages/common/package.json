@@ -10,6 +10,7 @@
     "./stores": "./src/stores/index.ts",
     "./api": "./src/api/index.ts",
     "./types": "./src/types/index.ts",
+    "./components": "./src/components/index.ts",
     "./styles": "./src/styles/theme-base.css",
     "./styles/dark": "./src/styles/theme-dark.css",
     "./styles/light": "./src/styles/theme-light.css"

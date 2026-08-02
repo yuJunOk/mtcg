@@ -37,8 +37,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
       <div class="battlefield">
 
         <!-- 对手区域一行 = 三列（相对我方镜像）：
-             左列 = 角色卡组(1行/外) → 撤退区 → 裁剪区(靠中线)  ← 裁剪区和撤退区交换位置
-             中列 = 基地(1行/外) → 菱形(靠中线) ; 卡槽从右到左 6→1 镜像
+             左列 = 角色卡组(1行/外) → 撤退区 → 裁剪区(靠中线)
+             中列 = 基地(1行/外) → 菱形(靠中线)
              右列 = 冲击卡组(1行/外) → 时间线(靠中线) -->
         <div class="row-area opponent-area">
           <!-- 左列：角色卡组(第1行) -> 撤退区 -> 虚空区（靠中线） -->
@@ -72,36 +72,46 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
                 <div class="base-slot" v-for="i in 6" :key="i" :data-slot="7 - i"></div>
               </div>
             </div>
-            <!-- 对手半场菱形：侧翼(左) / 后卫+先锋(中) / 侧翼(右)，先锋在下（靠近中线） -->
+            <!-- 对手半场菱形：3列 (侧翼 | 中央双槽位 | 侧翼), 中间列垂直堆叠先锋+后卫
+     屏幕布局：
+     ┌─────┐ ┌─────────┐ ┌─────┐
+     │侧翼L│ │  后卫   │ │侧翼R│   ← 外缘
+     ├─────┤ ├─────────┤ ├─────┤
+     │     │ │  先锋   │ │     │   ← 内缘(靠近中线)
+     └─────┘ └─────────┘ └─────┘
+     实时属性已内嵌在卡面边缘 (等级/战力/攻距/结附)
+-->
             <div class="diamond opponent">
-              <div class="side-cell cell-wrap">
-                <span class="cell-label-out">侧翼区</span>
-                <div class="slot">
-                  <span class="cell-power"></span>
-                  <span class="cell-attach"></span>
-                </div>
-              </div>
-              <div class="center-cell">
-                <div class="cell-wrap">
-                  <span class="cell-label-out">后卫区</span>
-                  <div class="slot empty">
-                    <span class="cell-power"></span>
-                    <span class="cell-attach"></span>
-                  </div>
-                </div>
-                <div class="cell-wrap">
-                  <span class="cell-label-out">先锋区</span>
-                  <div class="slot">
-                    <span class="cell-power"></span>
-                    <span class="cell-attach"></span>
+              <!-- 第1列: 侧翼L -->
+              <div class="diamond-col col-flank">
+                <div class="battle-cell flank" data-zone="flank">
+                  <div class="bc-slot">
+                    <Card :is-face-down="true" back-type="character" side="opponent" />
                   </div>
                 </div>
               </div>
-              <div class="side-cell cell-wrap">
-                <span class="cell-label-out">侧翼区</span>
-                <div class="slot">
-                  <span class="cell-power"></span>
-                  <span class="cell-attach"></span>
+
+              <!-- 第2列: 中央槽位列 (后卫上+先锋下) -->
+              <div class="diamond-col col-center-vanguard">
+                <div class="battle-cell rear" data-zone="rear">
+                  <div class="bc-slot">
+                    <Card :is-face-down="true" back-type="character" side="opponent" />
+                  </div>
+                </div>
+                <div class="battle-cell vanguard" data-zone="vanguard">
+                  <div class="bc-slot has-card">
+                    <Card :is-face-down="false" theme="character" side="opponent"
+                      level="5" :power="15000" attack-range="2" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- 第3列: 侧翼R -->
+              <div class="diamond-col col-flank">
+                <div class="battle-cell flank" data-zone="flank">
+                  <div class="bc-slot">
+                    <Card :is-face-down="true" back-type="character" side="opponent" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -149,37 +159,48 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 
           <!-- 中列：菱形作战区(靠中线) + 基地区(底部外边缘) -->
           <div class="col col-center">
-            <!-- 我方半场菱形：侧翼(左) / 先锋+后卫(中) / 侧翼(右)，先锋在上（靠近中线） -->
+            <!-- 我方半场菱形：3列 (侧翼 | 中央双槽位 | 侧翼), 中间列垂直堆叠先锋+后卫
+     屏幕布局：
+     ┌─────┐ ┌─────────┐ ┌─────┐
+     │侧翼L│ │  先锋   │ │侧翼R│   ← 内缘(靠近中线)
+     ├─────┤ ├─────────┤ ├─────┤
+     │     │ │  后卫   │ │     │   ← 外缘(远离中线)
+     └─────┘ └─────────┘ └─────┘
+     实时属性已内嵌在卡面边缘 (等级/战力/攻距/结附)
+-->
             <div class="diamond local">
-              <div class="side-cell cell-wrap local">
-                <div class="slot empty">
-                  <span class="cell-power"></span>
-                  <span class="cell-attach"></span>
-                </div>
-                <span class="cell-label-out">侧翼区</span>
-              </div>
-              <div class="center-cell">
-                <div class="cell-wrap local">
-                  <div class="slot">
-                    <span class="cell-power"></span>
-                    <span class="cell-attach"></span>
+              <!-- 第1列: 侧翼L -->
+              <div class="diamond-col col-flank">
+                <div class="battle-cell flank" data-zone="flank">
+                  <div class="bc-slot">
+                    <Card :is-face-down="true" back-type="character" side="local" />
                   </div>
-                  <span class="cell-label-out">先锋区</span>
-                </div>
-                <div class="cell-wrap local">
-                  <div class="slot">
-                    <span class="cell-power"></span>
-                    <span class="cell-attach"></span>
-                  </div>
-                  <span class="cell-label-out">后卫区</span>
                 </div>
               </div>
-              <div class="side-cell cell-wrap local">
-                <div class="slot empty">
-                  <span class="cell-power"></span>
-                  <span class="cell-attach"></span>
+
+              <!-- 第2列: 中央槽位列 (先锋上+后卫下) -->
+              <div class="diamond-col col-center-vanguard">
+                <div class="battle-cell vanguard" data-zone="vanguard">
+                  <div class="bc-slot has-card has-attack">
+                    <Card :is-face-down="false" theme="character" side="local"
+                      level="3" :power="8000" attack-range="1" />
+                  </div>
                 </div>
-                <span class="cell-label-out">侧翼区</span>
+                <div class="battle-cell rear" data-zone="rear">
+                  <div class="bc-slot has-card">
+                    <Card :is-face-down="false" theme="character" side="local"
+                      level="4" :power="24000" attack-range="3" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- 第3列: 侧翼R -->
+              <div class="diamond-col col-flank">
+                <div class="battle-cell flank" data-zone="flank">
+                  <div class="bc-slot">
+                    <Card :is-face-down="true" back-type="character" side="local" />
+                  </div>
+                </div>
               </div>
             </div>
             <div class="zone base local-base">
@@ -379,11 +400,13 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
  */
 
 /* 对手区 & 我方区: 每区占可用区域 1 份, 用 grid 三列 左/中/右 */
+/* 中列给菱形足够空间(菱形宽 ~498px + 基地) */
 .row-area {
   flex: 1 1 0;
   min-height: 0;
+  min-width: 580px;
   display: grid;
-  grid-template-columns: var(--col-w) 1fr var(--col-w);
+  grid-template-columns: var(--col-w) minmax(304px, 1fr) var(--col-w);
   gap: var(--space-sm);
   align-items: stretch;
   justify-items: stretch;
@@ -409,7 +432,10 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 .col-left.local    { justify-content: flex-end; }
 
 /* 中列: 基地在外边缘、菱形在中线侧  => space-between */
-.col-center { justify-content: space-between; align-items: center; }
+.col-center { justify-content: space-between; align-items: stretch; }
+
+/* 菱形在 col-center 内 水平居中 (align-self 在 flex 列容器里 = 水平方向) */
+.col-center > .diamond { align-self: center; margin: 0 auto; }
 
 /* 右列整体对齐方向：
  *   对手右列 = flex-start => 冲击卡组顶(第一行) → 时间线(靠中线底)
@@ -805,130 +831,111 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 }
 
 /* ============================================
-   菱形战区 - 在中列内部占满剩余空间，前后上下布局
+   菱形战区 - 3列布局
+   - 第1列: 侧翼
+   - 第2列: 中央 (垂直堆叠 2 槽位: 先锋 + 后卫)
+   - 第3列: 侧翼
+   列宽: 单个 battle-cell = 卡宽76 + padding8 = 84px
+   3列总宽 84*3+24=276px
    ============================================ */
 .diamond {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  flex: 1 1 0;  /* 在中列占满基地之外的剩余空间 */
-}
-
-.side-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.center-cell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
+  display: grid;
+  grid-template-columns: 84px 84px 84px;
+  gap: 14px;
   align-items: center;
   justify-content: center;
   min-height: 0;
+  min-width: 304px;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  margin: 0 auto;
+  position: relative;
 }
 
-/* 菱形卡位包装: 标签外置 - 对手侧标签在槽上、我方侧标签在槽下
- * 结构: cell-wrap = label-out (外置标签) + slot (卡槽本身) + 可选 power/attach
- * 卡槽内部不叠标签, 仅保留 power/结附点的角落小徽章, 且不卡主卡面核心区
- */
-.cell-wrap {
+/* 第2列(中央): 垂直堆叠 双槽位 */
+.diamond-col.col-center-vanguard {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: 2px;
+  justify-content: center;
+  gap: 14px;
   min-width: 0;
+  min-height: 0;
 }
 
-/* 对手侧 (默认): 标签在上, 卡槽在下 */
-.cell-wrap .cell-label-out { order: 0; }
-.cell-wrap .slot         { order: 1; }
-
-/* 我方侧 (加 .local): 卡槽在上, 标签在下 */
-.cell-wrap.local {
-  justify-content: flex-start;
+/* 第1/3列(侧翼): 单槽位 居中 */
+.diamond-col.col-flank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
 }
-.cell-wrap.local .cell-label-out { order: 2; }
-.cell-wrap.local .slot         { order: 0; }
 
-/* 外置标签: 完全不进入卡槽区域, 因此不遮挡卡面 */
-.cell-label-out {
-  font-size: 9px;
-  color: #fff;
-  letter-spacing: 1px;
-  font-weight: 700;
-  white-space: nowrap;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 1px 8px;
-  border-radius: 8px;
-  line-height: 1.4;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  pointer-events: none;
+/* ============================================
+   战斗单元: 仅包含卡牌, 居中对齐
+   ============================================ */
+.battle-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 84px;
+  height: 108px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.battle-cell .bc-slot {
+  border-radius: 5px;
   flex-shrink: 0;
 }
 
-/* 卡位 - 统一使用卡牌素材比例 747:1042 */
-.slot {
-  width: 80px;
-  aspect-ratio: var(--card-aspect);
-  background: var(--bg-surface);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-md);
+/* ============================================
+   卡槽容器
+   ============================================ */
+.bc-slot {
   position: relative;
-  /* 卡槽内的 power/结附 小徽章角落放置, 避开中央主图案区 (各留 4px 边) */
-  padding: 4px;
+  width: 76px;
+  height: 108px;     /* 747:1042 ≈ 0.717 → 76x106 ≈ 实际显示 */
+  border-radius: 5px;
+  flex-shrink: 0;
+  transition: transform 0.15s, filter 0.15s;
 }
 
-/* 空槽统一虚线 */
-.slot.empty {
-  border-style: dashed;
-  border-color: var(--border-light);
+/* Card 组件绝对定位在 bc-slot 内 */
+.bc-slot :deep(.card-face) {
+  border-radius: 5px;
 }
 
-/* 卡槽内角落小徽章: 实时战力 (左上) + 结附卡计数 (右下)
- * 尺寸极小且靠四角, 不遮挡卡面中央主要插画
- */
-.cell-power {
+/* 整槽 hover 抬起 */
+.battle-cell:hover .bc-slot {
+  transform: translateY(-3px);
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* 可攻击脉冲外框 */
+.bc-slot.has-attack::before {
+  content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  background: var(--accent-red);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-  border-radius: 4px;
+  inset: -3px;
+  border-radius: 7px;
+  border: 2px solid rgba(239, 68, 68, 0.8);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
+  animation: slot-attack-pulse 1.4s ease-in-out infinite;
+  z-index: 1;
   pointer-events: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
-.cell-attach {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  background: var(--accent-blue);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-  border-radius: 4px;
-  pointer-events: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+@keyframes slot-attack-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.06); }
 }
+
+/* 实时属性徽章已移至 Card.vue 组件内, 通过 level/power/attackRange/attachCount 属性渲染 */
+
 
 /* ============================================
    底部 HUD

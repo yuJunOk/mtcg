@@ -70,21 +70,25 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
           <!-- 对手半场菱形：侧翼(左) / 后卫+先锋(中) / 侧翼(右)，先锋在下（靠近中线） -->
           <div class="diamond opponent">
             <div class="side-cell">
-              <div class="slot">
-                <div class="zone-label">侧翼区</div>
+              <div class="slot" data-zone="flank">
+                <span class="range-badge r-4">R-4</span>
               </div>
             </div>
             <div class="center-cell">
-              <div class="slot empty">
-                <div class="zone-label">后卫区</div>
+              <div class="slot empty" data-zone="rear">
+                <span class="range-badge r-3">R-3</span>
               </div>
-              <div class="slot">
-                <div class="zone-label">先锋区</div>
+              <div class="slot" data-zone="vanguard">
+                <span class="range-badge r-1">R-1</span>
+                <div class="slot-info">
+                  <span class="level">Lv.5</span>
+                  <span class="power">12</span>
+                </div>
               </div>
             </div>
             <div class="side-cell">
-              <div class="slot">
-                <div class="zone-label">侧翼区</div>
+              <div class="slot" data-zone="flank">
+                <span class="range-badge r-4">R-4</span>
               </div>
             </div>
           </div>
@@ -109,21 +113,36 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
           <!-- 我方半场菱形：侧翼(左) / 先锋+后卫(中) / 侧翼(右)，先锋在上（靠近中线） -->
           <div class="diamond local">
             <div class="side-cell">
-              <div class="slot empty">
-                <div class="zone-label">侧翼区</div>
+              <div class="slot empty" data-zone="flank">
+                <span class="range-badge r-4">R-4</span>
               </div>
             </div>
             <div class="center-cell">
-              <div class="slot">
-                <div class="zone-label">先锋区</div>
+              <div class="slot" data-zone="vanguard">
+                <span class="range-badge r-1 can-attack">⚔</span>
+                <div class="slot-info">
+                  <span class="level">Lv.3</span>
+                  <span class="keyword-icons">
+                    <span class="kw-icon assault">💥</span>
+                  </span>
+                  <span class="power">8</span>
+                </div>
               </div>
-              <div class="slot">
-                <div class="zone-label">后卫区</div>
+              <div class="slot" data-zone="rear">
+                <span class="range-badge r-3">R-3</span>
+                <div class="slot-info">
+                  <span class="level">Lv.4</span>
+                  <span class="keyword-icons">
+                    <span class="kw-icon intercept">🛡</span>
+                    <span class="kw-icon combo">⚡</span>
+                  </span>
+                  <span class="power power-boosted">10</span>
+                </div>
               </div>
             </div>
             <div class="side-cell">
-              <div class="slot empty">
-                <div class="zone-label">侧翼区</div>
+              <div class="slot empty" data-zone="flank">
+                <span class="range-badge r-4">R-4</span>
               </div>
             </div>
           </div>
@@ -490,7 +509,7 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   min-height: 0;
 }
 
-/* 卡位 - 统一使用卡牌素材比例 747:1042 */
+/* 战区卡槽 - 卡片(竖) + 底部信息条 */
 .slot {
   height: 25vw;
   max-height: 84px;
@@ -500,6 +519,9 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
 }
 
 /* 空槽统一虚线 */
@@ -508,7 +530,84 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   border-color: var(--border-light);
 }
 
-/* 战区标签 - 顶部小标签（亮暗主题通用） */
+/* R值徽章 - 顶部 */
+.range-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #fff;
+  z-index: 2;
+}
+
+.range-badge.r-1 { background: #e53935; }
+.range-badge.r-2 { background: #f57c00; }
+.range-badge.r-3 { background: #fbc02d; color: #333; }
+.range-badge.r-4 { background: #43a047; }
+.range-badge.r-5 { background: #2e7d32; }
+
+.range-badge.can-attack {
+  background: var(--accent-red);
+  animation: pulse-glow 1.5s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 3px var(--accent-red); }
+  50% { box-shadow: 0 0 8px var(--accent-red); }
+}
+
+/* 底部信息条 */
+.slot-info {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1px 3px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 3px;
+}
+
+.level {
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
+.keyword-icons {
+  display: flex;
+  gap: 1px;
+}
+
+.kw-icon {
+  font-size: 8px;
+  border-radius: 2px;
+  padding: 0 1px;
+  color: #fff;
+}
+
+.kw-icon.intercept { background: #1976d2; }
+.kw-icon.combo { background: #7b1fa2; }
+.kw-icon.assault { background: #c62828; }
+.kw-icon.air-strike { background: #00838f; }
+
+.power {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.power-boosted {
+  color: #69f0ae;
+}
+
+/* 战区标签 */
 .zone-label {
   position: absolute;
   top: 1px;
@@ -527,7 +626,17 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
 }
 
-/* 对手半场菱形：标签置底 */
+/* 对手半场菱形：信息置底 */
+.diamond.opponent .range-badge {
+  top: auto;
+  bottom: 2px;
+}
+
+.diamond.opponent .slot-info {
+  bottom: auto;
+  top: 2px;
+}
+
 .diamond.opponent .zone-label {
   top: auto;
   bottom: 1px;
