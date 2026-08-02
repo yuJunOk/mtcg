@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@mtcg/common/stores'
 import { Card } from '@mtcg/common/components'
 
@@ -9,30 +9,82 @@ const emit = defineEmits<{
 
 const store = useGameStore()
 
+/* 全屏切换 */
+const isFullscreen = ref(false)
+const toggleFullscreen = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen()
+  } else {
+    document.exitFullscreen()
+  }
+}
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement
+}
+onMounted(() => document.addEventListener('fullscreenchange', onFullscreenChange))
+onUnmounted(() => document.removeEventListener('fullscreenchange', onFullscreenChange))
+
 const turnCount = computed(() => store.gameState?.turnCount ?? 1)
 const phaseLabel = computed(() => store.gameState?.currentPhase ?? '行动阶段')
 
-const opponentTimeline = computed(() => store.opponent?.timeline.length ?? 0)
-const localTimeline = computed(() => store.localPlayer?.timeline.length ?? 0)
-const opponentPercent = computed(() => `${(opponentTimeline.value / 9) * 100}%`)
-const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
+/* 手牌扇形布局: 根据索引计算每张卡的旋转角度、水平偏移和弧度上抬 */
+const handCount = 5
+const totalTime = '02:35'   // TODO: 接入真实计时器
+const turnTime = '00:12'    // TODO: 接入真实计时器
+
+/* 区域卡牌数量 (TODO: 接入真实游戏状态) */
+const opponentZones = { characterDeck: 38, rushDeck: 9, retreat: 2, crop: 1 }
+const localZones = { characterDeck: 41, rushDeck: 9, retreat: 0, crop: 3 }
+
+/* 战区槽位是否有卡 */
+const opponentField = { flankL: false, vanguard: true, rear: false, flankR: false }
+const localField = { flankL: false, vanguard: true, rear: true, flankR: false }
+const fanCardStyle = (index: number, total: number): { transform: string; zIndex: string } => {
+  if (total <= 1) return { transform: 'none', zIndex: '100' }
+  const center = (total - 1) / 2
+  const offset = index - center
+  const maxAngle = 14
+  const angle = (offset / center) * maxAngle
+  const spacing = 38
+  const xOffset = offset * spacing
+  const arcLift = 5
+  const yOffset = Math.abs(offset) * arcLift
+  return {
+    transform: `translateX(${xOffset}px) translateY(${yOffset}px) rotate(${angle}deg)`,
+    zIndex: String(100 - Math.round(Math.abs(offset) * 10)),
+  }
+}
 </script>
 
 <template>
   <div class="battle-pc">
-    <!-- 顶部 HUD -->
+    <!-- 顶部 HUD: 返回(左) | 对手信息(居中) | 全屏(右) -->
     <header class="hud-top">
       <button class="btn-back" @click="emit('navigate', 'home')">←</button>
-      <span class="phase-badge">{{ phaseLabel }}</span>
-      <span class="turn-info">第 {{ turnCount }} 回合</span>
-      <span class="opponent">{{ store.opponent?.playerId ?? 'AI 对手' }}</span>
-      <div class="timeline-mini">
-        <div class="timeline-fill" :style="{ width: opponentPercent }"></div>
-        <span>对手时间线 {{ opponentTimeline }} / 9</span>
+      <div class="opponent-info">
+        <span class="opponent-avatar"></span>
+        <div class="opponent-meta">
+          <span class="opponent-name">{{ store.opponent?.playerId ?? 'AI 对手' }}</span>
+          <span class="opponent-hand">手牌 {{ store.opponent?.handCount ?? 5 }}</span>
+        </div>
       </div>
+      <button
+        class="btn-fullscreen"
+        @click="toggleFullscreen"
+        :title="isFullscreen ? '退出全屏' : '全屏'"
+      >
+        <!-- 全屏: 四角向外 -->
+        <svg v-if="!isFullscreen" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M2.5 5.5V2.5h3M13.5 5.5V2.5h-3M2.5 10.5v3h3M13.5 10.5v3h-3" />
+        </svg>
+        <!-- 退出全屏: 四角向内 -->
+        <svg v-else viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M5.5 2.5v3h-3M10.5 2.5v3h3M5.5 13.5v-3h-3M10.5 13.5v-3h3" />
+        </svg>
+      </button>
     </header>
 
-    <!-- 战区 - 整块相对定位，内部元素全部绝对定位 -->
+    <!-- 战区 - 手牌扇形浮在底部 -->
     <main class="canvas-area">
       <div class="battlefield">
 
@@ -45,20 +97,20 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
           <div class="col col-left opponent">
             <!-- 角色卡组 -->
             <div class="zone deck opponent-deck">
-              <span class="zone-tag bottom-right">角色·38</span>
-              <div class="stack-face">
+              <span class="zone-tag bottom-right">角色·{{ opponentZones.characterDeck }}</span>
+              <div class="stack-face" v-if="opponentZones.characterDeck > 0">
                 <Card back-type="character" class="stacked" />
               </div>
             </div>
             <div class="zone stack-zone retreat-stack">
-              <span class="zone-tag bottom-right">撤退</span>
-              <div class="stack-face">
+              <span class="zone-tag bottom-right">撤退·{{ opponentZones.retreat }}</span>
+              <div class="stack-face" v-if="opponentZones.retreat > 0">
                 <Card back-type="character" class="stacked" />
               </div>
             </div>
             <div class="zone stack-zone crop-stack">
-              <span class="zone-tag bottom-right">虚空</span>
-              <div class="stack-face">
+              <span class="zone-tag bottom-right">虚空·{{ opponentZones.crop }}</span>
+              <div class="stack-face" v-if="opponentZones.crop > 0">
                 <Card back-type="character" class="stacked" />
               </div>
             </div>
@@ -84,8 +136,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
             <div class="diamond opponent">
               <!-- 第1列: 侧翼L -->
               <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank">
-                  <div class="bc-slot">
+                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
+                  <div class="bc-slot" v-if="opponentField.flankL">
                     <Card :is-face-down="true" back-type="character" side="opponent" />
                   </div>
                 </div>
@@ -93,13 +145,13 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 
               <!-- 第2列: 中央槽位列 (后卫上+先锋下) -->
               <div class="diamond-col col-center-vanguard">
-                <div class="battle-cell rear" data-zone="rear">
-                  <div class="bc-slot">
+                <div class="battle-cell rear" data-zone="rear" data-zone-label="后卫">
+                  <div class="bc-slot" v-if="opponentField.rear">
                     <Card :is-face-down="true" back-type="character" side="opponent" />
                   </div>
                 </div>
-                <div class="battle-cell vanguard" data-zone="vanguard">
-                  <div class="bc-slot has-card">
+                <div class="battle-cell vanguard" data-zone="vanguard" data-zone-label="先锋">
+                  <div class="bc-slot has-card" v-if="opponentField.vanguard">
                     <Card :is-face-down="false" theme="character" side="opponent"
                       level="5" :power="15000" attack-range="2" />
                   </div>
@@ -108,8 +160,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 
               <!-- 第3列: 侧翼R -->
               <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank">
-                  <div class="bc-slot">
+                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
+                  <div class="bc-slot" v-if="opponentField.flankR">
                     <Card :is-face-down="true" back-type="character" side="opponent" />
                   </div>
                 </div>
@@ -120,8 +172,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
           <!-- 右列：冲击卡组(第一行=顶部外, 打横放节省高度) → 时间线(吃剩余高度, 3×3=9卡槽阵列) -->
           <div class="col col-right opponent">
             <div class="zone deck opponent-deck rush-deck">
-              <span class="zone-tag bottom-right rush">冲击·9</span>
-              <Card back-type="rush" horizontal />
+              <span class="zone-tag bottom-right rush">冲击·{{ opponentZones.rushDeck }}</span>
+              <Card v-if="opponentZones.rushDeck > 0" back-type="rush" horizontal />
             </div>
             <div class="zone timeline-zone">
               <span class="stack-label-out top-right">时间线</span>
@@ -132,10 +184,19 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
           </div>
         </div>
 
-        <!-- 回合说明一行（中线） -->
+        <!-- 中线: 居中状态药丸(回合+计时) | 右侧操作按钮(认输分隔防误触) -->
         <div class="row-midline">
-          <span class="turn-label">你的回合 ~ 第 {{ turnCount }} 回合</span>
-          <button class="btn-end-turn">结束回合</button>
+          <span class="turn-badge">
+            第{{ turnCount }}回合 · 你的回合 · {{ phaseLabel }}
+            <span class="badge-sep">·</span>
+            <span class="badge-time">{{ totalTime }} / {{ turnTime }}</span>
+          </span>
+          <div class="mid-actions">
+            <button class="btn-phase">结束阶段</button>
+            <button class="btn-end-turn">结束回合</button>
+            <span class="action-divider"></span>
+            <button class="btn-surrender">认输</button>
+          </div>
         </div>
 
         <!-- 我方区域一行 = 三列（相对对方镜像）：
@@ -152,8 +213,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
               </div>
             </div>
             <div class="zone deck local-deck rush-deck">
-              <span class="zone-tag top-left rush">冲击·9</span>
-              <Card back-type="rush" horizontal />
+              <span class="zone-tag top-left rush">冲击·{{ localZones.rushDeck }}</span>
+              <Card v-if="localZones.rushDeck > 0" back-type="rush" horizontal />
             </div>
           </div>
 
@@ -171,8 +232,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
             <div class="diamond local">
               <!-- 第1列: 侧翼L -->
               <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank">
-                  <div class="bc-slot">
+                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
+                  <div class="bc-slot" v-if="localField.flankL">
                     <Card :is-face-down="true" back-type="character" side="local" />
                   </div>
                 </div>
@@ -180,14 +241,14 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 
               <!-- 第2列: 中央槽位列 (先锋上+后卫下) -->
               <div class="diamond-col col-center-vanguard">
-                <div class="battle-cell vanguard" data-zone="vanguard">
-                  <div class="bc-slot has-card has-attack">
+                <div class="battle-cell vanguard" data-zone="vanguard" data-zone-label="先锋">
+                  <div class="bc-slot has-card has-attack" v-if="localField.vanguard">
                     <Card :is-face-down="false" theme="character" side="local"
                       level="3" :power="8000" attack-range="1" />
                   </div>
                 </div>
-                <div class="battle-cell rear" data-zone="rear">
-                  <div class="bc-slot has-card">
+                <div class="battle-cell rear" data-zone="rear" data-zone-label="后卫">
+                  <div class="bc-slot has-card" v-if="localField.rear">
                     <Card :is-face-down="false" theme="character" side="local"
                       level="4" :power="24000" attack-range="3" />
                   </div>
@@ -196,8 +257,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 
               <!-- 第3列: 侧翼R -->
               <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank">
-                  <div class="bc-slot">
+                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
+                  <div class="bc-slot" v-if="localField.flankR">
                     <Card :is-face-down="true" back-type="character" side="local" />
                   </div>
                 </div>
@@ -214,20 +275,20 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
           <!-- 右列：裁剪区 → 撤退区 → 角色卡组（底部=最后一行=外边缘，和我方左列冲击卡组位置一致） -->
           <div class="col col-right local">
             <div class="zone stack-zone crop-stack">
-              <span class="zone-tag top-left">虚空</span>
-              <div class="stack-face">
+              <span class="zone-tag top-left">虚空·{{ localZones.crop }}</span>
+              <div class="stack-face" v-if="localZones.crop > 0">
                 <Card back-type="character" class="stacked" />
               </div>
             </div>
             <div class="zone stack-zone retreat-stack">
-              <span class="zone-tag top-left">撤退</span>
-              <div class="stack-face">
+              <span class="zone-tag top-left">撤退·{{ localZones.retreat }}</span>
+              <div class="stack-face" v-if="localZones.retreat > 0">
                 <Card back-type="character" class="stacked" />
               </div>
             </div>
             <div class="zone deck local-deck">
-              <span class="zone-tag top-left">角色·41</span>
-              <div class="stack-face">
+              <span class="zone-tag top-left">角色·{{ localZones.characterDeck }}</span>
+              <div class="stack-face" v-if="localZones.characterDeck > 0">
                 <Card back-type="character" class="stacked" />
               </div>
             </div>
@@ -237,21 +298,19 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
       </div>
     </main>
 
-    <!-- 底部 HUD -->
+    <!-- 底部 HUD: 扇形手牌 -->
     <footer class="hud-bottom">
-      <div class="hand-area">
-        <span class="hand-label">手牌</span>
-        <div class="hand-cards">
-          <div class="hand-card" v-for="i in 5" :key="i"></div>
+      <div class="hand-fan">
+        <div
+          v-for="i in handCount"
+          :key="i"
+          class="hand-slot"
+          :style="fanCardStyle(i - 1, handCount)"
+        >
+          <div class="hand-card-inner">
+            <Card :is-face-down="true" back-type="character" side="local" />
+          </div>
         </div>
-      </div>
-      <div class="actions">
-        <div class="timeline-mini">
-          <div class="timeline-fill" :style="{ width: localPercent }"></div>
-          <span>时间线 {{ localTimeline }} / 9</span>
-        </div>
-        <button class="btn btn-primary">结束阶段</button>
-        <button class="btn btn-danger">认输</button>
       </div>
     </footer>
   </div>
@@ -285,10 +344,10 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   height: 44px;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
   padding: 0 var(--space-md);
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
+  position: relative;
 }
 
 .btn-back {
@@ -307,57 +366,69 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   color: var(--accent);
 }
 
-.phase-badge {
-  padding: 2px 10px;
-  background: var(--accent-blue);
-  color: #fff;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.turn-info {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.opponent {
+/* 全屏按钮: margin-left:auto 推到最右 */
+.btn-fullscreen {
   margin-left: auto;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.timeline-mini {
-  position: relative;
-  width: 160px;
-  height: 20px;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.timeline-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-blue));
-  transition: width 0.3s ease;
-}
-
-.timeline-mini span {
-  position: relative;
-  width: 100%;
-  height: 100%;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-fullscreen:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 对手信息: 绝对居中, 头像 + 名字 + 手牌数 */
+.opponent-info {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 14px 3px 4px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.opponent-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+  border: 2px solid var(--bg-surface);
+  box-shadow: 0 0 0 1px var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.opponent-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.opponent-name {
+  font-size: 13px;
   font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-  z-index: 1;
+  color: var(--text-primary);
+}
+
+.opponent-hand {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
 }
 
 /* ============================================
@@ -367,12 +438,16 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   flex: 1;
   min-height: 0;
   padding: var(--space-md);
-  overflow: hidden;
+  overflow: auto;          /* 窗口过小时出现滚动条而非堆叠 */
+  position: relative;
 }
 
 .battlefield {
   height: 100%;
-  min-height: 0;
+  min-width: 600px;       /* 设计最小宽度阈值: 低于此值触发横向滚动 */
+  /* 页面高度阈值 950px: 视口高度 < 950px 时触发纵向滚动
+     扣除 顶部HUD(44) + 底部手牌区(90) + canvas 上下 padding(2×16) */
+  min-height: calc(950px - 44px - 90px - 2 * var(--space-md));
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -444,27 +519,81 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 .col-right.opponent { justify-content: flex-start; }
 .col-right.local    { justify-content: flex-end; }
 
-/* 中线固定高度 */
+/* 中线: flex 两端对齐, 回合药丸居中, 操作组靠右 */
 .row-midline {
   flex-shrink: 0;
-  height: 32px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-md);
+  padding: 0 var(--space-lg);
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  position: relative;
 }
 
-.turn-label {
-  font-size: 13px;
-  color: var(--text-primary);
+/* 回合信息药丸: 绝对居中, 蓝色圆角 */
+.turn-badge {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 18px;
+  background: var(--accent-blue);
+  color: #fff;
+  border-radius: 14px;
+  font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(92, 107, 192, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 药丸内分隔点 */
+.badge-sep {
+  opacity: 0.5;
+  margin: 0 2px;
+}
+
+/* 药丸内计时: 等宽数字 */
+.badge-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* 右侧操作组: 纯按钮, 无信息 */
+.mid-actions {
+  position: absolute;
+  right: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-phase {
+  height: 26px;
+  padding: 0 12px;
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-phase:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .btn-end-turn {
-  height: 24px;
+  height: 26px;
   padding: 0 16px;
   background: var(--accent);
   color: #fff;
@@ -473,10 +602,38 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .btn-end-turn:hover {
   filter: brightness(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 分隔线: 视觉隔离认输按钮, 防误触 */
+.action-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.btn-surrender {
+  height: 26px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--accent-red, #ef4444);
+  border: 1px solid var(--accent-red, #ef4444);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-surrender:hover {
+  background: var(--accent-red, #ef4444);
+  color: #fff;
 }
 
 /* ============================================
@@ -554,12 +711,12 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   background:
     repeating-linear-gradient(
       135deg,
-      rgba(148, 163, 184, 0.06) 0 8px,
+      rgba(74, 222, 128, 0.06) 0 8px,
       transparent 8px 16px
     ),
     var(--bg-surface-2);
-  border-color: var(--border-light);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+  border-color: var(--accent-green);
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.22);
 }
 
 /* 堆叠容器: relative + 子元素 absolute 按 --idx 偏移 */
@@ -581,8 +738,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   margin: 0 auto;
   width: 100%;
   aspect-ratio: var(--card-aspect-inv);
-  background: radial-gradient(circle at 50% 30%, rgba(148,163,184,0.18), transparent 60%), var(--bg-base);
-  border: 1.5px solid rgba(148, 163, 184, 0.55);
+  background: radial-gradient(circle at 50% 30%, rgba(74, 222, 128, 0.18), transparent 60%), var(--bg-base);
+  border: 1.5px solid rgba(74, 222, 128, 0.55);
   border-radius: var(--radius-sm);
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
@@ -593,7 +750,7 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   right: 2px;
   font-size: 7px;
   letter-spacing: 0.5px;
-  color: rgba(148, 163, 184, 0.85);
+  color: rgba(74, 222, 128, 0.85);
   font-weight: 700;
   pointer-events: none;
 }
@@ -654,15 +811,14 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 }
 
 .zone.base {
-  border-color: var(--accent-green);
+  border-color: var(--border);
   background:
     repeating-linear-gradient(
       45deg,
-      rgba(74, 222, 128, 0.03) 0 6px,
+      rgba(148, 163, 184, 0.04) 0 6px,
       transparent 6px 12px
     ),
     var(--bg-surface-2);
-  /* 高度 = 纯 1 卡高, 6 个卡槽撑满; 标签挂在外边缘, 不占内部空间 */
   height: var(--card-h);
   width: calc((var(--card-h) * var(--card-aspect)) * 6 + var(--card-gap) * 5 + 8px);
   flex-shrink: 0;
@@ -671,8 +827,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   align-items: stretch;
   align-self: center;
   position: relative;
-  overflow: visible; /* 允许 base-tag 超出容器绘制在边缘角落 */
-  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.25), 0 4px 14px rgba(0, 0, 0, 0.15);
+  overflow: visible;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2), 0 4px 14px rgba(0, 0, 0, 0.15);
   border-radius: var(--radius-md);
 }
 
@@ -682,13 +838,13 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 .base-tag {
   position: absolute;
   font-size: 9px;
-  color: var(--accent-green);
+  color: var(--text-secondary);
   font-weight: 700;
   letter-spacing: 1px;
   white-space: nowrap;
   background: var(--bg-surface-2);
   padding: 1px 8px;
-  border: 1px solid var(--accent-green);
+  border: 1px solid var(--border);
   border-radius: 6px;
   line-height: 1.4;
   pointer-events: none;
@@ -778,17 +934,6 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   border: 2px solid var(--border);
 }
 
-.zone-icon {
-  font-size: 18px;
-  color: var(--accent);
-}
-
-.zone-text {
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
-
 /* 基地区：6 个卡槽位，高度 = 1 卡高，宽度 = 6 卡宽 + 5 gap */
 .base-row {
   display: flex;
@@ -807,13 +952,13 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   height: 100%;
   aspect-ratio: var(--card-aspect);
   background:
-    radial-gradient(circle at 50% 30%, rgba(74, 222, 128, 0.12), transparent 60%),
-    var(--bg-base);
-  border: 1.5px solid rgba(74, 222, 128, 0.5);
+    radial-gradient(circle at 50% 30%, rgba(148, 163, 184, 0.15), transparent 60%),
+    var(--bg-surface);
+  border: 1.5px solid rgba(148, 163, 184, 0.3);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   position: relative;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
   transition: border-color 0.2s, background 0.2s;
 }
 
@@ -824,7 +969,7 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   bottom: 2px;
   right: 4px;
   font-size: 9px;
-  color: rgba(74, 222, 128, 0.4);
+  color: rgba(148, 163, 184, 0.35);
   font-weight: 700;
   letter-spacing: 1px;
   pointer-events: none;
@@ -888,6 +1033,39 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   box-shadow: none;
 }
 
+/* 空槽位: 虚线占位 + 位置名称 */
+.battle-cell:not(:has(.bc-slot))::before {
+  content: attr(data-zone-label);
+  position: absolute;
+  inset: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed rgba(148, 163, 184, 0.25);
+  border-radius: 5px;
+  font-size: 9px;
+  color: rgba(148, 163, 184, 0.4);
+  font-weight: 600;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+.battle-cell .bc-slot:not(.has-card)::before {
+  content: attr(data-zone-label);
+  position: absolute;
+  inset: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed rgba(148, 163, 184, 0.25);
+  border-radius: 5px;
+  font-size: 9px;
+  color: rgba(148, 163, 184, 0.4);
+  font-weight: 600;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
 .battle-cell .bc-slot {
   border-radius: 5px;
   flex-shrink: 0;
@@ -938,83 +1116,58 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 
 
 /* ============================================
-   底部 HUD
+   底部 HUD: 扇形手牌
    ============================================ */
 .hud-bottom {
   flex-shrink: 0;
-  height: 88px;
+  height: 90px;
   display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 8px;
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
+  overflow: visible;
 }
 
-.hand-area {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  min-width: 0;
+/* 手牌扇形容器 */
+.hand-fan {
+  position: relative;
+  width: 200px;
+  height: 75px;
 }
 
-.hand-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
+/* 扇形卡槽: 绝对定位居中, transform 由 JS 计算旋转/偏移 */
+.hand-slot {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 54px;
+  height: 75px;
+  margin-left: -27px;
+  transform-origin: bottom center;
+  transition: transform 0.25s ease;
 }
 
-.hand-cards {
-  flex: 1;
-  display: flex;
-  gap: var(--space-xs);
-  overflow-x: auto;
+/* 内层: hover 时上浮 + 放大, 与外层 transform 分离 */
+.hand-card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0.2, 1.2), filter 0.25s ease;
 }
 
-.hand-card {
-  width: 50px;
-  height: 70px;
-  flex-shrink: 0;
-  background: var(--bg-surface-2);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+.hand-slot:hover {
+  z-index: 999 !important;
 }
 
-.hand-card:hover {
-  border-color: var(--accent);
+.hand-slot:hover .hand-card-inner {
+  transform: translateY(-35px) scale(1.3);
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.7));
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex-shrink: 0;
-}
-
-.btn {
-  height: 30px;
-  padding: 0 14px;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.btn:hover {
-  filter: brightness(1.1);
-}
-
-.btn-primary {
-  background: var(--accent-blue);
-  color: #fff;
-}
-
-.btn-danger {
-  background: var(--accent-red);
-  color: #fff;
+.hand-card-inner :deep(.card-face) {
+  border-radius: 4px;
 }
 
 /* ============================================
@@ -1081,8 +1234,8 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 /* 基地标签亮色主题 */
 [data-theme="light"] .base-tag {
   background: #fff;
-  border-color: var(--accent-green);
-  color: var(--accent-green);
+  border-color: var(--border);
+  color: var(--text-secondary);
 }
 
 /* 基地区背景亮色主题 */
@@ -1090,15 +1243,31 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   background:
     repeating-linear-gradient(
       45deg,
-      rgba(74, 222, 128, 0.06) 0 6px,
+      rgba(148, 163, 184, 0.06) 0 6px,
       transparent 6px 12px
     ),
-    #E8F5E9;
-  box-shadow: inset 0 0 0 1px rgba(46, 125, 50, 0.4), 0 4px 14px rgba(0, 0, 0, 0.1);
+    #E8EAF6;
+  box-shadow: inset 0 0 0 1px rgba(92, 107, 192, 0.3), 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
 /* 基地卡槽序号亮色主题 */
 [data-theme="light"] .base-slot::before {
-  color: rgba(46, 125, 50, 0.6);
+  color: rgba(92, 107, 192, 0.5);
+}
+
+/* 亮色主题: 提升战区空槽可见度 (纯白背景下灰蓝边框过淡) */
+[data-theme="light"] .base-slot {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(92, 107, 192, 0.18), transparent 60%),
+    var(--bg-surface);
+  border-color: rgba(92, 107, 192, 0.55);
+  box-shadow: inset 0 2px 4px rgba(92, 107, 192, 0.12);
+}
+
+/* 战区菱形空槽虚线占位 */
+[data-theme="light"] .battle-cell:not(:has(.bc-slot))::before,
+[data-theme="light"] .bc-slot:not(.has-card)::before {
+  border-color: rgba(92, 107, 192, 0.45);
+  color: rgba(92, 107, 192, 0.7);
 }
 </style>

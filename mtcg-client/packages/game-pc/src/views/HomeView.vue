@@ -1,6 +1,26 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useThemeStore } from '@mtcg/common/stores'
+
+interface ExploreModule {
+  key: string
+  icon: string
+  title: string
+  desc: string
+  cta: string
+}
+
+interface PopularDeck {
+  rank: number
+  name: string
+  format: string
+  wins: number
+}
+
+interface StatItem {
+  value: string
+  label: string
+  cssVar: string
+}
 
 const emit = defineEmits<{
   navigate: [view: string]
@@ -8,7 +28,7 @@ const emit = defineEmits<{
 
 const theme = useThemeStore()
 
-const exploreModules = [
+const exploreModules: ExploreModule[] = [
   {
     key: 'cards',
     icon: '📇',
@@ -53,7 +73,7 @@ const exploreModules = [
   },
 ]
 
-const popularDecks = [
+const popularDecks: PopularDeck[] = [
   { rank: 1, name: '复仇者突击', format: '标准', wins: 2456 },
   { rank: 2, name: '银河护卫队', format: '标准', wins: 1892 },
   { rank: 3, name: 'X战警控制', format: '标准', wins: 1567 },
@@ -61,7 +81,7 @@ const popularDecks = [
   { rank: 5, name: '蜘蛛侠联动', format: '标准', wins: 1108 },
 ]
 
-const stats = [
+const stats: StatItem[] = [
   { value: '248', label: '收集卡牌', cssVar: '--accent-red' },
   { value: '12', label: '卡组', cssVar: '--accent' },
   { value: '67', label: '胜场', cssVar: '--accent-blue' },
