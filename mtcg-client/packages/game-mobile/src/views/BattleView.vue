@@ -458,6 +458,9 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  background: var(--bg-surface-2);
+  border-radius: var(--radius-sm);
+  padding: 2px;
 }
 
 /* 菱形 - 3 列 grid：侧翼 / 先锋+后卫 / 侧翼 */
@@ -607,5 +610,47 @@ const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 .btn-danger {
   background: var(--accent-red);
   color: #fff;
+}
+
+/* ============================================
+   亮色主题覆盖：确保深色元素在浅色背景下清晰可见
+   ============================================ */
+/* 战区标签亮色主题 */
+[data-theme="light"] .zone-label {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+/* 卡组标签亮色主题 */
+[data-theme="light"] .deck-tag {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+/* 基地区域亮色主题 */
+[data-theme="light"] .zone.base {
+  background: #E8F5E9;
+  border-color: var(--accent-green);
+}
+
+/* 基地区卡槽亮色主题 */
+[data-theme="light"] .base-slot {
+  background: rgba(46, 125, 50, 0.08);
+  border-color: rgba(46, 125, 50, 0.4);
+}
+
+/* 菱形战区卡槽亮色主题 */
+[data-theme="light"] .slot {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+/* 菱形战区空槽亮色主题 */
+[data-theme="light"] .slot.empty {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* 侧边栈亮色主题 */
+[data-theme="light"] .side-stack {
+  background: #E8EAF6;
 }
 </style>
