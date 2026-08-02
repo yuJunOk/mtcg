@@ -1,9 +1,37 @@
 <script setup lang="ts">
 /**
  * PC 端对战视图
- * 横屏布局：对手在上，我方在下，中间是 PixiJS 画布
+ *
+ * 布局（严格按原型图，**全部用绝对定位 + 百分比**，保证任何分辨率下都不重叠）：
+ *
+ *   ┌──────────────────────────────────────────────┐
+ *   │ ← [阶段] 第3回合            对手名 [==时间线==] │  顶部 HUD
+ *   ├──────────────────────────────────────────────┤
+ *   │                                              │
+ *   │  ┌─卡背─┐ ┌─────基地区(6槽)──────┐ ┌─卡背─┐ │
+ *   │  │角色38│ │  □   □   □   □   □  □  │ │冲击9 │ │
+ *   │  └──────┘ └──────────────────────┘ └──────┘ │
+ *   │  ┌─撤退─┐                                ┌─┐ │
+ *   │  └──────┘                                │时│ │
+ *   │  ┌─裁剪─┐  ┌───┐  ┌─┐  ┌─┐  ┌───┐  ┌─┐  │间│ │
+ *   │  └──────┘  │后 │  │侧│  │侧│  │先 │  │后│  │线│ │
+ *   │            └───┘  └─┘  └─┘  └───┘  └─┘  │  │ │
+ *   │                                          │  │ │
+ *   │            ┌───┐  ┌─┐  ┌─┐  ┌───┐        │  │ │
+ *   │            │后 │  │侧│  │侧│  │先 │        │  │ │
+ *   │            └───┘  └─┘  └─┘  └───┘        └─┘ │
+ *   │  ┌─裁剪─┐                                  │
+ *   │  └──────┘                                  │
+ *   │  ┌─撤退─┐                                  │
+ *   │  └──────┘                                  │
+ *   │  ┌─卡背─┐ ┌─────基地区(6槽)──────┐ ┌─卡背─┐│
+ *   │  │冲击9 │ │  □   □   □   □   □  □  │ │角色41││
+ *   │  └──────┘ └──────────────────────┘ └──────┘│
+ *   ├──────────────────────────────────────────────┤
+ *   │ 手牌 [卡][卡][卡][卡][卡]   [结束] [认输]    │  底部 HUD
+ *   └──────────────────────────────────────────────┘
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useGameStore } from '@mtcg/common/stores'
 
 const emit = defineEmits<{
@@ -11,56 +39,166 @@ const emit = defineEmits<{
 }>()
 
 const store = useGameStore()
-const canvasContainer = ref<HTMLDivElement>()
 
-onMounted(() => {
-  // TODO: 初始化 GameCanvas，加载对局
-})
+const turnCount = computed(() => store.gameState?.turnCount ?? 1)
+const phaseLabel = computed(() => store.gameState?.currentPhase ?? '行动阶段')
 
-onUnmounted(() => {
-  // TODO: 销毁 GameCanvas
-})
+const opponentTimeline = computed(() => store.opponent?.timeline.length ?? 0)
+const localTimeline = computed(() => store.localPlayer?.timeline.length ?? 0)
+const opponentPercent = computed(() => `${(opponentTimeline.value / 9) * 100}%`)
+const localPercent = computed(() => `${(localTimeline.value / 9) * 100}%`)
 </script>
 
 <template>
   <div class="battle-pc">
     <!-- 顶部 HUD -->
     <header class="hud-top">
-      <div class="hud-left">
-        <button class="btn-back" @click="emit('navigate', 'home')">← 返回</button>
-        <span class="phase-badge">{{ store.gameState?.currentPhase || '部署阶段' }}</span>
-        <span class="turn-info">回合 {{ store.gameState?.turnCount || 1 }}</span>
-      </div>
-      <div class="opponent-info">
-        <span class="player-name">对手: {{ store.opponent?.playerId || 'AI_Opponent' }}</span>
-        <div class="timeline-bar">
-          <div class="timeline-progress" :style="{ width: ((store.opponent?.timeline.length ?? 3) / 9 * 100) + '%' }"></div>
-          <span class="timeline-text">{{ store.opponent?.timeline.length ?? 3 }} / 9</span>
-        </div>
+      <button class="btn-back" @click="emit('navigate', 'home')">←</button>
+      <span class="phase-badge">{{ phaseLabel }}</span>
+      <span class="turn-info">第 {{ turnCount }} 回合</span>
+      <span class="opponent">{{ store.opponent?.playerId ?? 'AI 对手' }}</span>
+      <div class="timeline-mini">
+        <div class="timeline-fill" :style="{ width: opponentPercent }"></div>
+        <span>对手时间线 {{ opponentTimeline }} / 9</span>
       </div>
     </header>
 
-    <!-- 中间：PixiJS 游戏画布 -->
-    <main class="canvas-area" ref="canvasContainer">
-      <div id="game-canvas" class="game-canvas">
-        <!-- 占位战区示意 -->
-        <div class="battlefield-mock">
-          <div class="zone-row opponent-zone">
-            <div class="zone-card" v-for="i in 4" :key="'opp'+i">
-              <div class="card-back">?</div>
-              <span class="zone-label">{{ ['后', '侧', '侧', '前'][i-1] }}</span>
+    <!-- 战区 - 整块相对定位，内部元素全部绝对定位 -->
+    <main class="canvas-area">
+      <div class="battlefield">
+
+        <!-- 对手半场：上下两行（基地区 + 菱形战区） -->
+        <!-- 顶栏：卡组 / 基地区 / 冲击 -->
+        <div class="row-top opponent">
+          <div class="zone deck">
+            <img class="deck-back" src="/card_back_character.png" alt="角色卡组" />
+            <span class="deck-tag">角色卡组</span>
+            <span class="deck-count">38</span>
+          </div>
+          <div class="zone base">
+            <span class="zone-label">基地区 · 6 槽</span>
+            <div class="base-row">
+              <div class="base-slot" v-for="i in 6" :key="i"></div>
             </div>
           </div>
-          <div class="timeline-mid">
-            <span class="mid-label">时间线区域</span>
+          <div class="zone deck">
+            <img class="deck-back" src="/card_back_rush.png" alt="冲击卡组" />
+            <span class="deck-tag">冲击卡组</span>
+            <span class="deck-count">9</span>
           </div>
-          <div class="zone-row local-zone">
-            <div class="zone-card" v-for="i in 4" :key="'local'+i">
-              <div class="card-back">?</div>
-              <span class="zone-label">{{ ['前', '侧', '侧', '后'][i-1] }}</span>
+        </div>
+
+        <!-- 战区主体：左列 + 菱形(居中) + 右列 -->
+        <div class="row-mid">
+          <!-- 左列：撤退 / 裁剪 -->
+          <div class="side-stack">
+            <div class="zone small">
+              <div class="zone-icon">↩</div>
+              <div class="zone-text">撤退</div>
+            </div>
+            <div class="zone small">
+              <div class="zone-icon">✂</div>
+              <div class="zone-text">裁剪</div>
+            </div>
+          </div>
+
+          <!-- 对手半场菱形：侧翼(左) / 后卫+先锋(中) / 侧翼(右)，先锋在下（靠近中线） -->
+          <div class="diamond opponent">
+            <div class="side-cell">
+              <div class="slot">
+                <div class="zone-label">侧翼区</div>
+              </div>
+            </div>
+            <div class="center-cell">
+              <div class="slot empty">
+                <div class="zone-label">后卫区</div>
+              </div>
+              <div class="slot">
+                <div class="zone-label">先锋区</div>
+              </div>
+            </div>
+            <div class="side-cell">
+              <div class="slot">
+                <div class="zone-label">侧翼区</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右列：时间线 -->
+          <div class="side-stack">
+            <div class="zone tall opponent-side">
+              <div class="zone-label">时间线</div>
             </div>
           </div>
         </div>
+
+        <!-- 中线 -->
+        <div class="row-midline">
+          <span class="turn-label">你的回合 ~ 第 {{ turnCount }} 回合</span>
+          <button class="btn-end-turn">结束回合</button>
+        </div>
+
+        <!-- 我方半场 -->
+        <div class="row-mid">
+          <div class="side-stack">
+            <div class="zone tall">
+              <div class="zone-label">时间线</div>
+            </div>
+          </div>
+
+          <!-- 我方半场菱形：侧翼(左) / 先锋+后卫(中) / 侧翼(右)，先锋在上（靠近中线） -->
+          <div class="diamond local">
+            <div class="side-cell">
+              <div class="slot empty">
+                <div class="zone-label">侧翼区</div>
+              </div>
+            </div>
+            <div class="center-cell">
+              <div class="slot">
+                <div class="zone-label">先锋区</div>
+              </div>
+              <div class="slot">
+                <div class="zone-label">后卫区</div>
+              </div>
+            </div>
+            <div class="side-cell">
+              <div class="slot empty">
+                <div class="zone-label">侧翼区</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-stack">
+            <div class="zone small">
+              <div class="zone-icon">✂</div>
+              <div class="zone-text">裁剪</div>
+            </div>
+            <div class="zone small">
+              <div class="zone-icon">↩</div>
+              <div class="zone-text">撤退</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row-top local">
+          <div class="zone deck">
+            <img class="deck-back" src="/card_back_rush.png" alt="冲击卡组" />
+            <span class="deck-tag">冲击卡组</span>
+            <span class="deck-count">9</span>
+          </div>
+          <div class="zone base">
+            <span class="zone-label">基地区 · 6 槽</span>
+            <div class="base-row">
+              <div class="base-slot" v-for="i in 6" :key="i"></div>
+            </div>
+          </div>
+          <div class="zone deck">
+            <img class="deck-back" src="/card_back_character.png" alt="角色卡组" />
+            <span class="deck-tag">角色卡组</span>
+            <span class="deck-count">41</span>
+          </div>
+        </div>
+
       </div>
     </main>
 
@@ -69,59 +207,60 @@ onUnmounted(() => {
       <div class="hand-area">
         <span class="hand-label">手牌</span>
         <div class="hand-cards">
-          <div class="hand-card" v-for="i in 5" :key="i">
-            <div class="mini-card">{{ i }}</div>
-          </div>
+          <div class="hand-card" v-for="i in 5" :key="i"></div>
         </div>
       </div>
-      <div class="action-bar">
-        <div class="timeline-bar">
-          <div class="timeline-progress" :style="{ width: ((store.localPlayer?.timeline.length ?? 2) / 9 * 100) + '%' }"></div>
-          <span class="timeline-text">{{ store.localPlayer?.timeline.length ?? 2 }} / 9</span>
+      <div class="actions">
+        <div class="timeline-mini">
+          <div class="timeline-fill" :style="{ width: localPercent }"></div>
+          <span>时间线 {{ localTimeline }} / 9</span>
         </div>
-        <button class="btn-action btn-primary">结束阶段</button>
-        <button class="btn-action btn-danger">认输</button>
+        <button class="btn btn-primary">结束阶段</button>
+        <button class="btn btn-danger">认输</button>
       </div>
     </footer>
   </div>
 </template>
 
 <style scoped>
+/* ============================================
+   整体 - 5 段式：顶 HUD / 战区 / 中线 / 战区 / 底 HUD
+   ============================================ */
 .battle-pc {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  height: 100dvh;
   background: var(--bg-base);
+  overflow: hidden;
+  /* 卡牌真实比例：取自素材 assets/card/designs/*.png = 747×1042 */
+  --card-aspect: 747 / 1042;
+  --card-gap: 3px;
+  --card-h: 92px;
 }
 
-/* ===== 顶部 HUD ===== */
+/* ============================================
+   顶部 HUD
+   ============================================ */
 .hud-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px var(--space-md);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  height: 48px;
   flex-shrink: 0;
-}
-
-.hud-left {
+  height: 44px;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  padding: 0 var(--space-md);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .btn-back {
+  width: 28px;
+  height: 28px;
   background: transparent;
   border: 1px solid var(--border);
-  color: var(--text-secondary);
-  padding: 4px 10px;
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  font-size: 14px;
 }
 
 .btn-back:hover {
@@ -129,203 +268,416 @@ onUnmounted(() => {
   color: var(--accent);
 }
 
-.opponent-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  font-size: var(--font-size-base);
-}
-
 .phase-badge {
+  padding: 2px 10px;
   background: var(--accent-blue);
   color: #fff;
-  padding: 2px 10px;
   border-radius: 10px;
-  font-size: var(--font-size-xs);
+  font-size: 12px;
   font-weight: 600;
 }
 
 .turn-info {
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
-.player-name {
+.opponent {
+  margin-left: auto;
+  font-size: 13px;
   color: var(--text-primary);
 }
 
-/* ===== 时间线进度条 ===== */
-.timeline-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 200px;
+.timeline-mini {
+  position: relative;
+  width: 160px;
   height: 20px;
   background: var(--bg-base);
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  position: relative;
-  border: 1px solid var(--border);
 }
 
-.timeline-progress {
+.timeline-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent-blue));
-  border-radius: 10px;
   transition: width 0.3s ease;
 }
 
-.timeline-text {
-  position: absolute;
+.timeline-mini span {
+  position: relative;
   width: 100%;
-  text-align: center;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
   font-weight: 600;
   color: #fff;
-  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  z-index: 1;
 }
 
-/* ===== 游戏画布 ===== */
+/* ============================================
+   战区 - 6 段上下排列，每段高度固定 = 不重叠关键
+   ============================================ */
 .canvas-area {
   flex: 1;
+  min-height: 0;
+  padding: var(--space-md);
   overflow: hidden;
-  position: relative;
 }
 
-.game-canvas {
-  width: 100%;
+.battlefield {
   height: 100%;
-}
-
-/* ===== 战区占位示意 ===== */
-.battlefield-mock {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: var(--space-md);
-  gap: var(--space-md);
+  gap: var(--space-sm);
 }
 
-.zone-row {
+/* 顶/底栏：卡组靠边、基地区居中（两侧卡组等宽，space-between 天然居中） */
+.row-top {
+  flex-shrink: 0;
+  width: 100%;
+  height: calc(var(--card-h) + 8px);
   display: flex;
-  gap: var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 4px var(--space-md);
+}
+
+/* 中线固定高度 */
+.row-midline {
+  flex-shrink: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  flex: 1;
-}
-
-.opponent-zone {
-  align-items: flex-end;
-}
-
-.local-zone {
-  align-items: flex-start;
-}
-
-.zone-card {
-  width: 100px;
-  height: 140px;
+  gap: var(--space-md);
   background: var(--bg-surface);
-  border: 2px dashed var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.turn-label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.btn-end-turn {
+  height: 24px;
+  padding: 0 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-end-turn:hover {
+  filter: brightness(1.1);
+}
+
+/* 战区主体 - grid 三列：左列 / 菱形 / 右列 */
+.row-mid {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 100px 1fr 100px;
+  gap: var(--space-sm);
+  align-items: stretch;
+  justify-items: stretch;
+  padding: 0 var(--space-sm);
+}
+
+/* ============================================
+   通用区域（zone）
+   ============================================ */
+.zone {
+  position: relative;
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-xs);
+  padding: 4px;
+  min-width: 0;
+  min-height: 0;
 }
 
-.card-back {
-  font-size: 28px;
-  color: var(--text-disabled);
-  font-weight: 700;
+.zone.small {
+  height: 60px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.zone.tall {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.zone.base {
+  border-color: var(--accent-green);
+  background: var(--bg-surface-2);
+  /* 高度 = 1 个卡高，宽度 = 6 个卡宽（由内部 slot 撑开） */
+  height: var(--card-h);
+  flex-shrink: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+.zone.deck {
+  position: relative;
+  /* 卡组 = 1 张卡背：高度 = 卡高，宽度由卡牌比例自动撑开 */
+  height: var(--card-h);
+  aspect-ratio: var(--card-aspect);
+  padding: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* 卡背图填满卡组 */
+.deck-back {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
 }
 
 .zone-label {
-  font-size: 11px;
-  color: var(--text-secondary);
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: #fff;
+  letter-spacing: 1px;
+  font-weight: 700;
+  pointer-events: none;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.75);
+  padding: 1px 6px;
+  border-radius: 8px;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
-.timeline-mid {
+/* 对手半场所有标签置底（菱形 + 基地区 + 时间线） */
+.row-top.opponent .zone-label,
+.zone.opponent-side .zone-label,
+.diamond.opponent .zone-label {
+  top: auto;
+  bottom: 2px;
+}
+
+.zone-icon {
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.zone-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* 卡组标签：我方置顶（靠近中线），对手置底（靠近中线） */
+.deck-tag {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 2px;
+  font-size: 9px;
+  color: #fff;
+  letter-spacing: 1px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.78);
+  padding: 1px 6px;
+  border-radius: 8px;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* 剩余统计数：居中醒目 */
+.deck-count {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  padding: 0 8px;
+  border-radius: 10px;
+  z-index: 2;
+  min-width: 22px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* 对手半场卡组标签置底（靠近中线侧） */
+.row-top.opponent .deck-tag {
+  top: auto;
+  bottom: 2px;
+}
+
+/* 基地区：6 个卡槽位，高度 = 1 卡高，宽度 = 6 卡宽 + 5 gap */
+.base-row {
+  display: flex;
+  gap: var(--card-gap);
+  height: 100%;
+  align-items: stretch;
+}
+
+.base-slot {
+  height: 100%;
+  aspect-ratio: var(--card-aspect);
+  background: var(--bg-base);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+/* ============================================
+   侧边栈（撤退/裁剪/时间线）
+   ============================================ */
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: stretch;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ============================================
+   菱形战区 - 在 grid cell 内 flex 居中
+   ============================================ */
+.diamond {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
+  gap: var(--space-sm);
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.mid-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-disabled);
-  letter-spacing: 2px;
+.side-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* ===== 底部 HUD ===== */
+.center-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* 卡位 - 统一使用卡牌素材比例 747:1042 */
+.slot {
+  width: 80px;
+  aspect-ratio: var(--card-aspect);
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  position: relative;
+}
+
+/* 空槽统一虚线 */
+.slot.empty {
+  border-style: dashed;
+  border-color: var(--border-light);
+}
+
+/* ============================================
+   底部 HUD
+   ============================================ */
 .hud-bottom {
-  padding: 8px var(--space-md);
+  flex-shrink: 0;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
-  flex-shrink: 0;
-  display: flex;
-  gap: var(--space-md);
-  align-items: center;
 }
 
 .hand-area {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  flex: 1;
+  min-width: 0;
 }
 
 .hand-label {
-  font-size: var(--font-size-xs);
+  font-size: 12px;
   color: var(--text-secondary);
   flex-shrink: 0;
 }
 
 .hand-cards {
+  flex: 1;
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
+  overflow-x: auto;
 }
 
 .hand-card {
-  width: 60px;
-  height: 84px;
+  width: 50px;
+  height: 70px;
+  flex-shrink: 0;
   background: var(--bg-surface-2);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-  cursor: pointer;
 }
 
 .hand-card:hover {
   border-color: var(--accent);
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-4px);
 }
 
-.mini-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  font-size: var(--font-size-xs);
-  color: var(--text-disabled);
-}
-
-.action-bar {
+.actions {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  flex-shrink: 0;
 }
 
-.btn-action {
-  padding: 6px 20px;
+.btn {
+  height: 30px;
+  padding: 0 14px;
   border: none;
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-base);
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-fast);
   white-space: nowrap;
+}
+
+.btn:hover {
+  filter: brightness(1.1);
 }
 
 .btn-primary {
@@ -333,16 +685,8 @@ onUnmounted(() => {
   color: #fff;
 }
 
-.btn-primary:hover {
-  filter: brightness(1.15);
-}
-
 .btn-danger {
-  background: var(--accent);
+  background: var(--accent-red);
   color: #fff;
-}
-
-.btn-danger:hover {
-  filter: brightness(1.15);
 }
 </style>
