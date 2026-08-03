@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { productApi } from '@mtcg/common/api'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
 const total = ref(0)
+const categories = ref<any[]>([])
 const query = ref({
   productName: '',
-  productType: '',
+  categoryCode: '',
   page: 1,
   size: 10,
 })
@@ -14,7 +16,7 @@ const query = ref({
 const columns = [
   { prop: 'productCode', label: '产品编号', width: 140 },
   { prop: 'productName', label: '产品名称', width: 200 },
-  { prop: 'productType', label: '类型', width: 120 },
+  { prop: 'categoryCode', label: '分类', width: 120 },
   { prop: 'releaseDate', label: '发售日', width: 120 },
 ]
 
@@ -29,12 +31,21 @@ async function loadData() {
   }
 }
 
+async function fetchCategories() {
+  try {
+    categories.value = await productApi.getCategories()
+  } catch (e) {
+    categories.value = []
+  }
+}
+
 function handleCreate() {
   // TODO: 打开新增表单
 }
 
 onMounted(() => {
   loadData()
+  fetchCategories()
 })
 </script>
 
@@ -46,10 +57,13 @@ onMounted(() => {
           <el-input v-model="query.productName" placeholder="模糊搜索" clearable />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="query.productType" placeholder="全部" clearable style="width: 140px">
-            <el-option label="预组牌" value="STRUCTURE_DECK" />
-            <el-option label="补充包" value="BOOSTER_PACK" />
-            <el-option label="推广包" value="PROMO_PACK" />
+          <el-select v-model="query.categoryCode" placeholder="全部" clearable style="width: 140px">
+            <el-option
+              v-for="cat in categories"
+              :key="cat.categoryCode"
+              :label="cat.categoryName"
+              :value="cat.categoryCode"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>

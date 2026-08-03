@@ -279,7 +279,8 @@ src/
 | `EnumCardType.java` | `src/utils/enums/card-type.ts` | 卡牌类型 |
 | `EnumColor.java` | `src/utils/enums/color.ts` | 颜色 |
 | `EnumRarity.java` | `src/utils/enums/rarity.ts` | 稀有度 |
-| `EnumProductType.java` | `src/utils/enums/product-type.ts` | 产品类型 |
+
+> 产品分类不再使用固定枚举，改为 `mtcg_product_category` 表管理（可扩展），前端通过 API `/api/v1/product-categories` 动态获取。
 
 - 格式统一为 `{ code, desc }` 数组，提供 `codeToDesc(options, code)` 工具函数
 
