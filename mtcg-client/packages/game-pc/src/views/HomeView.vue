@@ -352,18 +352,18 @@ const stats: StatItem[] = [
 /* ===== Hero Banner ===== */
 .hero {
   background-image:
-    linear-gradient(rgba(27, 30, 43, 0.82), rgba(27, 30, 43, 0.88)),
+    linear-gradient(rgba(27, 30, 43, 0.55), rgba(27, 30, 43, 0.72)),
     url('/background.png');
   background-size: cover;
   background-position: center;
   border-bottom: 1px solid var(--border);
-  padding: var(--space-2xl) var(--space-xl);
+  padding: 64px var(--space-xl) 56px;
 }
 
-/* 亮色主题: 背景图更亮，遮罩更深 */
+/* 亮色主题: 背景图更亮，遮罩更透 */
 [data-theme="light"] .hero {
   background-image:
-    linear-gradient(rgba(30, 30, 48, 0.55), rgba(30, 30, 48, 0.65)),
+    linear-gradient(rgba(30, 30, 48, 0.35), rgba(30, 30, 48, 0.50)),
     url('/background.png');
 }
 
@@ -376,14 +376,14 @@ const stats: StatItem[] = [
   font-weight: 700;
   color: #fff;
   margin-bottom: var(--space-sm);
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.85);
 }
 
 .hero-desc {
   font-size: var(--font-size-md);
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
   margin-bottom: var(--space-md);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
 }
 
 .hero-stats {
@@ -394,15 +394,15 @@ const stats: StatItem[] = [
 
 .hero-stat {
   font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, 0.75);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
 }
 
 .hero-stat strong {
   color: var(--accent);
   font-size: var(--font-size-lg);
   margin-right: 4px;
-  text-shadow: 0 0 12px rgba(0, 212, 170, 0.6);
+  text-shadow: 0 0 14px rgba(0, 212, 170, 0.7);
 }
 
 .hero-cta {
