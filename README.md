@@ -10,6 +10,11 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green.svg)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 [![MyBatis-Flex](https://img.shields.io/badge/MyBatis--Flex-1.9-red.svg)](https://mybatis-flex.com/)
+[![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen.svg)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-5.4-purple.svg)](https://vitejs.dev/)
+[![Element Plus](https://img.shields.io/badge/Element%20Plus-2.8-409eff.svg)](https://element-plus.org/)
+[![PixiJS](https://img.shields.io/badge/PixiJS-8.4-e91e63.svg)](https://pixijs.com/)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-blue.svg)](LICENSE)
 
 </div>
@@ -36,24 +41,36 @@
 ```
 mtcg/                          ← 仓库根目录
 ├── docs/                      ← 全局文档（规则 + 设计 + 规范）
-│   ├── 规则文档/
-│   ├── 设计文档/
-│   ├── 编码规范/
+│   ├── 规则文档/              ← 综合规则书 + 术语表 + Q&A
+│   ├── 设计文档/              ← 需求分析 + 概要设计 + 迭代一~九详细设计 + 实现步骤
+│   ├── 编码规范/              ← 后端/前端 AI 编码规范
+│   ├── 设计规范/              ← UI 设计系统
 │   └── README.md
-├── mtcg-server/               ← 后端（Java + Spring Boot）
-│   ├── docs/                  ← 后端技术方案研究
-│   ├── README.md
-│   └── ...
+├── mtcg-server/               ← 后端（Java 17 + Spring Boot 3.5）
+│   ├── src/main/java/com/aris/mtcg/
+│   │   ├── advice/            ← 全局异常处理
+│   │   ├── common/            ← 枚举、常量、异常、统一响应
+│   │   ├── component/         ← 组件（环境后处理器等）
+│   │   ├── config/            ← 配置（CORS 等）
+│   │   ├── controller/        ← 控制器
+│   │   ├── dao/               ← MyBatis-Flex Mapper
+│   │   ├── domain/            ← 实体 / DTO / VO / Query
+│   │   ├── engine/            ← 引擎（战斗 / 效果 / 规则）
+│   │   ├── manager/           ← 管理层（JWT 等）
+│   │   └── service/           ← 业务逻辑
+│   ├── src/main/resources/
+│   │   ├── sql/init.sql       ← 建表脚本
+│   │   └── application.yml
+│   └── pom.xml
 ├── mtcg-client/               ← 前端 Monorepo（Vue 3 + PixiJS + Element Plus）
-│   ├── packages/
-│   │   ├── common/            ← 共享包：类型、API 封装、Pinia 状态、PixiJS 基类
-│   │   ├── admin-web/         ← 管理后台：Vue 3 + Element Plus
-│   │   ├── game-pc/           ← PC 游戏端：横屏布局 + Electron 打包
-│   │   └── game-mobile/       ← 移动游戏端：竖屏布局 + Capacitor 打包
-│   └── package.json
+│   └── packages/
+│       ├── common/            ← 共享包：类型、API 封装、Pinia 状态、PixiJS 基类、主题样式
+│       ├── admin-web/         ← 管理后台：Vue 3 + Element Plus
+│       ├── game-pc/           ← PC 游戏端：横屏布局 + Electron 打包
+│       └── game-mobile/       ← 移动游戏端：竖屏布局 + Capacitor 打包
 ├── assets/                    ← 静态资源（卡图、Banner）
-├── scripts/                   ← 工具脚本
-├── .gitignore
+├── scripts/                   ← 工具脚本（卡面提取、卡牌设计生成、规则文档提取）
+├── AGENTS.md                  ← AI 编码规则入口
 └── README.md
 ```
 
@@ -63,8 +80,8 @@ mtcg/                          ← 仓库根目录
 
 | 模块 | 技术 | 说明 |
 | --- | --- | --- |
-| **mtcg-server** | Java 17 / Spring Boot 3.5 / MyBatis-Flex / PostgreSQL 16 | 后端服务 |
-| **mtcg-client** | Vue 3 / PixiJS / Pinia / Electron / Capacitor | 前端 Monorepo（管理后台 + PC/移动游戏客户端） |
+| **mtcg-server** | Java 17 / Spring Boot 3.5 / MyBatis-Flex / PostgreSQL 16 | 后端服务（REST API + 规则引擎） |
+| **mtcg-client** | Vue 3 / TypeScript / PixiJS / Pinia / Element Plus / Electron / Capacitor | 前端 Monorepo（管理后台 + PC/移动游戏客户端） |
 
 ---
 
@@ -72,14 +89,14 @@ mtcg/                          ← 仓库根目录
 
 | 模块 | 说明 | 状态 |
 | --- | --- | --- |
-| 卡牌数据管理 | 角色卡 / 冲击卡 / 产品包 CRUD + 条件查询 + 批量导入 | 🚧 开发中 |
-| 用户系统 | 注册 / 登录 / JWT 鉴权 / RBAC 权限 | 📋 设计完成 |
+| 用户系统 | 注册 / 登录 / JWT 鉴权 / RBAC 权限 / 用户管理 CRUD | 🚧 开发中（迭代一） |
+| 卡牌数据管理 | 角色卡 / 冲击卡 / 产品分类 / 产品 CRUD + 条件查询 + 批量导入 | 📋 设计完成 |
 | 卡组构筑 | 卡组创建 / 校验 / 收藏管理 / 导入导出 | 📋 设计完成 |
 | 对战引擎 | 回合流程 / 战斗系统 / 效果系统 / 关键词能力 | 📋 设计完成 |
 | 对战接口 | 创建对局 / 执行操作 / 复盘回放 / 持久化 | 📋 设计完成 |
 | AI 对战 | 启发式策略 / 局面评估 / 难度分级 | 📋 设计完成 |
 | 排位系统 | 段位 / 匹配 / 排行榜 / 赛季 | 📋 设计完成 |
-| 系统管理 | 用户管理 / 配置 / 审计日志 | 📋 设计完成 |
+| 系统管理 | 系统配置 / 审计日志 / 体验增强 | 📋 设计完成 |
 
 ---
 
@@ -106,47 +123,58 @@ mtcg/                          ← 仓库根目录
 - [后端 README](./mtcg-server/README.md) - 后端详情 + 快速启动
 - [前端 Monorepo](./mtcg-client/) - 游戏客户端（PC + 移动端）
 - [文档导航](./docs/README.md) - 全局文档索引
+- [AI 编码规则](./AGENTS.md) - 编码规范 + 设计文档索引
 
 ---
 
 ## 文档体系
 
-### 全局文档
-
 | 文档 | 说明 |
 | --- | --- |
 | [文档导航](./docs/README.md) | 全局文档索引 |
-| [规则文档](./docs/规则文档/) | 游戏规则书（所有模块共用） |
-| [设计文档](./docs/设计文档/) | 详细设计（需求 + 概要 + 迭代一~十） |
-| [编码规范](./docs/编码规范/) | 编码规范（所有模块通用） |
+| [规则文档](./docs/规则文档/) | 游戏规则书（综合规则书 + 术语表 + Q&A） |
+| [设计文档](./docs/设计文档/) | 详细设计（需求分析 + 概要设计 + 迭代一~九 + 实现步骤） |
+| [编码规范](./docs/编码规范/) | 后端 / 前端 AI 编码规范 |
+| [UI 设计系统](./docs/设计规范/UI设计系统.md) | 色彩、字体、间距、组件等视觉标准 |
 
 ---
 
-## 快速启动（后端）
+## 快速启动
 
-### 环境要求
+### 后端
 
-- JDK 17+
-- PostgreSQL 16+
-- Maven 3.9+
-
-### 数据库准备
+**环境要求**：JDK 17+ / PostgreSQL 16+ / Maven 3.9+
 
 ```sql
+-- 数据库准备
 CREATE DATABASE db_mtcg;
 ```
-
-### 运行
 
 ```bash
 cd mtcg-server
 ./mvnw spring-boot:run
 ```
 
-### 验证
+验证：健康检查 `GET http://localhost:8081/api/health` | Swagger UI `http://localhost:8081/api/swagger-ui.html`
 
-- 健康检查：`GET http://localhost:8081/api/health`
-- Swagger UI：`http://localhost:8081/api/swagger-ui.html`
+### 前端
+
+**环境要求**：Node.js 18+ / npm 10+
+
+```bash
+cd mtcg-client
+npm install          # 安装依赖（Monorepo workspace）
+
+# 开发模式（三端独立启动）
+npm run dev:admin    # 管理后台 → http://localhost:5175
+npm run dev:pc       # PC 游戏端 → http://localhost:5176
+npm run dev:mobile   # 移动游戏端 → http://localhost:5177
+
+# 构建
+npm run build:admin  # 管理后台
+npm run build:pc     # PC 游戏端（含 Electron 打包）
+npm run build:mobile # 移动游戏端
+```
 
 ---
 
