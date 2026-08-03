@@ -280,7 +280,7 @@ src/
 | `EnumColor.java` | `src/utils/enums/color.ts` | 颜色 |
 | `EnumRarity.java` | `src/utils/enums/rarity.ts` | 稀有度 |
 
-> 产品分类不再使用固定枚举，改为 `mtcg_product_category` 表管理（可扩展），前端通过 API `/api/v1/product-categories` 动态获取。
+> 产品（卡包/商品系列）由 `mtcg_product` 表管理，不使用枚举，前端通过产品列表 API 获取。
 
 - 格式统一为 `{ code, desc }` 数组，提供 `codeToDesc(options, code)` 工具函数
 
