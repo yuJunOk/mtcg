@@ -351,9 +351,20 @@ const stats: StatItem[] = [
 
 /* ===== Hero Banner ===== */
 .hero {
-  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-elevated) 50%, var(--bg-surface) 100%);
+  background-image:
+    linear-gradient(rgba(27, 30, 43, 0.82), rgba(27, 30, 43, 0.88)),
+    url('/background.png');
+  background-size: cover;
+  background-position: center;
   border-bottom: 1px solid var(--border);
   padding: var(--space-2xl) var(--space-xl);
+}
+
+/* 亮色主题: 背景图更亮，遮罩更深 */
+[data-theme="light"] .hero {
+  background-image:
+    linear-gradient(rgba(30, 30, 48, 0.55), rgba(30, 30, 48, 0.65)),
+    url('/background.png');
 }
 
 .hero-content {
@@ -361,16 +372,18 @@ const stats: StatItem[] = [
 }
 
 .hero-title {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #fff;
   margin-bottom: var(--space-sm);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
 }
 
 .hero-desc {
   font-size: var(--font-size-md);
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: var(--space-md);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
 .hero-stats {
@@ -381,13 +394,15 @@ const stats: StatItem[] = [
 
 .hero-stat {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .hero-stat strong {
   color: var(--accent);
   font-size: var(--font-size-lg);
   margin-right: 4px;
+  text-shadow: 0 0 12px rgba(0, 212, 170, 0.6);
 }
 
 .hero-cta {
