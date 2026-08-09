@@ -1,10 +1,10 @@
-# 详细设计：迭代五 — 对战 API 与对局持久化
+# 详细设计：迭代七 — 对战 API 与对局持久化
 
 > 项目：MTCG 后端程序
 > 版本：v0.1
 > 日期：2026-07-31
 > 依据：[需求分析](./01-需求分析.md) FR4.1–FR4.5、FR5.4、FR5.6；[概要设计](./02-概要设计.md) §3 §5 §6；[迭代四](./06-详细设计-迭代四-引擎状态模型与回合流程.md)、[迭代四](./07-详细设计-迭代四-引擎行动与战斗.md)、[迭代六](./09-详细设计-迭代六-效果系统与关键词能力.md) 引擎产物
-> 前置依赖：迭代一（卡牌数据）、迭代二（用户系统 + JWT 鉴权）、迭代三（卡组数据）、迭代四~六（引擎完整：GameState、回合流程、ActionDispatcher、效果系统）
+> 前置依赖：迭代一（卡牌数据）、迭代二（用户系统 + JWT 鉴权）、迭代三（卡组数据）、迭代四（状态模型 + 回合流程）、迭代五（行动与战斗处理器 ActionDispatcher）、迭代六（效果系统）
 
 ---
 
@@ -45,7 +45,7 @@
 | `GameState` / `PlayerState` / `FieldZone` / `CardInstance` / `CardSnapshot` / `ActionLog` | 迭代四 | 状态序列化、局面 VO 组装 |
 | `PhaseType` / `GameStatus` / `Zone` / `PlayerSide` 枚举 | 迭代四 | 序列化枚举名、阶段判定 |
 | `ActionType` / `ActionRequest` / `ActionResult` / `ActionDispatcher` | 迭代五 | 操作 DTO → 引擎请求转换、操作路由 |
-| `GameEngine`（含 `dispatch`）/ `GameInitializer` | 迭代四、五 | 创建对局、执行操作、崩溃恢复重放 |
+| `GameEngine`（含 `dispatch`）/ `GameInitializer` | 迭代四 | 创建对局、执行操作、崩溃恢复重放 |
 | `DeckMapper` / `DeckDO` / 卡组校验 | 迭代三 | 加载双方卡组、校验合法性与归属 |
 | `CardMapper` / `CardDO` | 迭代一 | 按 cardCode 批量加载卡牌快照 |
 | JWT 鉴权 + 当前用户上下文 | 迭代二 | Controller 获取 `userId`、归属校验 |
@@ -983,3 +983,47 @@ sequenceDiagram
 > 共新增 18 个 Java 文件 + 1 段建表 SQL（追加至 `init.sql`）+ ErrorCode 追加常量。
 >
 > 复用已有：`Result<T>` / `PageVO` / `BusinessException` / `GlobalExceptionHandler`（迭代一、二）、`DeckMapper` / `DeckDO`（迭代三）、`CardMapper` / `CardDO`（迭代一）、安全上下文（迭代二）、引擎全套（`GameEngine` / `GameInitializer` / `GameState` / `ActionDispatcher` / `ActionType` 等，迭代四~六）。
+
+---
+
+## 11. 前置依赖接口约定
+
+> 以下接口由本迭代交付，供后续迭代（迭代六~九）调用者使用。
+
+| 公开方法 | 签名 | 调用方 | 用途 |
+| --- | --- | --- | --- |
+| `GameService.createGame(userId, dto)` | `Result<GameStateVO>` | 迭代六（AI对战）/ 迭代七（AI Manager） | 创建对局 |
+| `GameService.executeAction(userId, dto)` | `Result<ActionResultVO>` | 迭代六（AI Manager） | 执行操作 |
+| `GameService.getGameState(gameId)` | `Result<GameStateVO>` | 迭代六（AI Manager） | 读取局面 |
+| `GameService.surrender(userId, gameId)` | `Result<Void>` | 迭代六（AI Manager） | 认输 |
+| `GameManager.put(gameId, ctx)` | `void` | 迭代六（AI Manager） | 注册对局到缓存 |
+| `GameManager.get(gameId)` | `GameContext` | 迭代六（AI Manager） | 获取对局上下文 |
+| `GameManager.remove(gameId)` | `void` | 迭代六（AI Manager） | 移除对局 |
+| `GameContext.engine` | `GameEngine` | 迭代六（AI Manager） | 驱动 AI 行棋 |
+| `GameContext.state` | `GameState` | 迭代六（AI Manager） | 读取局面 |
+| `GameContext.lock()` / `unlock()` | `void` | 迭代六（AI Manager） | 对局并发控制 |
+| `GameService.getReplay(gameId)` | `Result<ReplayVO>` | 迭代七（排行榜展示） | 复盘数据 |
+
+> **挂接约定**：对局结束时 `GameService.endGame()` 在持久化后，调用 `RankService.settleRank(gameId)`（迭代八）与 `PlayerStatsService.updateStats(gameId)`（迭代八）。休闲模式（`game_mode=CASUAL`）跳过 `settleRank`，但仍执行 `updateStats`。
+
+---
+
+## 12. 验收要点
+
+| 需求 | 验收项 |
+| --- | --- |
+| FR4.1 | 创建对局：`POST /games` → 返回 GameStateVO，status=IN_PROGRESS，局面含双方手牌（各人仅见己方） |
+| FR4.1 | 执行操作：`POST /games/{id}/actions` → 返回 ActionResultVO，局面更新正确 |
+| FR4.1 | 查询局面：`GET /games/{id}` → 归属正确裁剪（非己方手牌不返回） |
+| FR4.1 | 认输：`POST /games/{id}/surrender` → status=FINISHED，winner 正确 |
+| FR4.2 | 对局历史：`GET /games/history` → 仅返回当前用户参与的对局，分页正确 |
+| FR4.2 | 胜败统计：`GET /games/stats` → 胜/负/平次数正确 |
+| FR4.2 | 复盘：`GET /games/{id}/replay` → 返回全量 action_log，按 seq 升序 |
+| FR4.2 | 崩溃恢复：重启后 `GET /games/{id}` → 返回崩溃前的 GameState（快照+流水重放） |
+| FR4.3 | 非对局参与方执行操作 → 403 无权操作 |
+| FR4.3 | 对局已结束时执行操作 → 400 对局已结束 |
+| FR4.3 | 操作合法性校验：不合规操作 → 400 参数错误（如 ACTION 阶段执行 ATTACK） |
+| FR5.6 | 局面隐私：非己方手牌不暴露；action_log 中不含对手手牌内容 |
+| NFR8 | 对局操作 < 100ms（内存操作，无 DB 查询） |
+| NFR6 | 引擎代码中不含 Spring/MyBatis 注解或 import |
+| NFR6 | `GameService` 中不含引擎规则逻辑，仅做生命周期管理 |
