@@ -1,0 +1,117 @@
+package com.aris.mtcg.service.impl;
+
+import com.aris.mtcg.common.exception.BusinessException;
+import com.aris.mtcg.common.result.ErrorCode;
+import com.aris.mtcg.dao.ProductMapper;
+import com.aris.mtcg.domain.dto.ProductCreateDTO;
+import com.aris.mtcg.domain.dto.ProductQueryDTO;
+import com.aris.mtcg.domain.dto.ProductUpdateDTO;
+import com.aris.mtcg.domain.entity.ProductDO;
+import com.aris.mtcg.domain.vo.PageVO;
+import com.aris.mtcg.domain.vo.ProductVO;
+import com.aris.mtcg.service.ProductService;
+import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryWrapper;
+import jakarta.annotation.Resource;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * 产品服务实现
+ *
+ * @author pengYuJun
+ */
+@Service
+public class ProductServiceImpl implements ProductService {
+
+    @Resource
+    private ProductMapper productMapper;
+
+    @Override
+    public PageVO<ProductVO> listProducts(ProductQueryDTO query) {
+        QueryWrapper qw = QueryWrapper.create()
+                .like("product_name", query.getProductName(), StringUtils::isNotBlank)
+                .like("product_code", query.getProductCode(), StringUtils::isNotBlank)
+                .orderBy("create_time", false);
+        int pageNum = (query.getPage() == null || query.getPage() < 1) ? 1 : query.getPage();
+        int pageSize = (query.getSize() == null || query.getSize() < 1) ? 20 : query.getSize();
+        Page<ProductDO> page = productMapper.paginate(Page.of(pageNum, pageSize), qw);
+        List<ProductVO> records = page.getRecords().stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+        return new PageVO<>(records, page.getTotalRow());
+    }
+
+    @Override
+    public ProductVO getProductById(Long id) {
+        return toVO(loadOrThrow(id));
+    }
+
+    @Override
+    public Long createProduct(ProductCreateDTO dto) {
+        // 产品编号唯一校验
+        long count = productMapper.selectCountByQuery(
+                QueryWrapper.create().eq("product_code", dto.getProductCode()));
+        if (count > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "产品编号已存在");
+        }
+        ProductDO product = new ProductDO();
+        product.setProductCode(dto.getProductCode());
+        product.setProductName(dto.getProductName());
+        product.setReleaseDate(dto.getReleaseDate());
+        product.setDescription(dto.getDescription());
+        productMapper.insert(product);
+        return product.getId();
+    }
+
+    @Override
+    public void updateProduct(Long id, ProductUpdateDTO dto) {
+        loadOrThrow(id);
+        ProductDO update = new ProductDO();
+        update.setId(id);
+        if (dto.getProductName() != null) {
+            update.setProductName(dto.getProductName());
+        }
+        if (dto.getReleaseDate() != null) {
+            update.setReleaseDate(dto.getReleaseDate());
+        }
+        if (dto.getDescription() != null) {
+            update.setDescription(dto.getDescription());
+        }
+        productMapper.update(update);
+    }
+
+    @Override
+    public void deleteProduct(Long id) {
+        loadOrThrow(id);
+        // 不做外键校验；存在卡牌引用产品时由应用层（迭代二）做检查，当前允许删
+        productMapper.deleteById(id);
+    }
+
+    // ==================== 私有方法 ====================
+
+    private ProductDO loadOrThrow(Long id) {
+        ProductDO product = productMapper.selectOneById(id);
+        if (product == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "产品不存在");
+        }
+        return product;
+    }
+
+    private ProductVO toVO(ProductDO product) {
+        if (product == null) {
+            return null;
+        }
+        ProductVO vo = new ProductVO();
+        vo.setId(product.getId());
+        vo.setProductCode(product.getProductCode());
+        vo.setProductName(product.getProductName());
+        vo.setReleaseDate(product.getReleaseDate());
+        vo.setDescription(product.getDescription());
+        vo.setCreateTime(product.getCreateTime());
+        return vo;
+    }
+}

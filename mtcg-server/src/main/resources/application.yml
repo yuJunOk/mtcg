@@ -15,8 +15,8 @@ spring:
     password: postgres
   sql:
     init:
-      mode: always
-      schema-locations: classpath:sql/init.sql
+      mode: embedded
+      schema-locations: classpath:sql/init-schema.sql,classpath:sql/init-data.sql
       continue-on-error: false
       encoding: UTF-8
 
@@ -38,3 +38,10 @@ springdoc:
 logging:
   level:
     com.aris.mtcg: INFO
+
+mtcg:
+  jwt:
+    secret: ${MTCG_JWT_SECRET:changeme-please-use-a-long-random-secret-key-32chars}
+    expire-minutes: 120
+    header: Authorization
+    token-prefix: "Bearer "

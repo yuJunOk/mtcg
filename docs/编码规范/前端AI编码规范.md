@@ -238,12 +238,13 @@ cardApi.list(query)
 - 新增共享能力优先放入 `common`，避免 game-pc 和 game-mobile 重复实现
 
 ```ts
-// ✅
-import { cardApi } from '@mtcg/common/api/cardApi'
-import type { CardVO } from '@mtcg/common/types'
+// ✅ 从 @mtcg/common/api 统一导入 client（含解包后的方法 + 所有类型）
+import { client } from '@mtcg/common/api'
+import type { UserVO, CardVO } from '@mtcg/common/api'
 
-// ❌
-import { cardApi } from '../../common/src/api/cardApi'
+// ❌ 不要从旧路径导入
+import { cardApi } from '@mtcg/common/api/cardApi'   // 旧写法，已废弃
+import { http } from '@mtcg/common/utils/request'      // 旧写法，已废弃
 ```
 
 ---

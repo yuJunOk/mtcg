@@ -1,5 +1,6 @@
 package com.aris.mtcg.domain.entity;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
@@ -8,12 +9,12 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 卡牌数据对象，与 card 表一一对应
+ * 卡牌数据对象，与 mtcg_card 表一一对应
  *
  * @author pengYuJun
  */
 @Data
-@Table("card")
+@Table("mtcg_card")
 public class CardDO {
 
     /**
@@ -23,9 +24,14 @@ public class CardDO {
     private Long id;
 
     /**
-     * 卡牌编号（官方编号或自定义编码）
+     * 卡牌编号
      */
     private String cardCode;
+
+    /**
+     * 所属产品编号（引用 mtcg_product.product_code）
+     */
+    private String productCode;
 
     /**
      * 卡牌名称
@@ -38,19 +44,39 @@ public class CardDO {
     private String cardType;
 
     /**
-     * 费用
+     * 等级（1-6，冲击卡为空）
      */
-    private Integer cost;
+    private Short level;
 
     /**
-     * 攻击力（不适用则为空）
+     * 颜色，见 {@link com.aris.mtcg.common.enums.EnumColor}
      */
-    private Integer attack;
+    private String color;
 
     /**
-     * 生命值（不适用则为空）
+     * 环境
      */
-    private Integer health;
+    private String environment;
+
+    /**
+     * 特征（逗号分隔）
+     */
+    private String traits;
+
+    /**
+     * 攻击距离
+     */
+    private Short attackRange;
+
+    /**
+     * 战力
+     */
+    private Short power;
+
+    /**
+     * 稀有度，见 {@link com.aris.mtcg.common.enums.EnumRarity}
+     */
+    private String rarity;
 
     /**
      * 效果描述原文
@@ -58,17 +84,24 @@ public class CardDO {
     private String effectText;
 
     /**
-     * 效果结构化 JSON（后续规则引擎解析）
+     * 效果结构化 JSON（规则引擎解析）
      */
     private String effectJson;
 
     /**
-     * 创建时间
+     * 卡图路径
      */
+    private String imagePath;
+
+    /**
+     * 创建时间（插入时由数据库 NOW() 自动填充）
+     */
+    @Column(onInsertValue = "NOW()")
     private LocalDateTime createTime;
 
     /**
-     * 更新时间
+     * 更新时间（插入/更新时由数据库 NOW() 自动填充）
      */
+    @Column(onInsertValue = "NOW()", onUpdateValue = "NOW()")
     private LocalDateTime updateTime;
 }

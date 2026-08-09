@@ -396,7 +396,22 @@ mtcg-                  ← 项目前缀
 
 **Monorepo 共享**：`packages/common` 是 PC 和移动端的共享层，包含 PixiJS 引擎、Pinia 状态、API 封装、TS 类型定义。两端只需各自实现 view 层，游戏逻辑和状态管理不重复维护。
 
-**OpenAPI 生成请求方法**：后端 SpringDoc 提供 `/v3/api-docs`，前端用 `openapi-typescript-codegen` 自动生成 TS 请求方法，保证接口契约一致。后端接口变更后重新生成，避免手写 URL 和参数错误。生成的代码禁止手动修改。
+**OpenAPI 生成请求方法**：后端 SpringDoc 提供 `/v3/api-docs`，前端用 `openapi-typescript-codegen` 自动生成 TS 类型和 API 方法，保证接口契约一致。
+
+生成产物：
+- `packages/common/src/api/generated/` — OpenAPI 自动生成的类型 + Service 类（禁止手动修改）
+- `packages/common/src/api/client.ts` — 手写封装层，统一处理 Token 注入、响应解包 `{code,data,message}→data`、错误处理
+
+前端调用：`import { client } from '@mtcg/common/api'`，所有方法已自动解包返回 data，无需手动 `.data`。
+
+重新生成命令（后端接口变更后）：
+```bash
+# 1. 确保后端运行在 localhost:8081
+# 2. 拉取 OpenAPI 文档
+npx openapi --input http://localhost:8081/api/v3/api-docs \
+  --output ./packages/common/src/api/generated --client axios --name MTCGClient
+# 3. 覆盖 generated/ 目录后，在 client.ts 对应 Api 类中补充新方法即可
+```
 
 **实现步骤状态跟踪**：实现步骤文档中每个步骤标注状态（🔲 未开始 / 🚧 进行中 / ✅ 已完成）。调整步骤时不得覆盖已完成步骤的状态，只增改未完成部分。
 

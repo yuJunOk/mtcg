@@ -43,15 +43,59 @@ public enum ErrorCode {
      */
     SYSTEM_ERROR(500, "系统内部错误"),
 
+    // === 用户/认证领域（1001-1099）===
+
+    /**
+     * 用户名已存在
+     */
+    USERNAME_DUPLICATE(1001, "用户名已存在"),
+
+    /**
+     * 用户名或密码错误
+     */
+    PASSWORD_INCORRECT(1002, "用户名或密码错误"),
+
+    /**
+     * 账号已被禁用
+     */
+    USER_DISABLED(1003, "账号已被禁用"),
+
+    /**
+     * 用户不存在
+     */
+    USER_NOT_FOUND(1004, "用户不存在"),
+
+    /**
+     * 原密码错误
+     */
+    OLD_PASSWORD_INCORRECT(1005, "原密码错误"),
+
+    /**
+     * 不能禁用/删除自己的账号
+     */
+    CANNOT_MODIFY_SELF(1006, "不能禁用/删除自己的账号"),
+
+    /**
+     * 禁止删除系统管理员账号
+     */
+    CANNOT_DELETE_SYSADMIN(1007, "禁止删除系统管理员账号"),
+
+    /**
+     * 禁止禁用系统管理员账号
+     */
+    CANNOT_DISABLE_SYSADMIN(1008, "禁止禁用系统管理员账号"),
+
+    // === 规则引擎领域（2001-2999，预留）===
+
     /**
      * 规则引擎执行失败（预留）
      */
-    RULE_ENGINE_ERROR(1001, "规则引擎执行失败"),
+    RULE_ENGINE_ERROR(2001, "规则引擎执行失败"),
 
     /**
      * 非法游戏操作（预留）
      */
-    ILLEGAL_GAME_ACTION(1002, "非法游戏操作");
+    ILLEGAL_GAME_ACTION(2002, "非法游戏操作");
 
     private final int code;
 

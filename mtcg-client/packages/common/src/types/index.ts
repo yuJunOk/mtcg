@@ -1,10 +1,9 @@
-// ==================== 卡牌相关 ====================
+// ==================== 卡牌相关（前端特有，不含 CardVO 等 API 类型） ====================
 
-/** 卡牌类型 */
-export type CardType = 'CHARACTER' | 'RUSH_POINT'
+export type { CardType, CardColor, CardRarity } from './card'
+export * from './card'
 
-/** 卡牌颜色 */
-export type CardColor = 'RED' | 'YELLOW' | 'BLUE' | 'GREEN' | 'ORANGE' | 'PURPLE'
+// ==================== 区域（游戏引擎用） ====================
 
 /** 区域 */
 export type Zone =
@@ -17,12 +16,12 @@ export interface CardSnapshot {
   cardCode: string
   name: string
   level: number | null
-  color: CardColor | null
+  color: string | null
   attackRange: number | null
   power: number | null
   traits: string[]
   effectText: string
-  cardType: CardType
+  cardType: string
 }
 
 /** 卡牌实例（运行时） */
@@ -142,3 +141,11 @@ export interface CardRenderData extends CardPosition {
   selected: boolean
   highlight: 'none' | 'can-attack' | 'can-move' | 'can-target' | 'can-intercept'
 }
+
+// ==================== 用户相关（前端特有） ====================
+
+export * from './user'
+
+// ==================== 产品相关（前端特有） ====================
+
+export * from './product'

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { GameState, PlayerState, ActionType, CardRenderData } from '../types'
-import { getGameState, executeAction } from '../api/client'
+import type { GameState, PlayerState, ActionType } from '../types'
 
 export const useGameStore = defineStore('game', () => {
   // ========== 状态 ==========
@@ -39,12 +38,13 @@ export const useGameStore = defineStore('game', () => {
 
   // ========== 操作 ==========
 
-  /** 加载对局状态 */
-  async function loadGame(gameId: string) {
+  /** 加载对局状态（迭代四/五接入） */
+  async function loadGame(_gameId: string) {
     loading.value = true
     error.value = null
     try {
-      gameState.value = await getGameState(gameId)
+      // TODO(迭代四/五): await client.game.getState(_gameId)
+      throw new Error('loadGame 未接入，请先完成迭代四/五')
     } catch (e) {
       error.value = '加载对局失败'
       throw e
@@ -53,24 +53,14 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  /** 执行操作 */
-  async function doAction(actionType: ActionType, payload: Record<string, unknown> = {}) {
+  /** 执行操作（迭代四/五接入） */
+  async function doAction(_actionType: ActionType, _payload: Record<string, unknown> = {}) {
     if (!gameState.value) return
     loading.value = true
     error.value = null
     try {
-      const res = await executeAction({
-        gameId: gameState.value.gameId,
-        playerId: localPlayerId.value,
-        actionType,
-        payload,
-      })
-      if (res.success) {
-        gameState.value = res.gameState
-      } else {
-        error.value = res.message || '操作失败'
-      }
-      return res
+      // TODO(迭代四/五): await client.game.executeAction(...)
+      throw new Error('doAction 未接入，请先完成迭代四/五')
     } catch (e) {
       error.value = '操作请求失败'
       throw e

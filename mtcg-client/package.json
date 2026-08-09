@@ -14,5 +14,8 @@
     "build:admin": "npm -w @mtcg/admin-web run build",
     "build:pc": "npm -w @mtcg/game-pc run build",
     "build:mobile": "npm -w @mtcg/game-mobile run build"
+  },
+  "devDependencies": {
+    "openapi-typescript-codegen": "^0.31.0"
   }
 }

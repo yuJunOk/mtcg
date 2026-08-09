@@ -104,6 +104,81 @@ com.aris.mtcg
 
 ## 3. 编码规范
 
+### 3.0 阿里巴巴 Java 开发规范（强制）
+
+项目严格遵循《阿里巴巴 Java 开发手册》（泰山版），以下是最关键的条目：
+
+#### 3.0.1 大括号使用
+
+- **强制**：`if` / `else` / `for` / `while` / `do-while` / `try-catch-finally` / `switch` / `synchronized` 等语句**必须使用大括号**，即使只有一行代码
+- **强制**：大括号前不加空格，`if (...) {` 而非 `if (...) { `
+- **强制**：大括号的结束符 `}` 必须独占一行
+- **强制**：`else` / `catch` / `finally` / `while` 等关键字必须与大括号结束符 `}` 在同一行
+- **正例**：
+  ```java
+  if (user != null) {
+      System.out.println(user.getName());
+  } else {
+      System.out.println("用户为空");
+  }
+  
+  for (int i = 0; i < 10; i++) {
+      System.out.println(i);
+  }
+  ```
+- **反例**（禁止）：
+  ```java
+  if (user != null) System.out.println(user.getName());
+  
+  if (user != null)
+      System.out.println(user.getName());
+  
+  if (user != null) {
+      System.out.println(user.getName());
+  }
+  else {
+      System.out.println("用户为空");
+  }
+  ```
+
+#### 3.0.2 缩进与空格
+
+- **强制**：缩进采用 4 个空格，禁止使用 Tab
+- **强制**：左括号后和右括号前加空格，如 `if (user != null)` 而非 `if(user != null)`
+- **强制**：`=` / `+` / `-` / `*` / `/` / `%` / `&&` / `||` / `<` / `>` / `==` 等二元运算符两边必须加空格
+- **强制**：方法名、参数名、成员变量、局部变量使用 lowerCamelCase 风格
+- **强制**：类名、接口名、枚举名使用 UpperCamelCase 风格
+- **强制**：常量全部大写，单词间用下划线隔开，如 `MAX_STOCK_COUNT`
+
+#### 3.0.3 命名规范
+
+- **强制**：包名统一小写，如 `com.aris.mtcg.service`
+- **强制**：类名使用名词，方法名使用动词或动词短语
+- **强制**：DTO 以 `DTO` 结尾，VO 以 `VO` 结尾，DO 以 `DO` 结尾
+- **强制**：Service 接口以 `Service` 结尾，实现类以 `ServiceImpl` 结尾
+- **强制**：Controller 以 `Controller` 结尾
+- **强制**：Mapper 以 `Mapper` 结尾
+- **强制**：枚举以 `Enum` 开头
+- **强制**：异常类以 `Exception` 结尾
+
+#### 3.0.4 常量定义
+
+- **强制**：不允许任何魔法值（即未经预先定义的常量）直接出现在代码中
+- **正例**：
+  ```java
+  private static final int MAX_RETRY_COUNT = 3;
+  
+  if (retryCount > MAX_RETRY_COUNT) {
+      throw new BusinessException("重试次数超限");
+  }
+  ```
+
+#### 3.0.5 异常处理
+
+- **强制**：不要捕获大的异常类（如 `Exception`），应捕获具体异常
+- **强制**：不要用 `System.out.println` 输出异常，应使用日志框架
+- **强制**：异常信息必须包含排查相关信息
+
 ### 3.1 枚举
 
 统一采用 `code` + `desc` 模式，带 `Enum` 后缀，不实现接口：
@@ -263,13 +338,13 @@ src/
 
 ### 8.3 接口请求规范
 
-- 使用 **OpenAPI Generator** 根据后端 Swagger 文档自动生成 API 请求方法，保证前后端接口契约一致
+- 使用 **OpenAPI Generator** 根据后端 Swagger 文档自动生成 TypeScript 类型和 API 方法，保证前后端接口契约一致
 - 后端 Swagger JSON 地址：`http://localhost:8081/api/v3/api-docs`
 - 生成的代码放在 `src/api/generated/`，**禁止手动修改**生成代码
-- 手写补充接口放在 `src/api/` 对应模块文件中
-- axios 实例封装在 `src/utils/request.ts`，处理 baseURL、token、统一错误拦截
+- 手写封装层在 `src/api/client.ts`，统一处理：Token 注入 + 响应解包 + 错误处理
+- 前端调用方式：`import { client } from '@mtcg/common/api'`，所有方法已自动解包返回 data
 
-### 8.4 枚举对齐规范
+### 8.4 前端 API 调用规范（重要）
 
 - 前端枚举必须与后端 `common/enums` 下的枚举**逐一对应**，不可随意增减
 - 每个后端枚举类对应一个前端枚举文件，**不合并到同一个文件**：
