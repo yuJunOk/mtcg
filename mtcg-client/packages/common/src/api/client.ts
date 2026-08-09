@@ -1,93 +1,17 @@
 /**
- * OpenAPI 客户端
+ * API 统一客户端（聚合层，向后兼容）
  *
- * 使用方式：
- *   import { client } from '@mtcg/common/api'
- *   const user = await client.user.me()        // 已解包，直接是 UserVO
- *   const result = await client.auth.login(dto) // 已解包，直接是 LoginVO
+ * 已废弃，请使用按需导入：
+ *   import { authApi, userApi, adminUserApi, adminProductApi, adminCardApi, dashboardApi } from '@mtcg/common/api'
+ *   import type { UserVO } from '@mtcg/common/types'
  *
- * 职责：
- * - Token 自动注入（axios 请求拦截器，从 localStorage 读取）
- * - 统一响应解包：{code, data, message} → 直接返回 data
- * - 错误码统一处理：401/1005/1006 → 清登录态跳转登录页
- * - 其他业务错误 → ElMessage.error
- *
- * 后端接口变更后：
- *   1. 确保后端运行在 localhost:8081
- *   2. 重新拉取：
- *      npx openapi --input http://localhost:8081/api/v3/api-docs \
- *        --output ./packages/common/src/api/generated --client axios --name MTCGClient
- *   3. 覆盖 packages/common/src/api/generated/ 目录
- *   4. 在对应 Api 类中添加新方法即可
+ * 本文件仅作过渡兼容，后续会删除。
  */
-import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import type * as Gen from './generated'
+import { axios, extractData } from './request'
+import type * as Gen from '../types'
 
 // ========================================================
-// axios 全局配置与拦截器（一次性配置）
-// ========================================================
-
-const TOKEN_KEY = 'mtcg_token'
-
-axios.defaults.baseURL = '/api'
-axios.defaults.timeout = 10_000
-axios.defaults.headers.common['Content-Type'] = 'application/json'
-
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
-
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const res = error.response?.data as Record<string, unknown> | undefined
-    const code = res?.code ?? error.response?.status
-
-    // 未登录 / Token 失效 → 清登录态 + 强制刷新跳转登录页
-    if (code === 401 || code === 1005 || code === 1006) {
-      localStorage.removeItem(TOKEN_KEY)
-      window.location.hash = '/login'
-      window.location.reload()
-      return Promise.reject(error)
-    }
-
-    // 业务错误统一弹提示
-    let msg = error.message || '网络错误'
-    if (res?.message) msg = res.message as string
-    else if (error.response?.status === 403) msg = '无操作权限'
-    else if (error.response?.status === 404) msg = '请求的资源不存在'
-    else if (error.response?.status && error.response.status >= 500) msg = '服务器开小差了，请稍后再试'
-
-    ElMessage.error(msg)
-    return Promise.reject(error)
-  },
-)
-
-// ========================================================
-// 统一响应解包（内部使用）
-// ========================================================
-
-/** 从 axios 响应中提取 Result<T> 的 data 部分 */
-function extractData<T>(r: { data: Record<string, unknown> }): T {
-  return r.data['data'] as T
-}
-
-// ========================================================
-// API 客户端
-// ========================================================
-
-export class MTCGApi {
-  readonly user = new UserApi()
-  readonly auth = new AuthApi()
-  readonly admin = new AdminApi()
-  readonly dashboard = new DashboardApi()
-}
-
-// ========================================================
-// 认证相关（匿名接口）
+// 认证（匿名接口）
 // ========================================================
 
 class AuthApi {
@@ -120,7 +44,7 @@ class UserApi {
 class AdminApi {
   // --- 用户管理 ---
   listUsers = (query: Gen.UserQueryDTO) =>
-    axios.get<Record<string, unknown>>('/admin/users', { params: { ...query } }).then(r => extractData<Gen.PageVOUserVO>(r))
+    axios.get<Record<string, unknown>>('/admin/users', { params: { ...query } }).then(r => extractData<Gen.PageVO<UserVO>>(r))
 
   getUser = (id: number) =>
     axios.get<Record<string, unknown>>(`/admin/users/${id}`).then(r => extractData<Gen.UserVO>(r))
@@ -142,7 +66,7 @@ class AdminApi {
 
   // --- 产品管理 ---
   listProducts = (query: Gen.ProductQueryDTO) =>
-    axios.get<Record<string, unknown>>('/admin/products', { params: { ...query } }).then(r => extractData<Gen.PageVOProductVO>(r))
+    axios.get<Record<string, unknown>>('/admin/products', { params: { ...query } }).then(r => extractData<Gen.PageVO<ProductVO>>(r))
 
   getProduct = (id: number) =>
     axios.get<Record<string, unknown>>(`/admin/products/${id}`).then(r => extractData<Gen.ProductVO>(r))
@@ -158,7 +82,7 @@ class AdminApi {
 
   // --- 卡牌管理 ---
   listCards = (query: Gen.CardQueryDTO) =>
-    axios.get<Record<string, unknown>>('/admin/cards', { params: { ...query } }).then(r => extractData<Gen.PageVOCardVO>(r))
+    axios.get<Record<string, unknown>>('/admin/cards', { params: { ...query } }).then(r => extractData<Gen.PageVO<CardVO>>(r))
 
   getCard = (id: number) =>
     axios.get<Record<string, unknown>>(`/admin/cards/${id}`).then(r => extractData<Gen.CardVO>(r))
@@ -186,13 +110,39 @@ class DashboardApi {
 }
 
 // ========================================================
-// 默认导出（全局单例）
+// 类型兼容（透传旧 generated/ 的类型路径）
 // ========================================================
 
-export const client = new MTCGApi()
+// View 文件从 '@mtcg/common/api' 导入类型，这里重新导出
+export type {
+  UserVO, LoginVO, UserQueryDTO, AdminUserCreateDTO, AdminUserUpdateDTO,
+  AdminResetPasswordDTO, UserUpdateDTO, ChangePasswordDTO,
+} from '../types/user'
+
+export type {
+  CardVO, CardQueryDTO, CardCreateDTO, CardUpdateDTO,
+} from '../types/card'
+
+export type {
+  ProductVO, ProductQueryDTO, ProductCreateDTO, ProductUpdateDTO,
+} from '../types/product'
+
+export type {
+  DashboardStatsVO, HealthVO,
+} from '../types/dashboard'
+
+// 临时类型别名（View 文件中使用）
+type UserVO = Gen.UserVO
+type ProductVO = Gen.ProductVO
+type CardVO = Gen.CardVO
 
 // ========================================================
-// 类型透传（从 generated 目录）
+// 默认导出（全局单例，兼容旧写法）
 // ========================================================
 
-export * from './generated'
+export const client = {
+  auth: new AuthApi(),
+  user: new UserApi(),
+  admin: new AdminApi(),
+  dashboard: new DashboardApi(),
+}

@@ -1,7 +1,19 @@
-// ==================== 卡牌相关（前端特有，不含 CardVO 等 API 类型） ====================
+// ==================== 导出所有类型 ====================
 
-export type { CardType, CardColor, CardRarity } from './card'
-export * from './card'
+export * from './common'
+export * from './user'
+export * from './card'       // API 类型（CardVO + DTO）
+export * from './card-ui'   // 前端 UI 类型（下拉选项 + 工具函数）
+export * from './product'
+export * from './dashboard'
+
+// ==================== 前端特有类型 ====================
+
+/** 用户角色 */
+export type UserRole = 'PLAYER' | 'CARD_ADMIN' | 'SYS_ADMIN' | 'AI'
+
+/** 用户状态 */
+export type UserStatus = 'ACTIVE' | 'DISABLED'
 
 // ==================== 区域（游戏引擎用） ====================
 
@@ -39,8 +51,6 @@ export interface CardInstance {
   attachedCards: CardInstance[]
 }
 
-// ==================== 场上区域 ====================
-
 /** 场上区域 */
 export interface FieldZone {
   vanguard: CardInstance | null
@@ -48,8 +58,6 @@ export interface FieldZone {
   rearguard: CardInstance | null
   base: (CardInstance | null)[]
 }
-
-// ==================== 玩家与对局 ====================
 
 /** 回合阶段 */
 export type PhaseType =
@@ -88,8 +96,6 @@ export interface GameState {
   winnerId: string | null
 }
 
-// ==================== 操作 ====================
-
 /** 操作类型 */
 export type ActionType =
   | 'MULLIGAN'
@@ -121,8 +127,6 @@ export interface ActionResponse {
   availableActions: ActionType[]
 }
 
-// ==================== 卡牌渲染 ====================
-
 /** 卡牌渲染位置 */
 export interface CardPosition {
   x: number
@@ -141,11 +145,3 @@ export interface CardRenderData extends CardPosition {
   selected: boolean
   highlight: 'none' | 'can-attack' | 'can-move' | 'can-target' | 'can-intercept'
 }
-
-// ==================== 用户相关（前端特有） ====================
-
-export * from './user'
-
-// ==================== 产品相关（前端特有） ====================
-
-export * from './product'

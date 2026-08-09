@@ -3,11 +3,11 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 import { client } from '@mtcg/common/api'
-import type { DashboardStatsVO } from '@mtcg/common/api'
+import type { DashboardStatsVO } from '@mtcg/common/types'
 
 const router = useRouter()
 
-const stats = ref<DashboardStatsVO>({
+const stats = ref<{ cardCount: number; productCount: number; userCount: number; todayBattleCount: number }>({
   cardCount: 0,
   productCount: 0,
   userCount: 0,

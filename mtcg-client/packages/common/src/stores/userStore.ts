@@ -13,7 +13,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { UserVO, UserLoginDTO } from '../api'
+import type { UserVO } from '../api'
 import { client } from '../api'
 
 const TOKEN_KEY = 'mtcg_token'
@@ -30,7 +30,7 @@ export const useUserStore = defineStore('user', () => {
   // ========== 操作 ==========
 
   /** 登录 */
-  async function login(dto: UserLoginDTO) {
+  async function login(dto: { username: string; password: string }) {
     const data = await client.auth.login(dto)
     token.value = data.token ?? null
     userInfo.value = data.user ?? null
