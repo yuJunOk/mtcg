@@ -29,6 +29,10 @@ data/*.db-shm
 data/*.db-wal
 !data/.gitkeep
 
+### Uploads ###
+uploads/
+mtcg-server/uploads/
+
 ### Logs ###
 logs/
 *.log

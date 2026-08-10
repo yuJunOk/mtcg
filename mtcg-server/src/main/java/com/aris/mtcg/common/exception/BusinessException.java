@@ -5,8 +5,8 @@ import lombok.Getter;
 
 /**
  * 业务异常
- * <p>
- * 手册建议：禁止直接抛出 RuntimeException / Exception，应使用有业务含义的自定义异常。
+ *
+ * <p>手册建议：禁止直接抛出 RuntimeException / Exception，应使用有业务含义的自定义异常。
  *
  * @author pengYuJun
  */

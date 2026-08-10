@@ -13,13 +13,13 @@ const userStore = useUserStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const form = reactive({
-  username: localStorage.getItem(REMEMBER_KEY) || '',
+  usercode: localStorage.getItem(REMEMBER_KEY) || '',
   password: '',
   remember: !!localStorage.getItem(REMEMBER_KEY),
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  usercode: [{ required: true, message: '请输入玩家编号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
@@ -27,13 +27,11 @@ async function handleLogin() {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    loading.value = true
     try {
-      await userStore.login({ username: form.username, password: form.password })
-      await userStore.fetchUserInfo()
-      // 记住我
+      await userStore.login({ usercode: form.usercode, password: form.password }, loading)
+      // login 已写入 userInfo，无需再请求 /users/me
       if (form.remember) {
-        localStorage.setItem(REMEMBER_KEY, form.username)
+        localStorage.setItem(REMEMBER_KEY, form.usercode)
       } else {
         localStorage.removeItem(REMEMBER_KEY)
       }
@@ -41,11 +39,10 @@ async function handleLogin() {
       router.push('/')
     } catch {
       // 拦截器统一弹提示
-    } finally {
-      loading.value = false
     }
   })
 }
+
 </script>
 
 <template>
@@ -64,10 +61,10 @@ async function handleLogin() {
         label-width="0"
         @submit.prevent
       >
-        <el-form-item prop="username">
+        <el-form-item prop="usercode">
           <el-input
-            v-model="form.username"
-            placeholder="用户名"
+            v-model="form.usercode"
+            placeholder="玩家编号"
             size="large"
             clearable
             :prefix-icon="'User'"

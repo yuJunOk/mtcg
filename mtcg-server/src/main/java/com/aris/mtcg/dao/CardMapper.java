@@ -1,7 +1,7 @@
 package com.aris.mtcg.dao;
 
-import com.mybatisflex.core.BaseMapper;
 import com.aris.mtcg.domain.entity.CardDO;
+import com.mybatisflex.core.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
@@ -10,5 +10,4 @@ import org.apache.ibatis.annotations.Mapper;
  * @author pengYuJun
  */
 @Mapper
-public interface CardMapper extends BaseMapper<CardDO> {
-}
+public interface CardMapper extends BaseMapper<CardDO> {}

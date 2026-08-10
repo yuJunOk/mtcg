@@ -7,21 +7,14 @@ package com.aris.mtcg.common.constant;
  */
 public final class CommonConstant {
 
-    private CommonConstant() {
-    }
+    private CommonConstant() {}
 
-    /**
-     * 默认页码
-     */
+    /** 默认页码 */
     public static final int DEFAULT_PAGE_NUM = 1;
 
-    /**
-     * 默认每页条数
-     */
+    /** 默认每页条数 */
     public static final int DEFAULT_PAGE_SIZE = 20;
 
-    /**
-     * 最大每页条数
-     */
+    /** 最大每页条数 */
     public static final int MAX_PAGE_SIZE = 100;
 }

@@ -5,6 +5,7 @@ export * from './user'
 export * from './card'       // API 类型（CardVO + DTO）
 export * from './card-ui'   // 前端 UI 类型（下拉选项 + 工具函数）
 export * from './product'
+export * from './card-feature'
 export * from './dashboard'
 
 // ==================== 前端特有类型 ====================

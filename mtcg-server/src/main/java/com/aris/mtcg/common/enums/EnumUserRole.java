@@ -4,14 +4,13 @@ import lombok.Getter;
 
 /**
  * 用户角色枚举
- * <p>
- * PLAYER：玩家 / CARD_ADMIN：卡牌管理员 / SYS_ADMIN：系统管理员 / AI：AI玩家
+ *
+ * <p>PLAYER：玩家 / CARD_ADMIN：卡牌管理员 / SYS_ADMIN：系统管理员 / AI：AI玩家
  *
  * @author pengYuJun
  */
 @Getter
 public enum EnumUserRole {
-
     PLAYER("PLAYER", "玩家"),
     CARD_ADMIN("CARD_ADMIN", "卡牌管理员"),
     SYS_ADMIN("SYS_ADMIN", "系统管理员"),

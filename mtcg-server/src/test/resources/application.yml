@@ -1,0 +1,17 @@
+spring:
+  profiles:
+    active: test
+  datasource:
+    url: jdbc:postgresql://localhost:5432/db_mtcg
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+  sql:
+    init:
+      mode: never
+
+mtcg:
+  jwt:
+    secret: test-secret-key-at-least-32-characters!!
+    expire-minutes: 30
+    refresh-expire-days: 7

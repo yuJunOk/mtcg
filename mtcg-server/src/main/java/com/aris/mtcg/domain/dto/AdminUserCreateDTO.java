@@ -12,29 +12,18 @@ import org.hibernate.validator.constraints.Length;
 @Data
 public class AdminUserCreateDTO {
 
-    /**
-     * 用户名
-     */
-    @NotBlank
-    @Length(min = 3, max = 32)
-    private String username;
+    /** 玩家编号（系统自动生成，形如 100001，注册/创建后不可修改） */
+    private String usercode;
 
-    /**
-     * 密码
-     */
+    /** 密码 */
     @NotBlank
     @Length(min = 6, max = 32)
     private String password;
 
-    /**
-     * 昵称
-     */
+    /** 用户名（展示名，最长 64 位） */
     @Length(max = 64)
-    private String nickname;
+    private String username;
 
-    /**
-     * 角色
-     */
-    @NotBlank
-    private String role;
+    /** 角色 */
+    @NotBlank private String role;
 }

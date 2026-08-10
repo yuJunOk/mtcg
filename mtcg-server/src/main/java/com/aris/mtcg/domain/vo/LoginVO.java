@@ -10,13 +10,12 @@ import lombok.Data;
 @Data
 public class LoginVO {
 
-    /**
-     * JWT 令牌
-     */
+    /** 访问令牌 */
     private String token;
 
-    /**
-     * 当前用户信息
-     */
+    /** 刷新令牌 */
+    private String refreshToken;
+
+    /** 当前用户信息 */
     private UserVO user;
 }

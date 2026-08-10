@@ -4,14 +4,13 @@ import lombok.Getter;
 
 /**
  * 卡牌类型枚举
- * <p>
- * CHARACTER：角色卡 / RUSH_POINT：冲击卡
+ *
+ * <p>CHARACTER：角色卡 / RUSH_POINT：冲击卡
  *
  * @author pengYuJun
  */
 @Getter
 public enum EnumCardType {
-
     CHARACTER("CHARACTER", "角色卡"),
     RUSH_POINT("RUSH_POINT", "冲击卡");
 

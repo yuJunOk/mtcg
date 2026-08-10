@@ -1,10 +1,9 @@
 package com.aris.mtcg.domain.vo;
 
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 /**
  * 分页展示对象
@@ -17,13 +16,9 @@ import java.util.List;
 @AllArgsConstructor
 public class PageVO<T> {
 
-    /**
-     * 当前页记录
-     */
+    /** 当前页记录 */
     private List<T> records;
 
-    /**
-     * 总记录数
-     */
+    /** 总记录数 */
     private long total;
 }

@@ -52,7 +52,18 @@
 
 ```
 com.aris.mtcg
-├── controller          // API 接口层（@RestController）
+├── controller
+│   ├── auth/            // 认证（公开）
+│   ├── user/           // 用户资料（登录用户）
+│   ├── card/
+│   │   ├── PublicCardController    // 公开卡牌查询
+│   │   └── AdminCardController     // 管理员卡牌管理
+│   ├── product/
+│   │   ├── PublicProductController // 公开产品查询
+│   │   └── AdminProductController   // 管理员产品管理
+│   ├── tag/             // 标签管理（管理员）
+│   ├── admin/           // 管理员专用（用户管理、仪表盘）
+│   └── system/          // 系统接口（健康检查等）
 ├── service             // Service 接口
 │   └── impl            // Service 实现（@Service）
 ├── manager             // Manager 通用能力层（AI、缓存等）
@@ -73,6 +84,19 @@ com.aris.mtcg
 ├── component           // 拦截器、切面等组件
 └── config              // Spring 配置
 ```
+
+### 2.2 Controller 分包原则
+
+**按业务领域分包，而非按权限分包。**
+
+- 公开接口：`/cards/*`, `/products/*` → 无需登录
+- 用户接口：`/users/*` → 需登录
+- 管理员接口：`/admin/*` → 需特定角色
+
+这样的好处：
+- 业务边界清晰，扩展时只需在自己的包内加文件
+- 路径前缀自然区分权限，无需在包名中体现角色
+- 避免 `controller.admin`、`controller.backoffice` 这种按角色拆分的业务割裂
 
 ### 2.2 各层职责
 

@@ -12,9 +12,7 @@ import org.hibernate.validator.constraints.Length;
 @Data
 public class AdminResetPasswordDTO {
 
-    /**
-     * 新密码
-     */
+    /** 新密码 */
     @NotBlank
     @Length(min = 6, max = 32)
     private String newPassword;

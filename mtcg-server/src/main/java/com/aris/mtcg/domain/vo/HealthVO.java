@@ -1,8 +1,7 @@
 package com.aris.mtcg.domain.vo;
 
-import lombok.Data;
-
 import java.time.LocalDateTime;
+import lombok.Data;
 
 /**
  * 健康检查展示对象
@@ -12,18 +11,12 @@ import java.time.LocalDateTime;
 @Data
 public class HealthVO {
 
-    /**
-     * 应用名称
-     */
+    /** 应用名称 */
     private String application;
 
-    /**
-     * 状态
-     */
+    /** 状态 */
     private String status;
 
-    /**
-     * 服务端时间
-     */
+    /** 服务端时间 */
     private LocalDateTime serverTime;
 }

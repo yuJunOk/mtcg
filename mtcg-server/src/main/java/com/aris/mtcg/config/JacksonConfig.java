@@ -4,16 +4,15 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalTimeSerializer;
+import java.time.format.DateTimeFormatter;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.time.format.DateTimeFormatter;
-
 /**
  * Jackson 全局日期格式配置
- * <p>
- * 统一 LocalDateTime/LocalDate/LocalTime 的序列化与反序列化格式。
+ *
+ * <p>统一 LocalDateTime/LocalDate/LocalTime 的序列化与反序列化格式。
  *
  * @author pengYuJun
  */
@@ -39,8 +38,7 @@ public class JacksonConfig {
             builder.serializers(
                     new LocalDateTimeSerializer(dateTimeFormatter),
                     new LocalDateSerializer(dateFormatter),
-                    new LocalTimeSerializer(timeFormatter)
-            );
+                    new LocalTimeSerializer(timeFormatter));
             builder.modules(new JavaTimeModule());
         };
     }

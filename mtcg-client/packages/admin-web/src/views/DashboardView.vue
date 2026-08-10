@@ -2,12 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
-import { client } from '@mtcg/common/api'
-import type { DashboardStatsVO } from '@mtcg/common/types'
+import { dashboardApi } from '@mtcg/common/api'
+import type { AuditLogVO, DashboardStatsVO } from '@mtcg/common/types'
 
 const router = useRouter()
 
-const stats = ref<{ cardCount: number; productCount: number; userCount: number; todayBattleCount: number }>({
+const stats = ref<DashboardStatsVO>({
   cardCount: 0,
   productCount: 0,
   userCount: 0,
@@ -16,17 +16,60 @@ const stats = ref<{ cardCount: number; productCount: number; userCount: number; 
 const loading = ref(false)
 const initialized = ref(false)
 const lastRefresh = ref<string>('')
+const recentActivities = ref<Array<{ type: string; text: string; time: string; color: string }>>([])
+
+function mapActionMeta(action: string): { label: string; color: string } {
+  const key = action.toUpperCase()
+  if (key.includes('CREATE') || key.includes('ADD') || key === 'LOGIN') {
+    return { label: '创建', color: '#67C23A' }
+  }
+  if (key.includes('UPDATE') || key.includes('STATUS') || key.includes('RESET')) {
+    return { label: '更新', color: '#409EFF' }
+  }
+  if (key.includes('DELETE') || key.includes('REMOVE')) {
+    return { label: '删除', color: '#F56C6C' }
+  }
+  if (key.includes('LOGOUT')) {
+    return { label: '登出', color: '#909399' }
+  }
+  return { label: action, color: '#E6A23C' }
+}
+
+function formatActivityText(log: AuditLogVO): string {
+  const actor = log.actorUsercode || '系统'
+  const meta = mapActionMeta(log.action)
+  const resource = [log.resourceType, log.resourceId].filter(Boolean).join(' ')
+  const detail = log.detail ? `：${log.detail}` : ''
+  return `${actor} ${meta.label}${resource ? ` ${resource}` : ''}${detail}`
+}
+
+function mapActivities(logs: AuditLogVO[]) {
+  return logs.map((log) => {
+    const meta = mapActionMeta(log.action)
+    return {
+      type: log.action,
+      text: formatActivityText(log),
+      time: log.createTime,
+      color: meta.color,
+    }
+  })
+}
 
 async function loadStats() {
   loading.value = true
   initialized.value = false
   try {
-    await new Promise(resolve => setTimeout(resolve, 600))
-    stats.value = await client.dashboard.getStats()
+    const [statsData, activities] = await Promise.all([
+      dashboardApi.getStats(),
+      dashboardApi.getRecentActivities(20).catch(() => [] as AuditLogVO[]),
+    ])
+    stats.value = statsData
+    recentActivities.value = mapActivities(activities)
     lastRefresh.value = new Date().toLocaleString('zh-CN', { hour12: false })
     initialized.value = true
   } catch {
     stats.value = { cardCount: 0, productCount: 0, userCount: 0, todayBattleCount: 0 }
+    recentActivities.value = []
   } finally {
     loading.value = false
   }
@@ -58,13 +101,6 @@ const systemStatus = computed(() => ({
   },
 }))
 
-const recentActivities = [
-  { type: 'create', text: '新增卡牌 赤龙', time: '2 分钟前', color: '#409EFF' },
-  { type: 'update', text: '更新产品 初始牌组', time: '15 分钟前', color: '#67C23A' },
-  { type: 'login', text: '用户 admin 登录系统', time: '32 分钟前', color: '#E6A23C' },
-  { type: 'create', text: '新增卡牌 暗影刺客', time: '1 小时前', color: '#409EFF' },
-]
-
 onMounted(() => {
   loadStats()
 })
@@ -76,7 +112,7 @@ onMounted(() => {
     <div class="header-section">
       <div class="header-left">
         <div class="greeting">
-          <span class="wave">👋</span>
+          <span class="wave">Hi</span>
           <span>欢迎回来</span>
         </div>
         <h1 class="page-title">仪表盘概览</h1>
@@ -242,7 +278,7 @@ onMounted(() => {
           <span class="panel-desc">系统中的最新动态</span>
         </div>
       </template>
-      <div class="activity-list">
+      <div v-if="recentActivities.length" class="activity-list">
         <div v-for="(item, index) in recentActivities" :key="index" class="activity-item">
           <div class="activity-dot" :style="{ background: item.color }" />
           <div class="activity-content">
@@ -252,6 +288,7 @@ onMounted(() => {
           <el-icon class="activity-arrow" :size="14"><ArrowRight /></el-icon>
         </div>
       </div>
+      <el-empty v-else description="暂无最近活动" :image-size="72" />
     </el-card>
     <!-- 骨架屏 -->
     <div v-else class="panel-card activity-card skeleton-panel">

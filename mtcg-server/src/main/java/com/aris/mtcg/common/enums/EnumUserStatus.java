@@ -4,14 +4,13 @@ import lombok.Getter;
 
 /**
  * 用户状态枚举
- * <p>
- * ACTIVE：正常 / DISABLED：禁用
+ *
+ * <p>ACTIVE：正常 / DISABLED：禁用
  *
  * @author pengYuJun
  */
 @Getter
 public enum EnumUserStatus {
-
     ACTIVE("ACTIVE", "正常"),
     DISABLED("DISABLED", "禁用");
 

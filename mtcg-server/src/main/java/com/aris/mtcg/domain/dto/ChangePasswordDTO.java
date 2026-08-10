@@ -12,15 +12,10 @@ import org.hibernate.validator.constraints.Length;
 @Data
 public class ChangePasswordDTO {
 
-    /**
-     * 原密码
-     */
-    @NotBlank
-    private String oldPassword;
+    /** 原密码 */
+    @NotBlank private String oldPassword;
 
-    /**
-     * 新密码（6-32 位）
-     */
+    /** 新密码（6-32 位） */
     @NotBlank
     @Length(min = 6, max = 32)
     private String newPassword;

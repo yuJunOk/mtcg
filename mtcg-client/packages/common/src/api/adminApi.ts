@@ -1,50 +1,43 @@
 /**
  * 管理员 API（需 SYS_ADMIN 角色）
- * 
- * 请求规范：只使用 GET 和 POST 方法
- * - GET：查询（列表/详情）
- * - POST：新增/更新/删除/其他操作
+ *
+ * 所有方法支持可选的 loadingRef 参数，自动管理加载状态
  */
-import { axios, extractData } from './request'
+import type { Ref } from 'vue'
+import { http } from './request'
 import type { PageVO } from '../types/common'
 import type {
   UserVO, UserQueryDTO, AdminUserCreateDTO, AdminUserUpdateDTO, AdminResetPasswordDTO,
 } from '../types/user'
 import type { ProductVO, ProductQueryDTO, ProductCreateDTO, ProductUpdateDTO } from '../types/product'
 import type { CardVO, CardQueryDTO, CardCreateDTO, CardUpdateDTO } from '../types/card'
+import type { CardFeatureVO } from '../types/card-feature'
 
 // ========================================================
 // 用户管理
 // ========================================================
 
 export const adminUserApi = {
-  list: (query: UserQueryDTO) =>
-    axios.get<Record<string, unknown>>('/admin/users', { params: { ...query } })
-      .then(r => extractData<PageVO<UserVO>>(r)),
+  list: (query: UserQueryDTO, loadingRef?: Ref<boolean>) =>
+    http.getWithParams<PageVO<UserVO>>('/admin/users', { params: { ...query } }, loadingRef),
 
-  get: (id: number) =>
-    axios.get<Record<string, unknown>>(`/admin/users/${id}`)
-      .then(r => extractData<UserVO>(r)),
+  get: (id: number, loadingRef?: Ref<boolean>) =>
+    http.get<UserVO>(`/admin/users/${id}`, loadingRef),
 
-  create: (dto: AdminUserCreateDTO) =>
-    axios.post<Record<string, unknown>>('/admin/users', dto)
-      .then(r => extractData<number>(r)),
+  createUser: (dto: AdminUserCreateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<number>('/admin/users', dto, loadingRef),
 
-  update: (id: number, dto: AdminUserUpdateDTO) =>
-    axios.post<Record<string, unknown>>(`/admin/users/${id}`, dto)
-      .then(() => undefined),
+  updateUser: (id: number, dto: AdminUserUpdateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/users/' + id, dto, loadingRef),
 
-  delete: (id: number) =>
-    axios.post<Record<string, unknown>>(`/admin/users/${id}/delete`)
-      .then(() => undefined),
+  deleteUser: (id: number, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/users/' + id + '/delete', undefined, loadingRef),
 
-  updateStatus: (id: number, status: string) =>
-    axios.post<Record<string, unknown>>(`/admin/users/${id}/status`, null, { params: { status } })
-      .then(() => undefined),
+  updateUserStatus: (id: number, status: string, loadingRef?: Ref<boolean>) =>
+    http.postWithConfig<void>('/admin/users/' + id + '/status', undefined, { params: { status } }, loadingRef),
 
-  resetPassword: (id: number, dto: AdminResetPasswordDTO) =>
-    axios.post<Record<string, unknown>>(`/admin/users/${id}/password`, dto)
-      .then(() => undefined),
+  resetUserPassword: (id: number, dto: AdminResetPasswordDTO, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/users/' + id + '/password', dto, loadingRef),
 }
 
 // ========================================================
@@ -52,29 +45,17 @@ export const adminUserApi = {
 // ========================================================
 
 export const adminProductApi = {
-  list: (query: ProductQueryDTO) =>
-    axios.get<Record<string, unknown>>('/admin/products', { params: { ...query } })
-      .then(r => extractData<PageVO<ProductVO>>(r)),
+  list: (query: ProductQueryDTO, loadingRef?: Ref<boolean>) =>
+    http.getWithParams<PageVO<ProductVO>>('/admin/products', { params: { ...query } }, loadingRef),
 
-  get: (id: number) =>
-    axios.get<Record<string, unknown>>(`/admin/products/${id}`)
-      .then(r => extractData<ProductVO>(r)),
+  create: (dto: ProductCreateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<number>('/admin/products', dto, loadingRef),
 
-  create: (dto: ProductCreateDTO) =>
-    axios.post<Record<string, unknown>>('/admin/products', dto)
-      .then(r => extractData<number>(r)),
+  update: (id: number, dto: ProductUpdateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/products/' + id, dto, loadingRef),
 
-  update: (id: number, dto: ProductUpdateDTO) =>
-    axios.post<Record<string, unknown>>(`/admin/products/${id}`, dto)
-      .then(() => undefined),
-
-  delete: (id: number) =>
-    axios.post<Record<string, unknown>>(`/admin/products/${id}/delete`)
-      .then(() => undefined),
-
-  listCards: (productCode: string, page?: number, size?: number) =>
-    axios.get<Record<string, unknown>>(`/admin/products/${productCode}/cards`, { params: { page, size } })
-      .then(r => extractData<PageVO<CardVO>>(r)),
+  delete: (id: number, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/products/' + id + '/delete', undefined, loadingRef),
 }
 
 // ========================================================
@@ -82,23 +63,24 @@ export const adminProductApi = {
 // ========================================================
 
 export const adminCardApi = {
-  list: (query: CardQueryDTO) =>
-    axios.get<Record<string, unknown>>('/admin/cards', { params: { ...query } })
-      .then(r => extractData<PageVO<CardVO>>(r)),
+  create: (dto: CardCreateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<number>('/admin/cards', dto, loadingRef),
 
-  get: (id: number) =>
-    axios.get<Record<string, unknown>>(`/admin/cards/${id}`)
-      .then(r => extractData<CardVO>(r)),
+  update: (id: number, dto: CardUpdateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/cards/' + id, dto, loadingRef),
 
-  create: (dto: CardCreateDTO) =>
-    axios.post<Record<string, unknown>>('/admin/cards', dto)
-      .then(r => extractData<number>(r)),
+  delete: (id: number, loadingRef?: Ref<boolean>) =>
+    http.post<void>('/admin/cards/' + id + '/delete', undefined, loadingRef),
 
-  update: (id: number, dto: CardUpdateDTO) =>
-    axios.post<Record<string, unknown>>(`/admin/cards/${id}`, dto)
-      .then(() => undefined),
+  uploadImage: (cardId: number, formData: FormData, loadingRef?: Ref<boolean>) =>
+    http.postWithConfig<string>('/admin/cards/' + cardId + '/image', formData, {}, loadingRef),
 
-  delete: (id: number) =>
-    axios.post<Record<string, unknown>>(`/admin/cards/${id}/delete`)
-      .then(() => undefined),
+  listFeatures: (cardId: number, loadingRef?: Ref<boolean>) =>
+    http.get<CardFeatureVO[]>(`/admin/cards/${cardId}/features`, loadingRef),
+
+  addFeature: (cardId: number, featureId: number, loadingRef?: Ref<boolean>) =>
+    http.post<void>(`/admin/cards/${cardId}/features/${featureId}`, undefined, loadingRef),
+
+  removeFeature: (cardId: number, featureId: number, loadingRef?: Ref<boolean>) =>
+    http.post<void>(`/admin/cards/${cardId}/features/${featureId}/delete`, undefined, loadingRef),
 }

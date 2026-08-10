@@ -9,7 +9,6 @@ import lombok.Getter;
  */
 @Getter
 public enum EnumColor {
-
     RED("RED", "红色"),
     YELLOW("YELLOW", "黄色"),
     BLUE("BLUE", "蓝色"),

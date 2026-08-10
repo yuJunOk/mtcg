@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { client } from '@mtcg/common/api'
-import type { ProductVO, ProductQueryDTO, ProductCreateDTO, ProductUpdateDTO } from '@mtcg/common/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { productApi, adminProductApi } from '@mtcg/common/api'
+import { ProductFormDialog } from '@/components'
+import type { ProductFormMode } from '@/components/ProductFormDialog.vue'
+import type { ProductVO } from '@mtcg/common/types'
 
 const router = useRouter()
 
@@ -12,98 +13,41 @@ const router = useRouter()
 const loading = ref(false)
 const tableData = ref<ProductVO[]>([])
 const total = ref(0)
-const query = reactive<ProductQueryDTO>({
+const query = reactive({
   productName: '',
   productCode: '',
-  page: 1,
-  size: 10,
+  pageNum: 1,
+  pageSize: 10,
 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const page = await client.admin.listProducts({ ...query })
-    tableData.value = page.records
-    total.value = page.total
-  } finally {
-    loading.value = false
-  }
+  const page = await productApi.list({ ...query }, loading)
+  tableData.value = page.records
+  total.value = page.total
 }
 
 function handleReset() {
   query.productName = ''
   query.productCode = ''
-  query.page = 1
+  query.pageNum = 1
   loadData()
 }
 
-// ========== 新增/编辑弹窗 ==========
+// ========== 弹窗 ==========
 const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const editingId = ref<number | null>(null)
-const formRef = ref<FormInstance>()
-const submitting = ref(false)
-const form = reactive({
-  productCode: '',
-  productName: '',
-  releaseDate: '',
-  description: '',
-})
-
-const rules = computed<FormRules>(() => ({
-  productCode: [{ required: true, message: '请输入产品编号', trigger: 'blur' }, { max: 16, message: '最多 16 字符', trigger: 'blur' }],
-  productName: [{ required: true, message: '请输入产品名称', trigger: 'blur' }, { max: 128, message: '最多 128 字符', trigger: 'blur' }],
-}))
+const dialogMode = ref<ProductFormMode>('create')
+const editingProduct = ref<ProductVO | null>(null)
 
 function openCreate() {
   dialogMode.value = 'create'
-  editingId.value = null
-  Object.assign(form, { productCode: '', productName: '', releaseDate: '', description: '' })
+  editingProduct.value = null
   dialogVisible.value = true
 }
 
 function openEdit(row: ProductVO) {
   dialogMode.value = 'edit'
-  editingId.value = row.id
-  Object.assign(form, {
-    productCode: row.productCode,
-    productName: row.productName,
-    releaseDate: row.releaseDate ?? '',
-    description: row.description ?? '',
-  })
+  editingProduct.value = row
   dialogVisible.value = true
-}
-
-async function handleSubmit() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    submitting.value = true
-    try {
-      if (dialogMode.value === 'create') {
-        const dto: ProductCreateDTO = {
-          productCode: form.productCode,
-          productName: form.productName,
-          releaseDate: form.releaseDate || undefined,
-          description: form.description || undefined,
-        }
-        await client.admin.createProduct(dto)
-        ElMessage.success('新增成功')
-      } else if (editingId.value !== null) {
-        const dto: ProductUpdateDTO = {
-          productName: form.productName,
-          releaseDate: form.releaseDate || undefined,
-          description: form.description || undefined,
-        }
-        await client.admin.updateProduct(editingId.value, dto)
-        ElMessage.success('更新成功')
-      }
-      dialogVisible.value = false
-      loadData()
-    } finally {
-      submitting.value = false
-    }
-  })
 }
 
 // ========== 删除 ==========
@@ -112,15 +56,18 @@ async function handleDelete(row: ProductVO) {
     await ElMessageBox.confirm(`确认删除产品「${row.productName}」吗？关联卡牌不会被删除。`, '提示', {
       type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消',
     })
-    await client.admin.deleteProduct(row.id)
+    const deleteLoading = ref(false)
+    await adminProductApi.delete(row.id, deleteLoading)
     ElMessage.success('删除成功')
     loadData()
-  } catch (_) {
+  } catch {
     // ElMessageBox cancel 或其余错误：取消静默，其他由拦截器提示
   }
 }
 
-onMounted(() => { loadData() })
+onMounted(() => {
+  loadData()
+})
 </script>
 
 <template>
@@ -150,23 +97,23 @@ onMounted(() => { loadData() })
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
             <el-button
-              size="small"
               type="success"
+              link
               @click="router.push(`/cards?productCode=${encodeURIComponent(row.productCode)}`)"
             >
               查看卡牌
             </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
       <template #footer>
         <div class="pagination">
           <el-pagination
-            v-model:current-page="query.page"
-            v-model:page-size="query.size"
+            v-model:current-page="query.pageNum"
+            v-model:page-size="query.pageSize"
             :total="total"
             :page-sizes="[10, 20, 50]"
             layout="total, sizes, prev, pager, next"
@@ -177,42 +124,12 @@ onMounted(() => { loadData() })
       </template>
     </el-card>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新增产品' : '编辑产品'"
-      width="560px"
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="90px"
-        label-position="right"
-      >
-        <el-form-item label="产品编号" prop="productCode">
-          <el-input v-model="form.productCode" :disabled="dialogMode === 'edit'" maxlength="16" show-word-limit />
-        </el-form-item>
-        <el-form-item label="产品名称" prop="productName">
-          <el-input v-model="form.productName" maxlength="128" show-word-limit />
-        </el-form-item>
-        <el-form-item label="发售日期">
-          <el-date-picker
-            v-model="form.releaseDate"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="选择日期"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="4" maxlength="500" show-word-limit />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
-      </template>
-    </el-dialog>
+    <ProductFormDialog
+      v-model:visible="dialogVisible"
+      :mode="dialogMode"
+      :product="editingProduct"
+      @success="loadData"
+    />
   </div>
 </template>
 
@@ -221,7 +138,7 @@ onMounted(() => { loadData() })
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 .search-card { flex-shrink: 0; }
 .table-card {
@@ -240,7 +157,7 @@ onMounted(() => { loadData() })
 }
 .table-card :deep(.el-card__footer) {
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-top: 1px solid #ebeef5;
 }
 .table-card :deep(.el-table) {

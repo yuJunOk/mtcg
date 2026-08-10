@@ -4,12 +4,21 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@mtcg/common/stores'
 
+// 菜单项类型
+interface MenuItem {
+  index: string
+  icon: string
+  label: string
+  isSub?: boolean
+  children?: MenuItem[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
 const displayName = computed(
-  () => userStore.userInfo?.nickname || userStore.userInfo?.username || ''
+  () => userStore.userInfo?.username || userStore.userInfo?.usercode || ''
 )
 
 const displayAvatar = computed(
@@ -34,16 +43,23 @@ const roleTagType = computed<'primary' | 'warning' | 'info'>(() => {
   }
 })
 
-const menuItems = computed(() => {
-  const items = [
+const menuItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = [
     { index: '/dashboard', icon: 'HomeFilled', label: '仪表盘' },
-    { index: '/cards', icon: 'Picture', label: '卡牌管理' },
     { index: '/products', icon: 'Box', label: '产品管理' },
+    { index: '/cards', icon: 'Picture', label: '卡牌管理' },
   ]
   if (userStore.isAdmin()) {
-    items.push({ index: '/system', icon: 'Setting', label: '系统管理', isSub: true, children: [
-      { index: '/system/users', icon: 'User', label: '用户管理' },
-    ]})
+    items.push({ index: '/cards/features', icon: 'PriceTag', label: '卡牌特征管理' })
+    items.push({
+      index: '/system',
+      icon: 'Setting',
+      label: '系统管理',
+      isSub: true,
+      children: [
+        { index: '/system/users', icon: 'User', label: '用户管理' },
+      ]
+    })
   }
   return items
 })
@@ -57,8 +73,8 @@ function handleCommand(command: string) {
   }
 }
 
-function handleLogout() {
-  userStore.logout()
+async function handleLogout() {
+  await userStore.logout()
   router.push('/login')
 }
 
@@ -502,7 +518,7 @@ onMounted(async () => {
 /* ========== 主内容区 ========== */
 .el-main {
   background: #f0f2f5;
-  padding: 20px;
+  padding: 16px;
   min-height: 0;
   display: flex;
   flex-direction: column;

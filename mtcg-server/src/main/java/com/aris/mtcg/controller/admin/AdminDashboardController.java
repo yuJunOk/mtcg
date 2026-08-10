@@ -1,34 +1,40 @@
-package com.aris.mtcg.controller;
+package com.aris.mtcg.controller.admin;
 
 import com.aris.mtcg.common.annotation.RequireRole;
 import com.aris.mtcg.common.enums.EnumUserRole;
 import com.aris.mtcg.common.result.Result;
+import com.aris.mtcg.domain.vo.AuditLogVO;
 import com.aris.mtcg.domain.vo.DashboardStatsVO;
 import com.aris.mtcg.service.DashboardService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 仪表盘接口（统计数据）
+ * 管理员仪表盘接口
  *
  * @author pengYuJun
  */
-@Tag(name = "仪表盘")
 @RestController
 @RequestMapping("/admin/dashboard")
 @RequireRole({EnumUserRole.CARD_ADMIN, EnumUserRole.SYS_ADMIN})
-public class DashboardController {
+public class AdminDashboardController {
 
-    @Resource
-    private DashboardService dashboardService;
+    @Resource private DashboardService dashboardService;
 
-    @Operation(summary = "获取仪表盘统计")
+    /** 获取仪表盘统计 */
     @GetMapping("/stats")
     public Result<DashboardStatsVO> stats() {
         return Result.success(dashboardService.getStats());
+    }
+
+    /** 最近操作活动 */
+    @GetMapping("/activities")
+    public Result<List<AuditLogVO>> activities(
+            @RequestParam(required = false, defaultValue = "20") Integer limit) {
+        return Result.success(dashboardService.listRecentActivities(limit));
     }
 }

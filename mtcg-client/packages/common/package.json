@@ -23,8 +23,17 @@
     "vue": "^3.5.0"
   },
   "peerDependencies": {
+    "element-plus": "^2.8.0",
     "pinia": "^2.2.0",
     "pixi.js": "^8.4.0",
     "vue": "^3.5.0"
+  },
+  "peerDependenciesMeta": {
+    "element-plus": {
+      "optional": true
+    },
+    "pixi.js": {
+      "optional": true
+    }
   }
 }

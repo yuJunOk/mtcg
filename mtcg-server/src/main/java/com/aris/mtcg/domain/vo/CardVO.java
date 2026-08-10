@@ -2,9 +2,8 @@ package com.aris.mtcg.domain.vo;
 
 import com.aris.mtcg.domain.dto.CardCreateDTO;
 import com.aris.mtcg.domain.entity.CardDO;
-import lombok.Data;
-
 import java.time.LocalDateTime;
+import lombok.Data;
 
 /**
  * 卡牌展示对象
@@ -48,9 +47,7 @@ public class CardVO {
 
     // ========== 静态工厂方法 ==========
 
-    /**
-     * 从 DO 转换为 VO
-     */
+    /** 从 DO 转换为 VO */
     public static CardVO fromDO(CardDO card) {
         if (card == null) {
             return null;
@@ -75,9 +72,7 @@ public class CardVO {
         return vo;
     }
 
-    /**
-     * 从 DTO 转换为 VO
-     */
+    /** 从 DTO 转换为 VO */
     public static CardVO fromDTO(CardCreateDTO dto) {
         if (dto == null) {
             return null;
@@ -100,9 +95,7 @@ public class CardVO {
         return vo;
     }
 
-    /**
-     * 转换为 DO
-     */
+    /** 转换为 DO */
     public static CardDO toDO(CardVO vo) {
         if (vo == null) {
             return null;
@@ -126,9 +119,7 @@ public class CardVO {
         return card;
     }
 
-    /**
-     * 转换为 DTO
-     */
+    /** 转换为 DTO */
     public static CardCreateDTO toDTO(CardVO vo) {
         if (vo == null) {
             return null;

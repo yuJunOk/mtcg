@@ -17,3 +17,14 @@ export interface HealthVO {
   status: string
   timestamp: string
 }
+
+/** 审计日志 / 最近活动 */
+export interface AuditLogVO {
+  id: number
+  actorUsercode: string | null
+  action: string
+  resourceType: string
+  resourceId: string | null
+  detail: string | null
+  createTime: string
+}

@@ -11,19 +11,13 @@ import org.hibernate.validator.constraints.Length;
 @Data
 public class AdminUserUpdateDTO {
 
-    /**
-     * 昵称
-     */
+    /** 用户名（展示名） */
     @Length(max = 64)
-    private String nickname;
+    private String username;
 
-    /**
-     * 角色
-     */
+    /** 角色 */
     private String role;
 
-    /**
-     * 状态
-     */
+    /** 状态 */
     private String status;
 }

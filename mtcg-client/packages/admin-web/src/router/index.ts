@@ -13,7 +13,7 @@ declare module 'vue-router' {
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
-    name: 'Login',
+    name: 'login',
     component: () => import('@/views/auth/LoginPage.vue'),
     meta: { title: '登录', public: true },
   },
@@ -24,27 +24,33 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: 'dashboard',
-        name: 'Dashboard',
+        name: 'dashboard',
         component: () => import('@/views/DashboardView.vue'),
         meta: { title: '仪表盘' },
       },
       {
-        path: 'system/users',
-        name: 'UserList',
-        component: () => import('@/views/system/UserListView.vue'),
-        meta: { title: '用户管理', requiresAdmin: true },
-      },
-      {
         path: 'cards',
-        name: 'Cards',
+        name: 'card-list',
         component: () => import('@/views/card/CardListView.vue'),
         meta: { title: '卡牌管理' },
       },
       {
         path: 'products',
-        name: 'Products',
+        name: 'product-list',
         component: () => import('@/views/product/ProductListView.vue'),
         meta: { title: '产品管理' },
+      },
+      {
+        path: 'cards/features',
+        name: 'card-feature-list',
+        component: () => import('@/views/card/CardFeatureListView.vue'),
+        meta: { title: '卡牌特征管理', requiresAdmin: true },
+      },
+      {
+        path: 'system/users',
+        name: 'user-list',
+        component: () => import('@/views/system/UserListView.vue'),
+        meta: { title: '用户管理', requiresAdmin: true },
       },
     ],
   },
@@ -58,7 +64,6 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const userStore = useUserStore()
 
-  // 公开路由（登录页）
   if (to.meta.public) {
     if (userStore.isLoggedIn && to.path === '/login') {
       return { path: '/' }
@@ -66,21 +71,18 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  // 未登录 → 跳登录页
   if (!userStore.isLoggedIn) {
     return { path: '/login' }
   }
 
-  // 已登录但未拉取用户信息 → 先拉取
   if (!userStore.userInfo) {
     try {
       await userStore.fetchUserInfo()
     } catch {
-      // 拉取失败由拦截器处理，忽略
+      if (!userStore.isLoggedIn) return { path: '/login' }
     }
   }
 
-  // 需要管理员权限
   if (to.meta.requiresAdmin && !userStore.isAdmin()) {
     return { path: '/' }
   }

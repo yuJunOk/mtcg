@@ -12,15 +12,15 @@ import com.aris.mtcg.domain.entity.ProductDO;
 import com.aris.mtcg.domain.vo.CardVO;
 import com.aris.mtcg.domain.vo.PageVO;
 import com.aris.mtcg.domain.vo.ProductVO;
+import com.aris.mtcg.service.AuditService;
 import com.aris.mtcg.service.ProductService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.Resource;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
 
 /**
  * 产品服务实现
@@ -30,24 +30,27 @@ import java.util.stream.Collectors;
 @Service
 public class ProductServiceImpl implements ProductService {
 
-    @Resource
-    private ProductMapper productMapper;
+    @Resource private ProductMapper productMapper;
 
-    @Resource
-    private CardMapper cardMapper;
+    @Resource private CardMapper cardMapper;
+
+    @Resource private AuditService auditService;
 
     @Override
     public PageVO<ProductVO> listProducts(ProductQueryDTO query) {
-        QueryWrapper qw = QueryWrapper.create()
-                .like("product_name", query.getProductName(), StringUtils::isNotBlank)
-                .like("product_code", query.getProductCode(), StringUtils::isNotBlank)
-                .orderBy("create_time", false);
-        int pageNum = (query.getPage() == null || query.getPage() < 1) ? 1 : query.getPage();
-        int pageSize = (query.getSize() == null || query.getSize() < 1) ? 20 : query.getSize();
+        QueryWrapper qw =
+                QueryWrapper.create()
+                        .like("product_name", query.getProductName(), StringUtils::isNotBlank)
+                        .like("product_code", query.getProductCode(), StringUtils::isNotBlank)
+                        .orderBy("release_date", false)
+                        .orderBy("create_time", false);
+        int pageNum =
+                (query.getPageNum() == null || query.getPageNum() < 1) ? 1 : query.getPageNum();
+        int pageSize =
+                (query.getPageSize() == null || query.getPageSize() < 1) ? 10 : query.getPageSize();
         Page<ProductDO> page = productMapper.paginate(Page.of(pageNum, pageSize), qw);
-        List<ProductVO> records = page.getRecords().stream()
-                .map(ProductVO::fromDO)
-                .collect(Collectors.toList());
+        List<ProductVO> records =
+                page.getRecords().stream().map(ProductVO::fromDO).collect(Collectors.toList());
         return new PageVO<>(records, page.getTotalRow());
     }
 
@@ -59,13 +62,19 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Long createProduct(ProductCreateDTO dto) {
         // 产品编号唯一校验
-        long count = productMapper.selectCountByQuery(
-                QueryWrapper.create().eq("product_code", dto.getProductCode()));
+        long count =
+                productMapper.selectCountByQuery(
+                        QueryWrapper.create().eq("product_code", dto.getProductCode()));
         if (count > 0) {
             throw new BusinessException(ErrorCode.PRODUCT_CODE_DUPLICATE);
         }
         ProductDO product = ProductVO.toDO(ProductVO.fromDTO(dto));
         productMapper.insert(product);
+        auditService.record(
+                "CREATE",
+                "PRODUCT",
+                String.valueOf(product.getId()),
+                "创建产品 " + product.getProductCode());
         return product.getId();
     }
 
@@ -84,26 +93,28 @@ public class ProductServiceImpl implements ProductService {
             update.setDescription(dto.getDescription());
         }
         productMapper.update(update);
+        auditService.record("UPDATE", "PRODUCT", String.valueOf(id), "更新产品");
     }
 
     @Override
     public void deleteProduct(Long id) {
-        loadOrThrow(id);
+        ProductDO product = loadOrThrow(id);
         // 不做外键校验；存在卡牌引用产品时由应用层（迭代二）做检查，当前允许删
         productMapper.deleteById(id);
+        auditService.record(
+                "DELETE", "PRODUCT", String.valueOf(id), "删除产品 " + product.getProductCode());
     }
 
     @Override
-    public PageVO<CardVO> listCardsByProduct(String productCode, Integer page, Integer size) {
-        QueryWrapper qw = QueryWrapper.create()
-                .eq("product_code", productCode)
-                .orderBy("create_time", false);
-        int pageNum = (page == null || page < 1) ? 1 : page;
-        int pageSize = (size == null || size < 1) ? 20 : size;
-        Page<CardDO> result = cardMapper.paginate(Page.of(pageNum, pageSize), qw);
-        List<CardVO> records = result.getRecords().stream()
-                .map(CardVO::fromDO)
-                .collect(Collectors.toList());
+    public PageVO<CardVO> listCardsByProduct(
+            String productCode, Integer pageNum, Integer pageSize) {
+        QueryWrapper qw =
+                QueryWrapper.create().eq("product_code", productCode).orderBy("card_code", true);
+        int pn = (pageNum == null || pageNum < 1) ? 1 : pageNum;
+        int ps = (pageSize == null || pageSize < 1) ? 10 : pageSize;
+        Page<CardDO> result = cardMapper.paginate(Page.of(pn, ps), qw);
+        List<CardVO> records =
+                result.getRecords().stream().map(CardVO::fromDO).collect(Collectors.toList());
         return new PageVO<>(records, result.getTotalRow());
     }
 

@@ -49,4 +49,16 @@ body {
 .el-dialog {
   border-radius: 10px;
 }
+
+/* 列表页筛选/操作行：去掉 inline form-item 底部多余空白 */
+.search-card .el-card__body {
+  padding: 16px;
+}
+.search-card .el-form--inline .el-form-item {
+  margin-bottom: 0;
+  margin-right: 16px;
+}
+.search-card .el-form--inline .el-form-item:last-child {
+  margin-right: 0;
+}
 </style>

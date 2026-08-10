@@ -14,8 +14,8 @@ export interface ProductVO {
 export interface ProductQueryDTO {
   productName?: string
   productCode?: string
-  page?: number
-  size?: number
+  pageNum?: number
+  pageSize?: number
 }
 
 export interface ProductCreateDTO {

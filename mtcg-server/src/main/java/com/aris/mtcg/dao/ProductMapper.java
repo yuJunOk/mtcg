@@ -10,5 +10,4 @@ import org.apache.ibatis.annotations.Mapper;
  * @author pengYuJun
  */
 @Mapper
-public interface ProductMapper extends BaseMapper<ProductDO> {
-}
+public interface ProductMapper extends BaseMapper<ProductDO> {}

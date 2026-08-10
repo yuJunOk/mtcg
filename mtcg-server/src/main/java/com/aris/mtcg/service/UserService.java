@@ -15,8 +15,8 @@ import com.aris.mtcg.domain.vo.UserVO;
 
 /**
  * 用户服务
- * <p>
- * 涵盖注册、登录、个人资料维护以及管理员用户管理能力。
+ *
+ * <p>涵盖注册、登录、个人资料维护以及管理员用户管理能力。
  *
  * @author pengYuJun
  */
@@ -34,9 +34,24 @@ public interface UserService {
      * 用户登录
      *
      * @param dto 登录入参
-     * @return 登录响应（含令牌与用户信息）
+     * @return 登录响应（含访问令牌、刷新令牌与用户信息）
      */
     LoginVO login(UserLoginDTO dto);
+
+    /**
+     * 刷新访问令牌
+     *
+     * @param refreshToken 刷新令牌
+     * @return 新的登录响应
+     */
+    LoginVO refresh(String refreshToken);
+
+    /**
+     * 登出（将当前访问令牌加入黑名单）
+     *
+     * @param accessToken 访问令牌
+     */
+    void logout(String accessToken);
 
     /**
      * 获取当前用户信息
@@ -50,7 +65,7 @@ public interface UserService {
      * 更新当前用户资料
      *
      * @param userId 当前用户 ID
-     * @param dto    资料更新入参
+     * @param dto 资料更新入参
      */
     void updateCurrentUser(Long userId, UserUpdateDTO dto);
 
@@ -58,7 +73,7 @@ public interface UserService {
      * 修改当前用户密码
      *
      * @param userId 当前用户 ID
-     * @param dto    修改密码入参
+     * @param dto 修改密码入参
      */
     void changePassword(Long userId, ChangePasswordDTO dto);
 
@@ -89,8 +104,8 @@ public interface UserService {
     /**
      * 管理员更新用户
      *
-     * @param id            目标用户 ID
-     * @param dto           更新入参
+     * @param id 目标用户 ID
+     * @param dto 更新入参
      * @param currentUserId 当前操作者 ID
      */
     void adminUpdateUser(Long id, AdminUserUpdateDTO dto, Long currentUserId);
@@ -98,8 +113,8 @@ public interface UserService {
     /**
      * 管理员更新用户状态
      *
-     * @param id            目标用户 ID
-     * @param status        新状态
+     * @param id 目标用户 ID
+     * @param status 新状态
      * @param currentUserId 当前操作者 ID
      */
     void adminUpdateStatus(Long id, String status, Long currentUserId);
@@ -107,7 +122,7 @@ public interface UserService {
     /**
      * 管理员删除用户
      *
-     * @param id            目标用户 ID
+     * @param id 目标用户 ID
      * @param currentUserId 当前操作者 ID
      */
     void adminDeleteUser(Long id, Long currentUserId);
@@ -115,8 +130,8 @@ public interface UserService {
     /**
      * 管理员重置用户密码
      *
-     * @param id            目标用户 ID
-     * @param dto           重置密码入参
+     * @param id 目标用户 ID
+     * @param dto 重置密码入参
      * @param currentUserId 当前操作者 ID
      */
     void adminResetPassword(Long id, AdminResetPasswordDTO dto, Long currentUserId);

@@ -4,18 +4,19 @@
 
 export interface LoginVO {
   token: string
+  /** 刷新令牌（可选，后端启用 refresh 后返回） */
+  refreshToken?: string
   user: UserVO
 }
 
 export interface UserLoginDTO {
-  username: string
+  usercode: string
   password: string
 }
 
 export interface UserRegisterDTO {
-  username: string
   password: string
-  nickname?: string
+  username?: string
 }
 
 // ========================================================
@@ -24,16 +25,16 @@ export interface UserRegisterDTO {
 
 export interface UserVO {
   id: number
+  usercode: string
   username: string
-  nickname: string
+  avatar: string | null
   role: string
   status: string
   createTime: string
-  updateTime: string
 }
 
 export interface UserUpdateDTO {
-  nickname?: string
+  username?: string
 }
 
 export interface ChangePasswordDTO {
@@ -46,23 +47,22 @@ export interface ChangePasswordDTO {
 // ========================================================
 
 export interface UserQueryDTO {
+  usercode?: string
   username?: string
-  nickname?: string
   role?: string
   status?: string
-  page?: number
-  size?: number
+  pageNum?: number
+  pageSize?: number
 }
 
 export interface AdminUserCreateDTO {
-  username: string
   password: string
-  nickname?: string
+  username?: string
   role: string
 }
 
 export interface AdminUserUpdateDTO {
-  nickname?: string
+  username?: string
   role?: string
   status?: string
 }

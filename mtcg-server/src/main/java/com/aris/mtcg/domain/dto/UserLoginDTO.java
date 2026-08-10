@@ -11,15 +11,9 @@ import lombok.Data;
 @Data
 public class UserLoginDTO {
 
-    /**
-     * 用户名
-     */
-    @NotBlank
-    private String username;
+    /** 玩家编号（登录凭证） */
+    @NotBlank private String usercode;
 
-    /**
-     * 密码
-     */
-    @NotBlank
-    private String password;
+    /** 密码 */
+    @NotBlank private String password;
 }

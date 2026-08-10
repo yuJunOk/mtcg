@@ -2,10 +2,9 @@ package com.aris.mtcg.domain.vo;
 
 import com.aris.mtcg.domain.dto.ProductCreateDTO;
 import com.aris.mtcg.domain.entity.ProductDO;
-import lombok.Data;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import lombok.Data;
 
 /**
  * 产品展示对象
@@ -29,9 +28,7 @@ public class ProductVO {
 
     // ========== 静态工厂方法 ==========
 
-    /**
-     * 从 DO 转换为 VO
-     */
+    /** 从 DO 转换为 VO */
     public static ProductVO fromDO(ProductDO product) {
         if (product == null) {
             return null;
@@ -46,9 +43,7 @@ public class ProductVO {
         return vo;
     }
 
-    /**
-     * 从 DTO 转换为 VO
-     */
+    /** 从 DTO 转换为 VO */
     public static ProductVO fromDTO(ProductCreateDTO dto) {
         if (dto == null) {
             return null;
@@ -61,9 +56,7 @@ public class ProductVO {
         return vo;
     }
 
-    /**
-     * 转换为 DO
-     */
+    /** 转换为 DO */
     public static ProductDO toDO(ProductVO vo) {
         if (vo == null) {
             return null;
@@ -77,9 +70,7 @@ public class ProductVO {
         return product;
     }
 
-    /**
-     * 转换为 DTO
-     */
+    /** 转换为 DTO */
     public static ProductCreateDTO toDTO(ProductVO vo) {
         if (vo == null) {
             return null;

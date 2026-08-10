@@ -24,9 +24,16 @@ export default defineConfig({
   server: {
     port: 5175,
     proxy: {
+      // API 请求代理到后端
       '/api': {
         target: 'http://localhost:8081',
         changeOrigin: true,
+      },
+      // 开发环境：图片文件代理到后端 uploads 目录
+      '/uploads': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+        rewrite: (path: string) => `/api${path}`,
       },
     },
   },

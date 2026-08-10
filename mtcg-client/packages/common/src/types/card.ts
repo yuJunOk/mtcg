@@ -5,57 +5,63 @@
 export interface CardVO {
   id: number
   cardCode: string
-  name: string
+  cardName: string
   cardType: string
   level: number | null
   color: string | null
+  environment: string | null
+  traits: string | null
   rarity: string | null
   attackRange: number | null
   power: number | null
-  traits: string[]
-  effectText: string
-  imageUrl: string | null
+  effectText: string | null
+  effectJson: string | null
+  imagePath: string | null
   productCode: string | null
   createTime: string
-  updateTime: string
+  updateTime?: string
 }
 
 export interface CardQueryDTO {
   cardCode?: string
-  name?: string
+  cardName?: string
   cardType?: string
   color?: string
   rarity?: string
   productCode?: string
-  page?: number
-  size?: number
+  pageNum?: number
+  pageSize?: number
 }
 
 export interface CardCreateDTO {
   cardCode: string
-  name: string
+  cardName: string
   cardType: string
   level?: number
   color?: string
+  environment?: string
   rarity?: string
   attackRange?: number
   power?: number
-  traits?: string[]
+  traits?: string
   effectText?: string
-  imageUrl?: string
+  effectJson?: string
+  imagePath?: string
   productCode?: string
 }
 
 export interface CardUpdateDTO {
-  name?: string
+  cardName?: string
   cardType?: string
   level?: number
   color?: string
+  environment?: string
   rarity?: string
   attackRange?: number
   power?: number
-  traits?: string[]
+  traits?: string
   effectText?: string
-  imageUrl?: string
+  effectJson?: string
+  imagePath?: string
   productCode?: string
 }

@@ -10,28 +10,21 @@ import lombok.Data;
 @Data
 public class UserQueryDTO {
 
-    /**
-     * 用户名（模糊匹配）
-     */
+    /** 玩家编号（模糊匹配） */
+    private String usercode;
+
+    /** 用户名（模糊匹配） */
     private String username;
 
-    /**
-     * 角色
-     */
+    /** 角色 */
     private String role;
 
-    /**
-     * 状态
-     */
+    /** 状态 */
     private String status;
 
-    /**
-     * 当前页码，默认 1
-     */
-    private Integer page = 1;
+    /** 当前页码，默认 1 */
+    private Integer pageNum = 1;
 
-    /**
-     * 每页条数，默认 20
-     */
-    private Integer size = 20;
+    /** 每页条数，默认 10 */
+    private Integer pageSize = 10;
 }

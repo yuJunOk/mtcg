@@ -1,51 +1,46 @@
 package com.aris.mtcg.domain.vo;
 
-import lombok.Data;
-
+import com.aris.mtcg.domain.entity.UserDO;
 import java.time.LocalDateTime;
+import lombok.Data;
 
 /**
  * 用户展示对象
- * <p>
- * 不暴露密码哈希等敏感字段。
+ *
+ * <p>不暴露密码哈希等敏感字段。
  *
  * @author pengYuJun
  */
 @Data
 public class UserVO {
 
-    /**
-     * 主键
-     */
     private Long id;
 
-    /**
-     * 用户名
-     */
+    private String usercode;
+
     private String username;
 
-    /**
-     * 昵称
-     */
-    private String nickname;
-
-    /**
-     * 头像路径
-     */
     private String avatar;
 
-    /**
-     * 角色
-     */
     private String role;
 
-    /**
-     * 状态
-     */
     private String status;
 
-    /**
-     * 创建时间
-     */
     private LocalDateTime createTime;
+
+    /** 从 DO 转换 */
+    public static UserVO fromDO(UserDO user) {
+        if (user == null) {
+            return null;
+        }
+        UserVO vo = new UserVO();
+        vo.setId(user.getId());
+        vo.setUsercode(user.getUsercode());
+        vo.setUsername(user.getUsername());
+        vo.setAvatar(user.getAvatar());
+        vo.setRole(user.getRole());
+        vo.setStatus(user.getStatus());
+        vo.setCreateTime(user.getCreateTime());
+        return vo;
+    }
 }

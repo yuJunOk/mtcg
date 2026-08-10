@@ -1,10 +1,9 @@
 package com.aris.mtcg.domain.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import java.time.LocalDate;
 import lombok.Data;
 import org.hibernate.validator.constraints.Length;
-
-import java.time.LocalDate;
 
 /**
  * 产品创建入参

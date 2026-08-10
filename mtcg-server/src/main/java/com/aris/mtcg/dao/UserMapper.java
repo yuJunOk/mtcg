@@ -7,8 +7,9 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 用户 DAO
  *
+ * <p>注意：user 是 PostgreSQL 保留字，表名须加双引号。
+ *
  * @author pengYuJun
  */
 @Mapper
-public interface UserMapper extends BaseMapper<UserDO> {
-}
+public interface UserMapper extends BaseMapper<UserDO> {}

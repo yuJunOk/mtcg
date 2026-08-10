@@ -10,7 +10,6 @@ import lombok.Getter;
  */
 @Getter
 public enum EnumRarity {
-
     R("R", "稀有"),
     SR("SR", "超稀有"),
     GR("GR", "极稀有"),

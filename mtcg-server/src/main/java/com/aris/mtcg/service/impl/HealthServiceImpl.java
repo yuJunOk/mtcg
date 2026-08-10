@@ -2,10 +2,9 @@ package com.aris.mtcg.service.impl;
 
 import com.aris.mtcg.domain.vo.HealthVO;
 import com.aris.mtcg.service.HealthService;
+import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
 
 /**
  * 健康检查服务实现
