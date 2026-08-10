@@ -1,10 +1,15 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessage } from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import { setHttpErrorNotifier } from '@mtcg/common'
 import App from './App.vue'
 import router from './router'
+
+setHttpErrorNotifier((message) => {
+  ElMessage.error(message)
+})
 
 const app = createApp(App)
 app.use(createPinia())

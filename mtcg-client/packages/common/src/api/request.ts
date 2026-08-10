@@ -5,16 +5,31 @@
  * - Token 自动注入（从 localStorage 读取）
  * - 统一响应解包：{code, data, message} → 直接返回 data
  * - 401/1005/1006：尝试 refresh 一次后重试；失败则清登录态并跳转登录页（不 reload）
- * - 其他业务错误 → ElMessage.error
+ * - 其他业务错误 → 通过 setHttpErrorNotifier 注入的提示（管理端一般为 ElMessage.error）
  * - 局部 Loading 状态（通过 config.loadingRef 传入 Ref，自动管理）
  */
-import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
-import { ElMessage } from 'element-plus'
+import axios, {
+  type AxiosError,
+  type AxiosRequestConfig,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 import type { Ref } from 'vue'
 
 const TOKEN_KEY = 'mtcg_token'
 const REFRESH_KEY = 'mtcg_refresh_token'
 const LOGOUT_EVENT = 'mtcg:logout'
+
+/** 业务错误提示（由宿主注入，避免 common 强依赖 element-plus） */
+type HttpErrorNotifier = (message: string) => void
+let httpErrorNotifier: HttpErrorNotifier = (message) => {
+  console.error(message)
+}
+
+/** 管理端启动时注入 ElMessage.error 等 */
+export function setHttpErrorNotifier(notifier: HttpErrorNotifier): void {
+  httpErrorNotifier = notifier
+}
 
 /** 扩展配置：标记已重试 / 跳过 refresh 流程 */
 interface AuthRequestConfig extends InternalAxiosRequestConfig {
@@ -85,7 +100,7 @@ export function clearAuthAndRedirect(): void {
   }, 800)
 }
 
-async function tryRefreshAndRetry(error: AxiosError): Promise<unknown> {
+async function tryRefreshAndRetry(error: AxiosError): Promise<AxiosResponse> {
   const config = error.config as AuthRequestConfig | undefined
   if (!config || config._retry || config._skipAuthRefresh) {
     clearAuthAndRedirect()
@@ -105,7 +120,7 @@ async function tryRefreshAndRetry(error: AxiosError): Promise<unknown> {
   }
 
   if (refreshing) {
-    return new Promise((resolve, reject) => {
+    return new Promise<AxiosResponse>((resolve, reject) => {
       waitQueue.push((ok) => {
         if (!ok) {
           reject(error)
@@ -205,7 +220,7 @@ axios.interceptors.response.use(
     else if (error.response?.status === 429) msg = '请求过于频繁，请稍后再试'
     else if (error.response?.status && error.response.status >= 500) msg = '服务器开小差了，请稍后再试'
 
-    ElMessage.error(msg)
+    httpErrorNotifier(msg)
     return Promise.reject(error)
   },
 )
@@ -222,7 +237,7 @@ function extractData<T>(r: { data: Record<string, unknown> }): T {
       clearAuthAndRedirect()
       throw new Error((res.message as string) || 'Unauthorized')
     }
-    ElMessage.error((res.message as string) || '请求失败')
+    httpErrorNotifier((res.message as string) || '请求失败')
     throw new Error((res.message as string) || '请求失败')
   }
   return res['data'] as T

@@ -20,7 +20,7 @@ jobs:
           java-version: "17"
           cache: maven
       - name: Spotless check
-        run: ./mvnw -B spotless:check
+        run: chmod +x ./mvnw && ./mvnw -B spotless:check
       - name: Unit tests
         run: ./mvnw -B test -Dtest='!*IT'
 
