@@ -1,5 +1,9 @@
 /**
  * 管理员 API（需 SYS_ADMIN 角色）
+ * 
+ * 请求规范：只使用 GET 和 POST 方法
+ * - GET：查询（列表/详情）
+ * - POST：新增/更新/删除/其他操作
  */
 import { axios, extractData } from './request'
 import type { PageVO } from '../types/common'
@@ -27,19 +31,19 @@ export const adminUserApi = {
       .then(r => extractData<number>(r)),
 
   update: (id: number, dto: AdminUserUpdateDTO) =>
-    axios.put<Record<string, unknown>>(`/admin/users/${id}`, dto)
+    axios.post<Record<string, unknown>>(`/admin/users/${id}`, dto)
       .then(() => undefined),
 
   delete: (id: number) =>
-    axios.delete<Record<string, unknown>>(`/admin/users/${id}`)
+    axios.post<Record<string, unknown>>(`/admin/users/${id}/delete`)
       .then(() => undefined),
 
   updateStatus: (id: number, status: string) =>
-    axios.patch<Record<string, unknown>>(`/admin/users/${id}/status`, null, { params: { status } })
+    axios.post<Record<string, unknown>>(`/admin/users/${id}/status`, null, { params: { status } })
       .then(() => undefined),
 
   resetPassword: (id: number, dto: AdminResetPasswordDTO) =>
-    axios.patch<Record<string, unknown>>(`/admin/users/${id}/password`, dto)
+    axios.post<Record<string, unknown>>(`/admin/users/${id}/password`, dto)
       .then(() => undefined),
 }
 
@@ -61,11 +65,11 @@ export const adminProductApi = {
       .then(r => extractData<number>(r)),
 
   update: (id: number, dto: ProductUpdateDTO) =>
-    axios.put<Record<string, unknown>>(`/admin/products/${id}`, dto)
+    axios.post<Record<string, unknown>>(`/admin/products/${id}`, dto)
       .then(() => undefined),
 
   delete: (id: number) =>
-    axios.delete<Record<string, unknown>>(`/admin/products/${id}`)
+    axios.post<Record<string, unknown>>(`/admin/products/${id}/delete`)
       .then(() => undefined),
 
   listCards: (productCode: string, page?: number, size?: number) =>
@@ -91,10 +95,10 @@ export const adminCardApi = {
       .then(r => extractData<number>(r)),
 
   update: (id: number, dto: CardUpdateDTO) =>
-    axios.put<Record<string, unknown>>(`/admin/cards/${id}`, dto)
+    axios.post<Record<string, unknown>>(`/admin/cards/${id}`, dto)
       .then(() => undefined),
 
   delete: (id: number) =>
-    axios.delete<Record<string, unknown>>(`/admin/cards/${id}`)
+    axios.post<Record<string, unknown>>(`/admin/cards/${id}/delete`)
       .then(() => undefined),
 }
