@@ -10,7 +10,7 @@
 1. 所有解释、分析、总结使用中文
 2. 代码保持 `TypeScript` / `Vue` 原始语法
 3. 注释使用中文
-4. 变量名、函数名、类型名统一使用英文，不使用中文命名
+4. 变量名、函数名、类型名统一使用英文
 5. 避免使用 `any`，优先使用明确类型；无法确定时使用 `unknown`
 6. 变量、函数参数、返回值、接口响应应显式声明类型
 
@@ -51,10 +51,7 @@
 | 抽屉 | `PascalCase + Drawer` | `CardDetailDrawer.vue` |
 | 路由 name | `kebab-case` | `card-list`、`product-list` |
 
-### 2.3 路由
-
-- 新增业务路由默认使用懒加载：`() => import('@/views/xxx.vue')`
-- 路由 `name` 使用 `kebab-case`
+新增业务路由默认使用懒加载：`() => import('@/views/xxx.vue')`
 
 ---
 
@@ -64,35 +61,28 @@
 
 - 类型名使用语义化命名（如 `CardVO`、`CardQueryDTO`）
 - 前后端共享类型定义在 `packages/common/src/types/`
-- 迭代早期，VO 可以复制后端全部字段，避免后续扩展时反复补字段；后期稳定后再按需精简
+- 迭代早期，VO 可以复制后端全部字段，避免后续扩展时反复补字段
 
 ### 3.2 字段命名
 
 **原则：与后端 VO 字段名保持完全一致，禁止意译改名。**
 
-| 规则 | 说明 |
-| --- | --- |
-| 字段名 | 与后端 VO 完全一致，不在前端映射层改名 |
-| 布尔字段 | 后端 `isXxx` / `hasXxx` → 前端保持同名 |
-| ID 字段 | 后端 `Long` 类型 → 前端用 `number`（MTCG 用自增 ID，无需精度问题） |
-| 枚举字段 | 必须通过工具函数转换，禁止硬编码 `=== 'xxx'` |
-
 ```ts
 // ✅ 禁止意译改名
-cardType: row.cardType               // ✅ 保持原名
-cardTypeLabel: getCardTypeLabel(row.cardType)  // ✅ 显示名用新 key
+cardType: row.cardType
+cardTypeLabel: getCardTypeLabel(row.cardType)
 
 // ❌
-type: row.cardType                   // ❌ 改名
-cardType: row.cardType === 'CHARACTER' ? '角色' : '冲击'  // ❌ 硬编码
+type: row.cardType
+cardType: row.cardType === 'CHARACTER' ? '角色' : '冲击'
 ```
 
 ### 3.3 枚举
 
-与后端枚举对应，格式统一：
+与后端枚举对应，每个后端枚举类对应一个独立前端文件：
 
 ```ts
-// 每个后端枚举类对应一个独立前端文件
+// src/utils/enums/card-type.ts
 export const CardTypeOptions: Record<string, string> = {
   CHARACTER: '角色卡',
   IMPACT: '冲击卡',
@@ -111,23 +101,16 @@ export function getCardTypeLabel(code: string): string {
 
 ### 4.1 请求层
 
-- 统一从 `@mtcg/common` 的 `api/` 目录导入请求方法
-- 请求方法返回 Promise，必须显式声明返回类型
-- 所有异步请求必须有错误处理（`.catch` 或 `try/catch`）
+统一从 `@mtcg/common` 的 `api/` 目录导入请求方法。返回 Promise，必须显式声明返回类型。
 
 ```ts
-import { cardApi } from '@mtcg/common/api/cardApi'
+import { client } from '@mtcg/common/api'
 
-// 单请求、分支简单 → 链式 .then/.catch
-cardApi.list(query)
-  .then((res) => {
-    tableData.value = res.data.records ?? []
-    total.value = res.data.total ?? 0
-  })
-  .catch(() => {
-    tableData.value = []
-    total.value = 0
-  })
+// ✅ 从 @mtcg/common/api 统一导入
+import type { CardVO, CardQueryDTO } from '@mtcg/common/api'
+
+// ❌ 不要从旧路径导入
+import { http } from '@mtcg/common/utils/request'
 ```
 
 ### 4.2 何时链式、何时 async/await
@@ -136,44 +119,100 @@ cardApi.list(query)
 | --- | --- |
 | 单请求、分支简单 | 链式 `.then/.catch` |
 | 多请求顺序 await、中间变量多 | `async/await` |
-| 需 `try/finally` 统一收尾 | `async/await` 或链式 `.finally` |
+| 需 `try/finally` 统一收尾 | `async/await` |
+
+### 4.3 错误处理约定
+
+| 错误类型 | 处理方式 |
+| --- | --- |
+| 网络错误 / 500 | 提示"网络异常，请稍后重试"，记录日志 |
+| 401 未认证 | 跳转登录页 |
+| 403 无权限 | 提示"无权限操作" |
+| 业务校验错误 | 提示后端返回的错误信息 |
+| 前端参数校验 | 实时校验，不等后端返回 |
 
 ---
 
-## 5. Element Plus 规范（管理后台）
+## 5. 状态管理（Pinia）
 
-### 5.1 通用
+### 5.1 ref vs reactive 选择原则
 
-- 表单、表格工具栏、弹框底部操作区默认 `size="small"`
-- 主操作按钮 `type="primary"`
-- 危险操作 `type="danger"`，并配合 `ElMessageBox.confirm` 确认
-- 弹框底部按钮统一右对齐，文案使用"确定 / 取消 / 关闭"
+| 场景 | 推荐 | 原因 |
+| --- | --- | --- |
+| 基础类型 | `ref()` | `reactive` 不支持直接替换整个对象 |
+| 对象/数组 | `ref()` 或 `reactive` | 复杂对象建议 `ref`，避免响应式丢失 |
+| 解构响应式对象 | 使用 `toRefs` | 保持解构后的响应性 |
 
-### 5.2 表格
+```ts
+// ✅ 基础类型用 ref
+const count = ref(0)
+const name = ref('')
 
-- 分页置于 `el-card` 的 `#footer` 插槽（固定底部）
-- 表格卡片 `flex: 1`，内容区撑满
-- 表格加 `height="100%"` 让 Element Plus 自动计算滚动区域
+// ✅ 解构响应式对象用 toRefs
+const state = reactive({ count: 0, name: '' })
+const { count, name } = toRefs(state)
 
-### 5.3 表单
+// ❌ 避免响应式丢失
+const obj = reactive({ a: 1 })
+let { a } = obj  // a 失去响应式
+```
 
-- 管理后台使用 Element Plus 原生表单校验（`el-form` + `rules`）
-- 游戏端如需复杂表单，后续可引入 `vee-validate`
+### 5.2 本地持久化
 
----
-
-## 6. 状态管理（Pinia）
-
-- 应用级状态优先使用 `Pinia`
 - 本地持久化优先使用 `@vueuse/core` 的 `useStorage` / `useSessionStorage`
 - 存储 key 统一定义在对应模块常量中
 - 组件卸载时必须清理事件监听和定时器
 
 ---
 
-## 7. 大文件组织
+## 6. Element Plus 规范（管理后台）
 
-### 7.1 Region 分段
+### 6.1 通用
+
+- 表单、表格工具栏、弹框底部操作区默认 `size="small"`
+- 主操作按钮 `type="primary"`
+- 危险操作 `type="danger"`，并配合 `ElMessageBox.confirm` 确认
+- 弹框底部按钮统一右对齐，文案使用"确定 / 取消 / 关闭"
+
+### 6.2 表格
+
+- 分页置于 `el-card` 的 `#footer` 插槽（固定底部）
+- 表格卡片 `flex: 1`，内容区撑满
+- 表格加 `height="100%"` 让 Element Plus 自动计算滚动区域
+
+---
+
+## 7. 环境变量规范
+
+### 7.1 文件命名
+
+| 文件 | 用途 |
+| --- | --- |
+| `.env` | 默认值，所有环境共享 |
+| `.env.development` | 开发环境 |
+| `.env.production` | 生产环境 |
+
+### 7.2 变量命名
+
+- 前端环境变量必须以 `VITE_` 开头
+- 后端 API 地址：`VITE_API_BASE_URL`
+- 开启调试模式：`VITE_DEBUG=true`
+
+```bash
+# .env.development
+VITE_API_BASE_URL=http://localhost:8081/api
+VITE_DEBUG=true
+
+# .env.production
+VITE_API_BASE_URL=https://api.mtcg.com/api
+VITE_DEBUG=false
+```
+
+---
+
+## 8. 大文件组织
+
+### 8.1 Region 分段
 
 单文件超过 300 行时，用 `//#region 区域名` / `//#endregion` 分段：
 
@@ -186,16 +225,16 @@ cardApi.list(query)
 //#endregion
 ```
 
-### 7.2 大文件拆分
+### 8.2 大文件拆分
 
 **触发条件（满足任一）：**
 - 单文件超过 800 行
 - 同一页面有 3 个及以上独立功能区域
 - 单个 `//#region` 超过 200 行
 
-**拆分前必须询问确认，不要自动拆分。** 拆分方案：按功能区域拆为 Composables（`useXxx.ts`）。
+拆分前必须询问确认，拆分方案：按功能区域拆为 Composables（`useXxx.ts`）。
 
-### 7.3 函数组织
+### 8.3 函数组织
 
 - **先声明后使用**：被调用的函数写在调用者后面
 - **相关函数聚集**：同一功能的函数放在一起
@@ -204,7 +243,7 @@ cardApi.list(query)
 
 ---
 
-## 8. 注释规范
+## 9. 注释规范
 
 - 不写"这是什么"（代码已说明）
 - 写"为什么这样"（业务逻辑、特殊处理、注意事项）
@@ -213,7 +252,7 @@ cardApi.list(query)
 
 ---
 
-## 9. 样式规范
+## 10. 样式规范
 
 - 管理后台：`<style scoped>`，页面内容区撑满用 flex 布局
 - 游戏端：`<style scoped>`，PixiJS Canvas 内用引擎 API 控制样式
@@ -221,7 +260,7 @@ cardApi.list(query)
 
 ---
 
-## 10. 交付要求
+## 11. 交付要求
 
 - 修改代码时，优先补齐对应类型和错误处理
 - 验证遵循"最小必要"原则：只做能覆盖本次改动风险的最小验证
@@ -231,27 +270,7 @@ cardApi.list(query)
 
 ---
 
-## 11. Monorepo 跨包引用
-
-- 所有包通过 `@mtcg/xxx` 引用，不使用相对路径跨包
-- `packages/common` 负责类型定义和 API 封装，各端只负责 view 布局
-- 新增共享能力优先放入 `common`，避免 game-pc 和 game-mobile 重复实现
-
-```ts
-// ✅ 从 @mtcg/common/api 统一导入 client（含解包后的方法 + 所有类型）
-import { client } from '@mtcg/common/api'
-import type { UserVO, CardVO } from '@mtcg/common/api'
-
-// ❌ 不要从旧路径导入
-import { cardApi } from '@mtcg/common/api/cardApi'   // 旧写法，已废弃
-import { http } from '@mtcg/common/utils/request'      // 旧写法，已废弃
-```
-
----
-
 ## 参考文档
 
 - [后端 AI 编码规范](./后端AI编码规范.md)
 - [UI 设计系统](../设计规范/UI设计系统.md)
-- [概要设计 §7.2 前端技术栈](../设计文档/02-概要设计.md#72-前端技术栈mtcg-client)
-- [实现步骤-迭代一](../设计文档/13-实现步骤-迭代一-用户系统与用户管理.md)
