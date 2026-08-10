@@ -1,12 +1,13 @@
 /**
- * 对指定目录下的图片进行 OCR 识别（中文简体）。
- * 依赖 tesseract.js（安装在本目录的父级 node_modules）。
+ * 图片中文 OCR 识别工具
+ *
+ * 功能：对指定目录下的图片进行中文简体 OCR
  *
  * 用法：
- *   node _ocr_recognize.js <图片目录> <输出文件>
+ *   node ocr.js <图片目录> <输出文件>
  *
  * 示例：
- *   node _ocr_recognize.js ../docs/规则文档/QA图片-第1期 qa1_ocr.txt
+ *   node ocr.js ../docs/规则文档/QA图片-第1期 lib/results/qa1_ocr.txt
  */
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +17,8 @@ const imgDir = process.argv[2];
 const outFile = process.argv[3];
 
 if (!imgDir || !outFile) {
-  console.log('用法: node _ocr_recognize.js <图片目录> <输出文件>');
+  console.log('用法: node ocr.js <图片目录> <输出文件>');
+  console.log('示例: node ocr.js ../docs/规则文档/QA图片-第1期 lib/results/qa1_ocr.txt');
   process.exit(1);
 }
 
@@ -25,9 +27,8 @@ const absOutFile = path.resolve(outFile);
 const ws = fs.createWriteStream(absOutFile);
 
 async function main() {
-  // 使用本地 chi_sim.traineddata（同目录）
   const worker = await createWorker('chi_sim', 1, {
-    langPath: __dirname,
+    langPath: path.join(__dirname, 'lib'),
   });
 
   const files = fs.readdirSync(absImgDir).filter(f => /\.(png|jpg|jpeg)$/i.test(f)).sort();

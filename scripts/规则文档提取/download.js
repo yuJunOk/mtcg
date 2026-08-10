@@ -1,11 +1,13 @@
 /**
- * 从微信公众号文章 HTML 中提取图片并下载到本地。
+ * 下载微信公众号文章中的图片
+ *
+ * 功能：从 HTML 中提取图片 URL 并下载到指定目录
  *
  * 用法：
- *   node _download_images.js <html文件路径> <输出目录> [前缀] [图片格式]
+ *   node download.js <html文件路径> <输出目录> [前缀] [图片格式]
  *
  * 示例：
- *   node _download_images.js _temp_qa1.html ../docs/规则文档/QA图片-第1期 qa1- png
+ *   node download.js _temp_qa1.html ../docs/规则文档/QA图片-第1期 qa1- png
  */
 const fs = require('fs');
 const path = require('path');
@@ -18,13 +20,13 @@ const prefix = process.argv[4] || '';
 const ext = process.argv[5] || 'png';
 
 if (!htmlPath || !outDir) {
-  console.log('用法: node _download_images.js <html文件路径> <输出目录> [图片格式]');
+  console.log('用法: node download.js <html文件路径> <输出目录> [前缀] [图片格式]');
+  console.log('示例: node download.js _temp_rules.html ../docs/规则文档/规则书图片 rules-');
   process.exit(1);
 }
 
 const text = fs.readFileSync(path.resolve(htmlPath), 'utf8');
 
-// 从 js_content 区域提取图片 URL
 const contentMatch = text.match(/id="js_content"[^>]*>([\s\S]*?)<\/div>\s*\n\s*<script/) ||
   text.match(/id="js_content"[^>]*>([\s\S]*?)<script/);
 const content = contentMatch ? contentMatch[1] : '';
