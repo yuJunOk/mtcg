@@ -3,6 +3,7 @@ package com.aris.mtcg.service;
 import com.aris.mtcg.domain.dto.ProductCreateDTO;
 import com.aris.mtcg.domain.dto.ProductQueryDTO;
 import com.aris.mtcg.domain.dto.ProductUpdateDTO;
+import com.aris.mtcg.domain.vo.CardVO;
 import com.aris.mtcg.domain.vo.PageVO;
 import com.aris.mtcg.domain.vo.ProductVO;
 
@@ -37,4 +38,9 @@ public interface ProductService {
      * 删除产品
      */
     void deleteProduct(Long id);
+
+    /**
+     * 按产品编号查询卡牌列表（分页）
+     */
+    PageVO<CardVO> listCardsByProduct(String productCode, Integer page, Integer size);
 }

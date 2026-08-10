@@ -131,6 +131,13 @@ public Result<Void> delete(@PathVariable Long id) { ... }
 @PatchMapping("/{id}/status")
 ```
 
+### 3.2 命名规范
+
+- 包名统一小写：`com.aris.mtcg.service`
+- 类名、接口名、枚举名使用 UpperCamelCase
+- 方法名、参数名、成员变量、局部变量使用 lowerCamelCase
+- 枚举以 `Enum` 开头，异常类以 `Exception` 结尾
+
 ### 3.3 编码格式
 
 - 缩进采用 4 个空格，禁止使用 Tab
@@ -139,14 +146,7 @@ public Result<Void> delete(@PathVariable Long id) { ... }
 - 左括号后和右括号前加空格：`if (user != null)`
 - 常量全部大写，单词间用下划线隔开：`MAX_RETRY_COUNT`
 
-### 3.2 命名规范
-
-- 包名统一小写：`com.aris.mtcg.service`
-- 类名、接口名、枚举名使用 UpperCamelCase
-- 方法名、参数名、成员变量、局部变量使用 lowerCamelCase
-- 枚举以 `Enum` 开头，异常类以 `Exception` 结尾
-
-### 3.3 命名规范
+### 3.4 枚举
 
 统一采用 `code` + `desc` 模式，带 `Enum` 前缀：
 
@@ -169,7 +169,7 @@ public enum EnumColor {
 - DB 存 `code` 字符串（VARCHAR），不存下标
 - DDL 加 CHECK 约束防止脏数据
 
-### 3.4 枚举
+### 3.5 实体类（DO）
 
 ```java
 @Data
@@ -183,13 +183,86 @@ public class CardDO {
 - 用 `@Data` + `@Table`，主键用 `@Id(keyType = KeyType.Auto)`
 - 枚举字段在 DO 中用 `String` 类型，Service 层做转换
 
-### 3.5 实体类（DO）
+### 3.6 实体转换规范
+
+**任何需要相互转换的实体（DO、DTO、VO、BO 等），统一使用静态工厂方法。**
+
+```java
+@Data
+public class CardVO {
+    private Long id;
+    private String cardCode;
+
+    // === 静态工厂方法：转换为本类 ===
+
+    /**
+     * 从 DO 转换为本类
+     */
+    public static CardVO fromDO(CardDO card) {
+        if (card == null) {
+            return null;
+        }
+        CardVO vo = new CardVO();
+        vo.setId(card.getId());
+        vo.setCardCode(card.getCardCode());
+        // ...
+        return vo;
+    }
+
+    /**
+     * 从 DTO 转换为本类
+     */
+    public static CardVO fromDTO(CardCreateDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        CardVO vo = new CardVO();
+        vo.setCardName(dto.getCardName());
+        // ...
+        return vo;
+    }
+
+    // === toXxx 方法：转换为他类 ===
+
+    /**
+     * 转换为本类的 DO 对象
+     */
+    public static CardDO toDO(CardVO vo) {
+        if (vo == null) {
+            return null;
+        }
+        CardDO card = new CardDO();
+        card.setId(vo.getId());
+        card.setCardCode(vo.getCardCode());
+        // ...
+        return card;
+    }
+
+    /**
+     * 转换为本类的 DTO 对象
+     */
+    public static CardCreateDTO toDTO(CardVO vo) {
+        // ...
+    }
+}
+```
+
+```java
+// ✅ 使用方式
+CardVO vo = CardVO.fromDO(card);
+CardVO vo = CardVO.fromDTO(dto);
+CardDO card = CardVO.toDO(vo);
+```
+
+**命名规则：**
+- `fromXxx`：静态方法，参数为 Xxx，转换为本类
+- `toXxx`：静态方法，本类为参数，转换为 Xxx
 
 - **DTO**：入参，带 `@NotBlank` / `@NotNull` 校验注解
 - **VO**：出参，面向前端展示
 - DO 和 VO/DTO 不可混用，Service 层负责转换
 
-### 3.6 DTO 与 VO
+### 3.7 魔法值禁止
 
 不允许任何魔法值直接出现在代码中：
 
@@ -203,14 +276,6 @@ if (retryCount > MAX_RETRY_COUNT) {
 // ❌
 if (retryCount > 3) { ... }
 ```
-
-### 3.7 常量定义
-
-- 不要捕获大的异常类（如 `Exception`），应捕获具体异常
-- 不要用 `System.out.println`，应使用日志框架
-- 异常信息必须包含排查相关信息
-
----
 
 ### 3.8 异常处理
 

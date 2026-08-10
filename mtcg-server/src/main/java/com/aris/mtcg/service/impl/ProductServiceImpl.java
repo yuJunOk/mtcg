@@ -2,11 +2,14 @@ package com.aris.mtcg.service.impl;
 
 import com.aris.mtcg.common.exception.BusinessException;
 import com.aris.mtcg.common.result.ErrorCode;
+import com.aris.mtcg.dao.CardMapper;
 import com.aris.mtcg.dao.ProductMapper;
 import com.aris.mtcg.domain.dto.ProductCreateDTO;
 import com.aris.mtcg.domain.dto.ProductQueryDTO;
 import com.aris.mtcg.domain.dto.ProductUpdateDTO;
+import com.aris.mtcg.domain.entity.CardDO;
 import com.aris.mtcg.domain.entity.ProductDO;
+import com.aris.mtcg.domain.vo.CardVO;
 import com.aris.mtcg.domain.vo.PageVO;
 import com.aris.mtcg.domain.vo.ProductVO;
 import com.aris.mtcg.service.ProductService;
@@ -30,6 +33,9 @@ public class ProductServiceImpl implements ProductService {
     @Resource
     private ProductMapper productMapper;
 
+    @Resource
+    private CardMapper cardMapper;
+
     @Override
     public PageVO<ProductVO> listProducts(ProductQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create()
@@ -40,14 +46,14 @@ public class ProductServiceImpl implements ProductService {
         int pageSize = (query.getSize() == null || query.getSize() < 1) ? 20 : query.getSize();
         Page<ProductDO> page = productMapper.paginate(Page.of(pageNum, pageSize), qw);
         List<ProductVO> records = page.getRecords().stream()
-                .map(this::toVO)
+                .map(ProductVO::fromDO)
                 .collect(Collectors.toList());
         return new PageVO<>(records, page.getTotalRow());
     }
 
     @Override
     public ProductVO getProductById(Long id) {
-        return toVO(loadOrThrow(id));
+        return ProductVO.fromDO(loadOrThrow(id));
     }
 
     @Override
@@ -56,13 +62,9 @@ public class ProductServiceImpl implements ProductService {
         long count = productMapper.selectCountByQuery(
                 QueryWrapper.create().eq("product_code", dto.getProductCode()));
         if (count > 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "产品编号已存在");
+            throw new BusinessException(ErrorCode.PRODUCT_CODE_DUPLICATE);
         }
-        ProductDO product = new ProductDO();
-        product.setProductCode(dto.getProductCode());
-        product.setProductName(dto.getProductName());
-        product.setReleaseDate(dto.getReleaseDate());
-        product.setDescription(dto.getDescription());
+        ProductDO product = ProductVO.toDO(ProductVO.fromDTO(dto));
         productMapper.insert(product);
         return product.getId();
     }
@@ -91,27 +93,27 @@ public class ProductServiceImpl implements ProductService {
         productMapper.deleteById(id);
     }
 
+    @Override
+    public PageVO<CardVO> listCardsByProduct(String productCode, Integer page, Integer size) {
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("product_code", productCode)
+                .orderBy("create_time", false);
+        int pageNum = (page == null || page < 1) ? 1 : page;
+        int pageSize = (size == null || size < 1) ? 20 : size;
+        Page<CardDO> result = cardMapper.paginate(Page.of(pageNum, pageSize), qw);
+        List<CardVO> records = result.getRecords().stream()
+                .map(CardVO::fromDO)
+                .collect(Collectors.toList());
+        return new PageVO<>(records, result.getTotalRow());
+    }
+
     // ==================== 私有方法 ====================
 
     private ProductDO loadOrThrow(Long id) {
         ProductDO product = productMapper.selectOneById(id);
         if (product == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "产品不存在");
+            throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
         }
         return product;
-    }
-
-    private ProductVO toVO(ProductDO product) {
-        if (product == null) {
-            return null;
-        }
-        ProductVO vo = new ProductVO();
-        vo.setId(product.getId());
-        vo.setProductCode(product.getProductCode());
-        vo.setProductName(product.getProductName());
-        vo.setReleaseDate(product.getReleaseDate());
-        vo.setDescription(product.getDescription());
-        vo.setCreateTime(product.getCreateTime());
-        return vo;
     }
 }

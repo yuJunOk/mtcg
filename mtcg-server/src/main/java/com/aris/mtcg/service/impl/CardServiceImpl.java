@@ -46,14 +46,14 @@ public class CardServiceImpl implements CardService {
         int pageSize = (query.getSize() == null || query.getSize() < 1) ? 20 : query.getSize();
         Page<CardDO> page = cardMapper.paginate(Page.of(pageNum, pageSize), qw);
         List<CardVO> records = page.getRecords().stream()
-                .map(this::toVO)
+                .map(CardVO::fromDO)
                 .collect(Collectors.toList());
         return new PageVO<>(records, page.getTotalRow());
     }
 
     @Override
     public CardVO getCardById(Long id) {
-        return toVO(loadOrThrow(id));
+        return CardVO.fromDO(loadOrThrow(id));
     }
 
     @Override
@@ -62,25 +62,11 @@ public class CardServiceImpl implements CardService {
         long count = cardMapper.selectCountByQuery(
                 QueryWrapper.create().eq("card_code", dto.getCardCode()));
         if (count > 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "卡牌编号已存在");
+            throw new BusinessException(ErrorCode.CARD_CODE_DUPLICATE);
         }
         // 校验枚举合法性
         validateCreateEnums(dto);
-        CardDO card = new CardDO();
-        card.setCardCode(dto.getCardCode());
-        card.setProductCode(dto.getProductCode());
-        card.setCardName(dto.getCardName());
-        card.setCardType(dto.getCardType());
-        card.setLevel(dto.getLevel());
-        card.setColor(dto.getColor());
-        card.setEnvironment(dto.getEnvironment());
-        card.setTraits(dto.getTraits());
-        card.setAttackRange(dto.getAttackRange());
-        card.setPower(dto.getPower());
-        card.setRarity(dto.getRarity());
-        card.setEffectText(dto.getEffectText());
-        card.setEffectJson(dto.getEffectJson());
-        card.setImagePath(dto.getImagePath());
+        CardDO card = CardVO.toDO(CardVO.fromDTO(dto));
         cardMapper.insert(card);
         return card.getId();
     }
@@ -168,32 +154,8 @@ public class CardServiceImpl implements CardService {
     private CardDO loadOrThrow(Long id) {
         CardDO card = cardMapper.selectOneById(id);
         if (card == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "卡牌不存在");
+            throw new BusinessException(ErrorCode.CARD_NOT_FOUND);
         }
         return card;
-    }
-
-    private CardVO toVO(CardDO card) {
-        if (card == null) {
-            return null;
-        }
-        CardVO vo = new CardVO();
-        vo.setId(card.getId());
-        vo.setCardCode(card.getCardCode());
-        vo.setProductCode(card.getProductCode());
-        vo.setCardName(card.getCardName());
-        vo.setCardType(card.getCardType());
-        vo.setLevel(card.getLevel());
-        vo.setColor(card.getColor());
-        vo.setEnvironment(card.getEnvironment());
-        vo.setTraits(card.getTraits());
-        vo.setAttackRange(card.getAttackRange());
-        vo.setPower(card.getPower());
-        vo.setRarity(card.getRarity());
-        vo.setEffectText(card.getEffectText());
-        vo.setEffectJson(card.getEffectJson());
-        vo.setImagePath(card.getImagePath());
-        vo.setCreateTime(card.getCreateTime());
-        return vo;
     }
 }

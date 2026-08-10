@@ -95,7 +95,29 @@ public enum ErrorCode {
     /**
      * 非法游戏操作（预留）
      */
-    ILLEGAL_GAME_ACTION(2002, "非法游戏操作");
+    ILLEGAL_GAME_ACTION(2002, "非法游戏操作"),
+
+    // === 卡牌/产品领域（3001-3099）===
+
+    /**
+     * 卡牌不存在
+     */
+    CARD_NOT_FOUND(3001, "卡牌不存在"),
+
+    /**
+     * 卡牌编号已存在
+     */
+    CARD_CODE_DUPLICATE(3002, "卡牌编号已存在"),
+
+    /**
+     * 产品不存在
+     */
+    PRODUCT_NOT_FOUND(3003, "产品不存在"),
+
+    /**
+     * 产品编号已存在
+     */
+    PRODUCT_CODE_DUPLICATE(3004, "产品编号已存在");
 
     private final int code;
 
