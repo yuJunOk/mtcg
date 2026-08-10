@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,7 +50,7 @@ public class UserController {
      * @return 空响应
      */
     @Operation(summary = "更新当前用户资料")
-    @PutMapping("/me")
+    @PostMapping("/me")
     public Result<Void> updateMe(@RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
                                  @Valid @RequestBody UserUpdateDTO dto) {
         userService.updateCurrentUser(userId, dto);
@@ -65,7 +65,7 @@ public class UserController {
      * @return 空响应
      */
     @Operation(summary = "修改当前用户密码")
-    @PutMapping("/me/password")
+    @PostMapping("/me/password")
     public Result<Void> changePassword(@RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
                                        @Valid @RequestBody ChangePasswordDTO dto) {
         userService.changePassword(userId, dto);

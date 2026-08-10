@@ -99,7 +99,40 @@ export function getCardTypeLabel(code: string): string {
 
 ## 4. 请求与错误处理
 
-### 4.1 请求层
+### 4.1 请求规范
+
+**原则：所有 API 调用只使用 GET 和 POST 两种方法，与后端规范保持一致。**
+
+| 操作 | HTTP | 调用方式 |
+| --- | --- | --- |
+| 查询列表/详情 | GET | `axios.get(url, { params })` |
+| 新增/更新/删除/其他操作 | POST | `axios.post(url, data)` |
+
+```ts
+// ✅ 正确示例
+// 查询
+axios.get('/admin/cards', { params: { page: 1, size: 20 } })
+axios.get('/admin/cards/1')
+
+// 新增
+axios.post('/admin/cards', cardData)
+
+// 更新
+axios.post('/admin/cards/1', cardData)
+
+// 删除
+axios.post('/admin/cards/1/delete')
+
+// 其他操作（如修改状态）
+axios.post('/admin/users/1/status', { status: 'DISABLED' })
+
+// ❌ 错误示例（禁止使用 PUT、DELETE、PATCH）
+axios.put('/admin/cards/1', cardData)
+axios.delete('/admin/cards/1')
+axios.patch('/admin/users/1/status', { status: 'DISABLED' })
+```
+
+### 4.2 请求层
 
 统一从 `@mtcg/common` 的 `api/` 目录导入请求方法。返回 Promise，必须显式声明返回类型。
 
@@ -121,7 +154,7 @@ import { http } from '@mtcg/common/utils/request'
 | 多请求顺序 await、中间变量多 | `async/await` |
 | 需 `try/finally` 统一收尾 | `async/await` |
 
-### 4.3 错误处理约定
+### 4.4 错误处理约定
 
 | 错误类型 | 处理方式 |
 | --- | --- |

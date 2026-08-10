@@ -104,7 +104,34 @@ com.aris.mtcg
 
 > **强制要求**：代码必须通过 Spotless 格式化检查，保持统一的代码风格。
 
-### 3.1 编码格式
+### 3.1 API 方法规范
+
+**原则：所有 API 只使用 GET 和 POST 两种 HTTP 方法，通过路径区分操作类型。**
+
+| 操作 | HTTP | 路径格式 | 示例 |
+| --- | --- | --- | --- |
+| 查询列表 | GET | `/xxx` | `GET /admin/cards` |
+| 查询详情 | GET | `/xxx/{id}` | `GET /admin/cards/{id}` |
+| 新增 | POST | `/xxx` | `POST /admin/cards` |
+| 更新 | POST | `/xxx/{id}` | `POST /admin/cards/{id}` |
+| 删除 | POST | `/xxx/{id}/delete` | `POST /admin/cards/{id}/delete` |
+| 单一操作 | POST | `/xxx/{id}/action` | `POST /admin/users/{id}/status` |
+
+```java
+// ✅ 正确示例
+@PostMapping("/{id}")
+public Result<Void> update(@PathVariable Long id) { ... }
+
+@PostMapping("/{id}/delete")
+public Result<Void> delete(@PathVariable Long id) { ... }
+
+// ❌ 错误示例（禁止使用 PUT、DELETE、PATCH）
+@PutMapping("/{id}")
+@DeleteMapping("/{id}")
+@PatchMapping("/{id}/status")
+```
+
+### 3.3 编码格式
 
 - 缩进采用 4 个空格，禁止使用 Tab
 - 大括号 `{}` 必须使用，即使只有一行代码
@@ -119,7 +146,7 @@ com.aris.mtcg
 - 方法名、参数名、成员变量、局部变量使用 lowerCamelCase
 - 枚举以 `Enum` 开头，异常类以 `Exception` 结尾
 
-### 3.3 枚举
+### 3.3 命名规范
 
 统一采用 `code` + `desc` 模式，带 `Enum` 前缀：
 
@@ -142,7 +169,7 @@ public enum EnumColor {
 - DB 存 `code` 字符串（VARCHAR），不存下标
 - DDL 加 CHECK 约束防止脏数据
 
-### 3.4 实体类（DO）
+### 3.4 枚举
 
 ```java
 @Data
@@ -156,13 +183,13 @@ public class CardDO {
 - 用 `@Data` + `@Table`，主键用 `@Id(keyType = KeyType.Auto)`
 - 枚举字段在 DO 中用 `String` 类型，Service 层做转换
 
-### 3.5 DTO 与 VO
+### 3.5 实体类（DO）
 
 - **DTO**：入参，带 `@NotBlank` / `@NotNull` 校验注解
 - **VO**：出参，面向前端展示
 - DO 和 VO/DTO 不可混用，Service 层负责转换
 
-### 3.6 常量定义
+### 3.6 DTO 与 VO
 
 不允许任何魔法值直接出现在代码中：
 
@@ -177,7 +204,15 @@ if (retryCount > MAX_RETRY_COUNT) {
 if (retryCount > 3) { ... }
 ```
 
-### 3.7 异常处理
+### 3.7 常量定义
+
+- 不要捕获大的异常类（如 `Exception`），应捕获具体异常
+- 不要用 `System.out.println`，应使用日志框架
+- 异常信息必须包含排查相关信息
+
+---
+
+### 3.8 异常处理
 
 - 不要捕获大的异常类（如 `Exception`），应捕获具体异常
 - 不要用 `System.out.println`，应使用日志框架
