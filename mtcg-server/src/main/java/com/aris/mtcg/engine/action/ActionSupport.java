@@ -286,6 +286,98 @@ public final class ActionSupport {
         return (a.isCombatZone() && b == Zone.BASE) || (a == Zone.BASE && b.isCombatZone());
     }
 
+    /** 按 playerId 查找对局中的玩家。 */
+    public static PlayerState requirePlayer(GameState state, String playerId) {
+        if (playerId != null && playerId.equals(state.getActivePlayer().getPlayerId())) {
+            return state.getActivePlayer();
+        }
+        if (playerId != null && playerId.equals(state.getInactivePlayer().getPlayerId())) {
+            return state.getInactivePlayer();
+        }
+        throw new EngineException("玩家不在本对局中: " + playerId, "303.2.a");
+    }
+
+    /** 读取场上指定战区/基地槽位的卡（基地需 index）。 */
+    public static CardInstance getAt(FieldZone field, Zone zone, int index) {
+        return switch (zone) {
+            case VANGUARD -> field.getVanguard();
+            case FLANK_LEFT -> field.getFlank()[0];
+            case FLANK_RIGHT -> field.getFlank()[1];
+            case REARGUARD -> field.getRearguard();
+            case BASE -> {
+                if (index < 0 || index >= field.getBase().length) {
+                    yield null;
+                }
+                yield field.getBase()[index];
+            }
+            default -> null;
+        };
+    }
+
+    /** 互换两个战区位置（不计为移动，303.2.a.4.2.1）。 */
+    public static void swapCombatPositions(FieldZone field, Zone from, Zone to) {
+        if (!from.isCombatZone() || !to.isCombatZone()) {
+            throw new EngineException("调整位置仅限战区", "303.2.a.4.2.1");
+        }
+        CardInstance a = getAt(field, from, 0);
+        CardInstance b = getAt(field, to, 0);
+        placeAt(field, from, b);
+        placeAt(field, to, a);
+        if (a != null) {
+            a.setCurrentZone(to);
+        }
+        if (b != null) {
+            b.setCurrentZone(from);
+        }
+    }
+
+    private static void placeAt(FieldZone field, Zone zone, CardInstance card) {
+        switch (zone) {
+            case VANGUARD -> field.setVanguard(card);
+            case FLANK_LEFT -> field.getFlank()[0] = card;
+            case FLANK_RIGHT -> field.getFlank()[1] = card;
+            case REARGUARD -> field.setRearguard(card);
+            default -> throw new EngineException("非法战区: " + zone, "302");
+        }
+    }
+
+    /** 将指定实例移入撤退区（若仍在场上则先移除）。 */
+    public static void retreatCard(PlayerState player, CardInstance card) {
+        if (card == null) {
+            return;
+        }
+        removeFromField(player, card);
+        card.setCurrentZone(Zone.RETREAT);
+        card.setFaceDown(false);
+        for (CardInstance att : card.getAttachedCards()) {
+            att.setCurrentZone(Zone.RETREAT);
+            att.setFaceDown(false);
+        }
+        if (!player.getRetreat().contains(card)) {
+            player.getRetreat().add(card);
+        }
+    }
+
+    /**
+     * 是否具备「连击」关键词（305.3）。
+     *
+     * <p>完整关键词系统在迭代六；此处以效果文本含「【连击】」作为轻量判定。
+     */
+    public static boolean hasComboKeyword(CardInstance card) {
+        String text = card.getSnapshot().getEffectText();
+        return text != null && text.contains("【连击】");
+    }
+
+    /**
+     * 是否具备「强袭」关键词（305.4）。
+     *
+     * <p>完整关键词系统在迭代六；此处以效果文本含「【强袭】」作为轻量判定。
+     */
+    public static boolean hasAssaultKeyword(CardInstance card) {
+        String text = card.getSnapshot().getEffectText();
+        return text != null && text.contains("【强袭】");
+    }
+
     /**
      * 在场上父卡的结附列表中查找结附卡。
      *

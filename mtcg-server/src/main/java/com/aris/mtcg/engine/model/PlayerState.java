@@ -55,6 +55,9 @@ public class PlayerState {
     /** 行动号召次数（每阶段上限 3，先攻首回合 1，303.2.a.3.1.2） */
     private int summonCount;
 
+    /** 本回合是否已使用调整位置（303.2.a.4.2.1） */
+    private boolean adjustUsed;
+
     public PlayerState(String playerId) {
         this.playerId = playerId;
     }
@@ -67,6 +70,7 @@ public class PlayerState {
     public void resetActionCounters() {
         this.baseDeployCount = 0;
         this.summonCount = 0;
+        this.adjustUsed = false;
     }
 
     /**
@@ -137,5 +141,13 @@ public class PlayerState {
 
     public void setSummonCount(int summonCount) {
         this.summonCount = summonCount;
+    }
+
+    public boolean isAdjustUsed() {
+        return adjustUsed;
+    }
+
+    public void setAdjustUsed(boolean adjustUsed) {
+        this.adjustUsed = adjustUsed;
     }
 }
