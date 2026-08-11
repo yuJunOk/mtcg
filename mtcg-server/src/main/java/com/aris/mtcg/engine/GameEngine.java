@@ -10,10 +10,9 @@ import com.aris.mtcg.engine.phase.PhaseHandler;
 import com.aris.mtcg.engine.phase.ResponseHandler;
 import com.aris.mtcg.engine.phase.TurnEndHandler;
 import com.aris.mtcg.engine.phase.TurnStartHandler;
-import lombok.Getter;
-
 import java.util.EnumMap;
 import java.util.Map;
+import lombok.Getter;
 
 /**
  * 对战引擎核心。
@@ -26,8 +25,7 @@ import java.util.Map;
  */
 public class GameEngine {
 
-    @Getter
-    private final GameState state;
+    @Getter private final GameState state;
     private final Map<PhaseType, PhaseHandler> handlers = new EnumMap<>(PhaseType.class);
 
     public GameEngine(GameState state) {
@@ -91,5 +89,4 @@ public class GameEngine {
         state.setStatus(GameStatus.FINISHED);
         state.setWinnerId(winnerId);
     }
-
 }
