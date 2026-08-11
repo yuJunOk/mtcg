@@ -48,6 +48,8 @@
 | 页面视图 | `PascalCase + View` | `CardListView.vue` |
 | 布局组件 | `PascalCase + Layout` | `MainLayout.vue` |
 | 弹框 | `PascalCase + Dialog` | `CardFormDialog.vue` |
+| 公共弹窗壳 | `MtcgDialog` | 关闭 / 可选全屏 / 确定取消 + slots |
+| 选择器 | `PascalCase + Selector` | `ProductSelector.vue`、`CardFeatureSelector.vue` |
 | 抽屉 | `PascalCase + Drawer` | `CardDetailDrawer.vue` |
 | 路由 name | `kebab-case` | `card-list`、`product-list` |
 
@@ -82,10 +84,10 @@ cardType: row.cardType === 'CHARACTER' ? '角色' : '冲击'
 与后端枚举对应，每个后端枚举类对应一个独立前端文件：
 
 ```ts
-// src/utils/enums/card-type.ts
+// packages/common 或业务侧枚举映射（与后端 EnumCardType 对齐）
 export const CardTypeOptions: Record<string, string> = {
   CHARACTER: '角色卡',
-  IMPACT: '冲击卡',
+  RUSH_POINT: '冲击卡', // 禁止写成 IMPACT
 }
 
 export const CardType_DEFAULT = 'CHARACTER'
@@ -109,42 +111,38 @@ export function getCardTypeLabel(code: string): string {
 | 新增/更新/删除/其他操作 | POST | `axios.post(url, data)` |
 
 ```ts
-// ✅ 正确示例
-// 查询
-axios.get('/admin/cards', { params: { page: 1, size: 20 } })
-axios.get('/admin/cards/1')
+// ✅ 正确示例（经 http 封装；领域 API 内使用）
+import { http } from './request'
 
-// 新增
-axios.post('/admin/cards', cardData)
-
-// 更新
-axios.post('/admin/cards/1', cardData)
-
-// 删除
-axios.post('/admin/cards/1/delete')
-
-// 其他操作（如修改状态）
-axios.post('/admin/users/1/status', { status: 'DISABLED' })
+http.get('/admin/cards', { params: { pageNum: 1, pageSize: 20 } })
+http.get('/admin/cards/1')
+http.post('/admin/cards', cardData)
+http.post('/admin/cards/1', cardData)
+http.post('/admin/cards/1/delete')
+http.post('/admin/users/1/status', { status: 'DISABLED' })
 
 // ❌ 错误示例（禁止使用 PUT、DELETE、PATCH）
 axios.put('/admin/cards/1', cardData)
 axios.delete('/admin/cards/1')
-axios.patch('/admin/users/1/status', { status: 'DISABLED' })
 ```
 
 ### 4.2 请求层
 
-统一从 `@mtcg/common` 的 `api/` 目录导入请求方法。返回 Promise，必须显式声明返回类型。
+统一从 `@mtcg/common` 的 `api/` 导入领域 API 或类型。返回 Promise，必须显式声明返回类型。
 
 ```ts
-import { client } from '@mtcg/common/api'
+// ✅ 领域 API（已解包 data；Token / 401 refresh 由 request 层处理）
+import { cardApi, productApi, cardFeatureApi } from '@mtcg/common/api'
+import type { CardVO, CardQueryDTO } from '@mtcg/common/types'
 
-// ✅ 从 @mtcg/common/api 统一导入
-import type { CardVO, CardQueryDTO } from '@mtcg/common/api'
+const page = await cardApi.list({ pageNum: 1, pageSize: 20 })
 
 // ❌ 不要从旧路径导入
+import { client } from '@mtcg/common/api'
 import { http } from '@mtcg/common/utils/request'
 ```
+
+> 业务码 `401` 可能随 HTTP 200 返回：`request.ts` 在成功拦截器内触发 refresh / 清登录态并跳转 `#/login`，业务代码无需重复处理。
 
 ### 4.2 何时链式、何时 async/await
 
@@ -202,16 +200,20 @@ let { a } = obj  // a 失去响应式
 
 ### 6.1 通用
 
-- 表单、表格工具栏、弹框底部操作区默认 `size="small"`
+- 表单、表格、弹框**默认使用 Element Plus 默认尺寸**，不要全局强加 `size="small"`（除非局部信息密度明确需要）
 - 主操作按钮 `type="primary"`
 - 危险操作 `type="danger"`，并配合 `ElMessageBox.confirm` 确认
-- 弹框底部按钮统一右对齐，文案使用"确定 / 取消 / 关闭"
+- 弹框底部按钮统一右对齐，文案使用「确定 / 取消 / 关闭」
+- 业务弹窗优先基于 `MtcgDialog`（支持全屏、`title-extra` / `header-extra` / `footer` slots）
+- 资源选择用 `XxxSelector`：表单项为只读 input 触发；弹窗内左右栏用 `el-splitter`；单选用 `multiple=false`（radio），多选默认 checkbox
+- 特征等纯文本摘要不要用彩色 Tag 背景硬编码业务色
 
 ### 6.2 表格
 
 - 分页置于 `el-card` 的 `#footer` 插槽（固定底部）
 - 表格卡片 `flex: 1`，内容区撑满
 - 表格加 `height="100%"` 让 Element Plus 自动计算滚动区域
+- 列表页搜索区：`el-form--inline` 的 `form-item` 去掉多余 `margin-bottom`，避免操作行下大块空白
 
 ---
 

@@ -54,31 +54,30 @@
 com.aris.mtcg
 ├── controller
 │   ├── auth/            // 认证（公开）
-│   ├── user/           // 用户资料（登录用户）
+│   ├── user/            // 用户资料（登录用户）
 │   ├── card/
-│   │   ├── PublicCardController    // 公开卡牌查询
-│   │   └── AdminCardController     // 管理员卡牌管理
+│   │   ├── CardController          // 公开卡牌 /cards
+│   │   ├── AdminCardController     // 管理员卡牌 /admin/cards
+│   │   └── CardFeatureController   // 卡牌特征 /cards/features
 │   ├── product/
-│   │   ├── PublicProductController // 公开产品查询
-│   │   └── AdminProductController   // 管理员产品管理
-│   ├── tag/             // 标签管理（管理员）
-│   ├── admin/           // 管理员专用（用户管理、仪表盘）
-│   └── system/          // 系统接口（健康检查等）
+│   │   ├── ProductController       // 公开产品 /products
+│   │   └── AdminProductController  // 管理员产品 /admin/products
+│   ├── admin/           // 用户管理、仪表盘
+│   └── system/          // 健康检查等
 ├── service             // Service 接口
 │   └── impl            // Service 实现（@Service）
-├── manager             // Manager 通用能力层（AI、缓存等）
+├── manager             // Manager（Jwt / RateLimit / TokenBlacklist 等）
 ├── engine              // 引擎层（纯 POJO，不依赖 Spring）
 ├── dao                 // DAO 层（@Mapper，继承 BaseMapper）
 ├── domain
 │   ├── entity          // DO 数据库映射对象
 │   ├── dto             // DTO 入参对象
-│   ├── vo              // VO 出参对象
-│   ├── bo              // BO 业务对象
-│   └── query           // 查询对象
+│   └── vo              // VO 出参对象（含 PageVO）
 ├── common
 │   ├── enums           // 枚举
 │   ├── result          // Result<T>, ErrorCode
 │   ├── exception       // BusinessException
+│   ├── annotation      // @RequireRole / @PublicApi
 │   └── constant        // 常量
 ├── advice              // 全局异常处理（@RestControllerAdvice）
 ├── component           // 拦截器、切面等组件
@@ -368,25 +367,24 @@ log.error("出错了" + e.getMessage());
 
 ### 6.1 统一分页方式
 
-使用 MyBatis-Flex 的 `Page` 类进行分页：
+对外统一返回 `PageVO<T>`（`records` + `total`），Service 内可用 MyBatis-Flex 的 `Page` 查库后转换：
 
 ```java
 // Controller
-@GetMapping("/cards")
-public Result<Page<CardVO>> list(CardPageDTO dto) {
-    return Result.success(cardService.page(dto));
+@GetMapping
+public Result<PageVO<CardVO>> list(CardQueryDTO query) {
+    return Result.success(cardService.listCards(query));
 }
 
 // Service
-public Page<CardVO> page(CardPageDTO dto) {
-    Page.of(dto.getPageNum(), dto.getPageSize());
-    List<CardDO> list = cardMapper.selectByPage(queryWrapper);
-    Page<CardVO> result = Page.of(dto.getPageNum(), dto.getPageSize());
-    result.setTotal(total); // 设置总数
-    result.setRecords(ConvertUtil.copyList(list, CardVO.class));
-    return result;
+public PageVO<CardVO> listCards(CardQueryDTO query) {
+    Page<CardDO> page = cardMapper.paginate(query.getPageNum(), query.getPageSize(), queryWrapper);
+    List<CardVO> records = page.getRecords().stream().map(CardVO::fromDO).toList();
+    return new PageVO<>(records, page.getTotalRow());
 }
 ```
+
+> 禁止依赖不存在的 `ConvertUtil`；DO→VO 用 VO 静态工厂（如 `CardVO.fromDO`）或显式组装。
 
 ### 6.2 分页参数
 
@@ -394,6 +392,8 @@ public Page<CardVO> page(CardPageDTO dto) {
 | --- | --- | --- |
 | `pageNum` | 页码 | 1 |
 | `pageSize` | 每页条数 | 10 |
+
+与 QueryDTO 字段名一致（如 `CardQueryDTO.pageNum` / `pageSize`）。概要设计中的 `?page=&size=` 为简写约定，实现以 DTO 字段为准。
 
 ---
 
