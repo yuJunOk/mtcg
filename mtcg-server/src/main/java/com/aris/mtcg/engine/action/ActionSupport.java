@@ -286,6 +286,52 @@ public final class ActionSupport {
         return (a.isCombatZone() && b == Zone.BASE) || (a == Zone.BASE && b.isCombatZone());
     }
 
+    /**
+     * 在场上父卡的结附列表中查找结附卡。
+     *
+     * @return 结附卡实例，未找到返回 null
+     */
+    public static CardInstance findAttached(PlayerState player, String ref) {
+        if (ref == null) {
+            return null;
+        }
+        for (CardInstance parent : listFieldCards(player)) {
+            for (CardInstance att : parent.getAttachedCards()) {
+                if (matches(att, ref)) {
+                    return att;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 查找结附卡的父卡。 */
+    public static CardInstance findAttachParent(PlayerState player, CardInstance child) {
+        for (CardInstance parent : listFieldCards(player)) {
+            if (parent.getAttachedCards().contains(child)) {
+                return parent;
+            }
+        }
+        return null;
+    }
+
+    /** 从父卡结附列表中移除结附卡（301.26）。 */
+    public static void removeFromParent(PlayerState player, CardInstance child) {
+        CardInstance parent = findAttachParent(player, child);
+        if (parent == null) {
+            throw new EngineException("目标不是结附卡", "301.26");
+        }
+        parent.getAttachedCards().remove(child);
+    }
+
+    /** 重置卡牌运行时战力/距离为快照印刷值（盖伏刷新，301.13）。 */
+    public static void resetCombatStats(CardInstance card) {
+        Integer power = card.getSnapshot().getPower();
+        Integer range = card.getSnapshot().getAttackRange();
+        card.setCurrentPower(power != null ? power : 0);
+        card.setCurrentRange(range != null ? range : 0);
+    }
+
     private static int resolveBaseSlot(FieldZone field, int index) {
         CardInstance[] base = field.getBase();
         if (index >= 0 && index < base.length && base[index] == null) {
