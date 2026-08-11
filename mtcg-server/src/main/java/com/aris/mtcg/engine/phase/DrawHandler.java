@@ -1,6 +1,7 @@
 package com.aris.mtcg.engine.phase;
 
 import com.aris.mtcg.engine.GameEngine;
+import com.aris.mtcg.engine.combat.WinChecker;
 import com.aris.mtcg.engine.enums.GameStatus;
 import com.aris.mtcg.engine.enums.Zone;
 import com.aris.mtcg.engine.model.CardInstance;
@@ -25,8 +26,8 @@ public class DrawHandler implements PhaseHandler {
         // 303.2.a.2 回合玩家抽 2 张
         drawCards(active, RuleConstants.DRAW_PER_TURN);
 
-        // 103.1.b 敌方卡组为 0 张 → 敌方败
-        checkWinByDeck(state, engine);
+        // 103.1.b 卡组耗尽 → 胜负（统一走 WinChecker）
+        WinChecker.check(state);
 
         if (state.getStatus() == GameStatus.FINISHED) {
             return;
@@ -45,15 +46,6 @@ public class DrawHandler implements PhaseHandler {
             CardInstance card = deck.remove(deck.size() - 1);
             card.setCurrentZone(Zone.HAND);
             hand.add(card);
-        }
-    }
-
-    /** 检查因卡组抽空导致的胜负（103.1.b）。 */
-    private void checkWinByDeck(GameState state, GameEngine engine) {
-        // 103.1.b 敌方卡组为 0 张 → 敌方败
-        PlayerState inactive = state.getInactivePlayer();
-        if (inactive.getDeck().isEmpty()) {
-            engine.endGame(state.getActivePlayer().getPlayerId());
         }
     }
 }
