@@ -1,5 +1,6 @@
 package com.aris.mtcg.engine.model;
 
+import com.aris.mtcg.engine.combat.CombatContext;
 import com.aris.mtcg.engine.enums.GameStatus;
 import com.aris.mtcg.engine.enums.PhaseType;
 import java.util.ArrayList;
@@ -40,6 +41,13 @@ public class GameState {
 
     /** 胜利者玩家 ID（对局结束时设置） */
     private String winnerId;
+
+    /**
+     * 战斗阶段运行时上下文（303.2.a.4）。
+     *
+     * <p>非战斗阶段为 null；进入 COMBAT 时新建，离开战斗时清空。
+     */
+    private CombatContext combatContext;
 
     public GameState(String gameId) {
         this.gameId = gameId;
@@ -135,5 +143,13 @@ public class GameState {
 
     public void setWinnerId(String winnerId) {
         this.winnerId = winnerId;
+    }
+
+    public CombatContext getCombatContext() {
+        return combatContext;
+    }
+
+    public void setCombatContext(CombatContext combatContext) {
+        this.combatContext = combatContext;
     }
 }
