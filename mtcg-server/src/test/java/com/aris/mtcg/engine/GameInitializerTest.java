@@ -150,7 +150,7 @@ class GameInitializerTest {
     }
 
     /** 50 张主卡组快照（唯一编号，便于断言）。 */
-    static List<CardSnapshot> mainDeck(String prefix) {
+    public static List<CardSnapshot> mainDeck(String prefix) {
         List<CardSnapshot> list = new ArrayList<>(RuleConstants.MAIN_DECK_SIZE);
         for (int i = 1; i <= RuleConstants.MAIN_DECK_SIZE; i++) {
             String code = prefix + "-C" + String.format("%02d", i);
@@ -170,7 +170,7 @@ class GameInitializerTest {
     }
 
     /** 9 张冲击卡组快照。 */
-    static List<CardSnapshot> rushDeck(String prefix) {
+    public static List<CardSnapshot> rushDeck(String prefix) {
         List<CardSnapshot> list = new ArrayList<>(RuleConstants.RUSH_DECK_SIZE);
         for (int i = 1; i <= RuleConstants.RUSH_DECK_SIZE; i++) {
             String code = prefix + "-R" + i;
