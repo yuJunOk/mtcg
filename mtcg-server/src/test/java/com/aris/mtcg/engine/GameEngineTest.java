@@ -3,9 +3,16 @@ package com.aris.mtcg.engine;
 import static com.aris.mtcg.engine.GameInitializerTest.mainDeck;
 import static com.aris.mtcg.engine.GameInitializerTest.rushDeck;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.aris.mtcg.engine.action.ActionRequest;
+import com.aris.mtcg.engine.action.ActionResult;
+import com.aris.mtcg.engine.action.ActionType;
+import com.aris.mtcg.engine.action.EngineException;
 import com.aris.mtcg.engine.enums.GameStatus;
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.enums.Zone;
@@ -18,7 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * GameEngine 阶段流转单元测试。
+ * GameEngine 阶段流转与操作分发单元测试。
  *
  * @author pengYuJun
  */
@@ -41,7 +48,7 @@ class GameEngineTest {
                         mainDeck("B"),
                         rushDeck("B"));
         firstPlayer = state.getFirstPlayer();
-        engine = new GameEngine(state);
+        engine = new GameEngine(state, initializer);
     }
 
     @Test
@@ -92,5 +99,50 @@ class GameEngineTest {
                 firstPlayer.getRetreat().stream()
                         .allMatch(c -> c.getCurrentZone() == Zone.RETREAT));
         assertEquals(3, firstPlayer.getRetreat().size());
+    }
+
+    @Test
+    void dispatch_baseDeploy_shouldCoverBaseAndDrawOne() {
+        engine.startGame();
+        int handBefore = firstPlayer.getHand().size();
+        int deckBefore = firstPlayer.getDeck().size();
+        CardInstance card = firstPlayer.getHand().get(0);
+
+        ActionRequest request = new ActionRequest();
+        request.setPlayerId(firstPlayer.getPlayerId());
+        request.setType(ActionType.BASE_DEPLOY);
+        request.setCardCode(card.getInstanceId());
+
+        ActionResult result = engine.dispatch(request);
+
+        assertTrue(result.isSuccess());
+        assertEquals(1, firstPlayer.getBaseDeployCount());
+        assertEquals(1, firstPlayer.getField().getBaseCount());
+        assertTrue(card.isFaceDown());
+        assertEquals(Zone.BASE, card.getCurrentZone());
+        // 手牌 -1 + 抽 1，净变化 0；卡组 -1
+        assertEquals(handBefore, firstPlayer.getHand().size());
+        assertEquals(deckBefore - 1, firstPlayer.getDeck().size());
+        assertNotNull(engine.getActionDispatcher().handlerOf(ActionType.BASE_DEPLOY));
+    }
+
+    @Test
+    void dispatch_baseDeployTwice_shouldFailWithRuleRef() {
+        engine.startGame();
+
+        ActionRequest first = new ActionRequest();
+        first.setPlayerId(firstPlayer.getPlayerId());
+        first.setType(ActionType.BASE_DEPLOY);
+        first.setCardCode(firstPlayer.getHand().get(0).getInstanceId());
+        engine.dispatch(first);
+
+        ActionRequest second = new ActionRequest();
+        second.setPlayerId(firstPlayer.getPlayerId());
+        second.setType(ActionType.BASE_DEPLOY);
+        second.setCardCode(firstPlayer.getHand().get(0).getInstanceId());
+
+        EngineException ex = assertThrows(EngineException.class, () -> engine.dispatch(second));
+        assertEquals("303.2.a.3.1.1", ex.getRuleRef());
+        assertFalse(ex.getMessage().isBlank());
     }
 }

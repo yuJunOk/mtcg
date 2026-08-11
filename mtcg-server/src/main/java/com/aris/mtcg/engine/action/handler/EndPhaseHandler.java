@@ -6,7 +6,6 @@ import com.aris.mtcg.engine.action.ActionSupport;
 import com.aris.mtcg.engine.action.ActionType;
 import com.aris.mtcg.engine.action.ActionTypeHandler;
 import com.aris.mtcg.engine.action.EngineException;
-import com.aris.mtcg.engine.combat.CombatContext;
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.model.ActionLog;
 import com.aris.mtcg.engine.model.GameState;
@@ -14,8 +13,8 @@ import com.aris.mtcg.engine.model.GameState;
 /**
  * 宣布结束处理器。
  *
- * <p>行动阶段结束 → COMBAT；战斗阶段结束 → RESPONSE。 阶段进入回调（如先攻跳过战斗、初始化 CombatContext）在步骤 6/7 与 {@code
- * GameEngine} 进一步对齐。
+ * <p>校验通过后仅标记 {@code phaseAdvanced}；实际阶段推进由 {@code GameEngine.dispatch} 调用 {@code
+ * advancePhase()}，以触发阶段 Handler 的 {@code onEnter}（含先攻跳过战斗、CombatContext 初始化等）。
  *
  * @author pengYuJun
  */
@@ -38,26 +37,13 @@ public class EndPhaseHandler implements ActionTypeHandler {
     @Override
     public ActionResult execute(GameState state, ActionRequest request) {
         PhaseType current = state.getCurrentPhase();
-        PhaseType next;
-        if (current == PhaseType.ACTION) {
-            next = PhaseType.COMBAT;
-            // 进入战斗时挂上上下文（先攻首回合跳过由步骤 6 CombatHandler / Engine 处理）
-            if (state.getCombatContext() == null) {
-                state.setCombatContext(new CombatContext());
-            }
-        } else {
-            next = PhaseType.RESPONSE;
-            state.setCombatContext(null);
-        }
-        state.setCurrentPhase(next);
-
         state.logAction(
                 new ActionLog(
                         state.getTurnCount(),
                         current,
                         request.getPlayerId(),
                         ActionType.END_PHASE.name(),
-                        "宣布结束 " + current + " → " + next));
+                        "宣布结束 " + current));
 
         ActionResult result = ActionResult.ok();
         result.setPhaseAdvanced(true);
