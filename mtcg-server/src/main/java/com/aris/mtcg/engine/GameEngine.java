@@ -3,13 +3,15 @@ package com.aris.mtcg.engine;
 import com.aris.mtcg.engine.enums.GameStatus;
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.model.GameState;
-import com.aris.mtcg.engine.phase.ActionHandler;
+import com.aris.mtcg.engine.phase.ActionPhaseHandler;
 import com.aris.mtcg.engine.phase.CombatHandler;
 import com.aris.mtcg.engine.phase.DrawHandler;
 import com.aris.mtcg.engine.phase.PhaseHandler;
 import com.aris.mtcg.engine.phase.ResponseHandler;
 import com.aris.mtcg.engine.phase.TurnEndHandler;
 import com.aris.mtcg.engine.phase.TurnStartHandler;
+import lombok.Getter;
+
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -24,6 +26,7 @@ import java.util.Map;
  */
 public class GameEngine {
 
+    @Getter
     private final GameState state;
     private final Map<PhaseType, PhaseHandler> handlers = new EnumMap<>(PhaseType.class);
 
@@ -36,7 +39,7 @@ public class GameEngine {
     private void registerHandlers() {
         handlers.put(PhaseType.TURN_START, new TurnStartHandler());
         handlers.put(PhaseType.DRAW, new DrawHandler());
-        handlers.put(PhaseType.ACTION, new ActionHandler());
+        handlers.put(PhaseType.ACTION, new ActionPhaseHandler());
         handlers.put(PhaseType.COMBAT, new CombatHandler());
         handlers.put(PhaseType.RESPONSE, new ResponseHandler());
         handlers.put(PhaseType.TURN_END, new TurnEndHandler());
@@ -76,7 +79,7 @@ public class GameEngine {
             throw new IllegalStateException("当前不在行动阶段: " + state.getCurrentPhase());
         }
         PhaseHandler handler = handlers.get(PhaseType.ACTION);
-        ((ActionHandler) handler).endPhase(this);
+        ((ActionPhaseHandler) handler).endPhase(this);
     }
 
     /**
@@ -89,7 +92,4 @@ public class GameEngine {
         state.setWinnerId(winnerId);
     }
 
-    public GameState getState() {
-        return state;
-    }
 }

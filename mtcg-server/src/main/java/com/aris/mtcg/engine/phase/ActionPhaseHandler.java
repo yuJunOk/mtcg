@@ -4,7 +4,7 @@ import com.aris.mtcg.engine.GameEngine;
 import com.aris.mtcg.engine.model.GameState;
 
 /**
- * 行动处理器（303.2.a.3）。
+ * 行动阶段处理器（303.2.a.3）。
  *
  * <p>行动阶段允许 4 种行动任意顺序交替：
  *
@@ -19,7 +19,7 @@ import com.aris.mtcg.engine.model.GameState;
  *
  * @author pengYuJun
  */
-public class ActionHandler implements PhaseHandler {
+public class ActionPhaseHandler implements PhaseHandler {
 
     @Override
     public void onEnter(GameState state, GameEngine engine) {
