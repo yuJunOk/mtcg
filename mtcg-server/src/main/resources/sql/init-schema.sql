@@ -115,6 +115,44 @@ CREATE TABLE IF NOT EXISTS mtcg_audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_log_create_time ON mtcg_audit_log (create_time DESC);
 
 -- =====================================================
+-- 迭代三：卡组表
+-- main/rush 存有序条目 JSON：[{"cardCode":"...","quantity":n},...]；数组序=卡组内排序
+-- =====================================================
+CREATE TABLE IF NOT EXISTS mtcg_deck (
+    id                  BIGSERIAL       PRIMARY KEY,
+    user_id             BIGINT          NOT NULL,
+    deck_name           VARCHAR(64)     NOT NULL,
+    main_deck_codes     TEXT            NOT NULL DEFAULT '[]',
+    rush_deck_codes     TEXT            NOT NULL DEFAULT '[]',
+    is_valid            BOOLEAN         NOT NULL DEFAULT FALSE,
+    sort_order          INTEGER         NOT NULL DEFAULT 0,
+    tags                VARCHAR(256),
+    create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
+    update_time         TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_deck_user_id ON mtcg_deck (user_id);
+CREATE INDEX IF NOT EXISTS idx_deck_user_sort ON mtcg_deck (user_id, sort_order);
+
+-- =====================================================
+-- 迭代三：卡牌收藏表
+-- =====================================================
+CREATE TABLE IF NOT EXISTS mtcg_card_collection (
+    id                  BIGSERIAL       PRIMARY KEY,
+    user_id             BIGINT          NOT NULL,
+    card_code           VARCHAR(32)     NOT NULL,
+    quantity            INTEGER         NOT NULL DEFAULT 1,
+    tags                VARCHAR(256),
+    note                VARCHAR(256),
+    create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
+    update_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_collection_user_code UNIQUE (user_id, card_code),
+    CONSTRAINT ck_collection_qty CHECK (quantity >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_collection_user_id ON mtcg_card_collection (user_id);
+
+-- =====================================================
 -- 自动更新 update_time 触发器
 -- =====================================================
 DO $$
@@ -148,6 +186,18 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_mtcg_card_feature_update_time') THEN
         CREATE TRIGGER trigger_mtcg_card_feature_update_time
             BEFORE UPDATE ON mtcg_card_feature
+            FOR EACH ROW EXECUTE FUNCTION update_update_time();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_deck_update_time') THEN
+        CREATE TRIGGER trigger_deck_update_time
+            BEFORE UPDATE ON mtcg_deck
+            FOR EACH ROW EXECUTE FUNCTION update_update_time();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_collection_update_time') THEN
+        CREATE TRIGGER trigger_collection_update_time
+            BEFORE UPDATE ON mtcg_card_collection
             FOR EACH ROW EXECUTE FUNCTION update_update_time();
     END IF;
 END $$;
