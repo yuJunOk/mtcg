@@ -91,7 +91,21 @@ public enum ErrorCode {
     PRODUCT_NOT_FOUND(3003, "产品不存在"),
 
     /** 产品编号已存在 */
-    PRODUCT_CODE_DUPLICATE(3004, "产品编号已存在");
+    PRODUCT_CODE_DUPLICATE(3004, "产品编号已存在"),
+
+    // === 卡组/收藏领域（4001-4099）===
+
+    /** 卡组不存在 */
+    DECK_NOT_FOUND(4001, "卡组不存在"),
+
+    /** 无权操作该卡组 */
+    DECK_FORBIDDEN(4002, "无权操作该卡组"),
+
+    /** 收藏记录不存在 */
+    COLLECTION_NOT_FOUND(4003, "收藏记录不存在"),
+
+    /** 卡牌编号不存在 */
+    CARD_CODE_NOT_EXIST(4004, "卡牌编号不存在");
 
     private final int code;
 
