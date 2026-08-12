@@ -1,0 +1,52 @@
+[
+  {
+    "source_id": "6a7066629da74fc0904e9ee6",
+    "product_code": "BP01",
+    "product_name": "复仇者联盟",
+    "category": "supplement",
+    "release_date": "2026-06-17",
+    "description": null,
+    "cover_image_key": "6a70665c9da74fc0904e9ee3",
+    "cover_image_url": "https://marvel-tcg.janime.cn/6a70665c9da74fc0904e9ee3?e=1786609250&token=dxX6EkvGO2QtG3VBlVqoAJbA_QRYBeyz1U7Spd5z:oYWupRRpmu5P12JfU7bs2rZAl7A="
+  },
+  {
+    "source_id": "6a7062dd9da74fc0904e9e7c",
+    "product_code": "SD01",
+    "product_name": "现实",
+    "category": "base",
+    "release_date": "2026-06-17",
+    "description": null,
+    "cover_image_key": "6a7062d49da74fc0904e9e74",
+    "cover_image_url": "https://marvel-tcg.janime.cn/6a7062d49da74fc0904e9e74?e=1786609250&token=dxX6EkvGO2QtG3VBlVqoAJbA_QRYBeyz1U7Spd5z:vQqTmF-S0U4-TTHqqC-jyzaw2Xc="
+  },
+  {
+    "source_id": "6a7065ef9da74fc0904e9ebf",
+    "product_code": "SD02",
+    "product_name": "心灵",
+    "category": "base",
+    "release_date": "2026-06-17",
+    "description": null,
+    "cover_image_key": "6a7065e49da74fc0904e9ebc",
+    "cover_image_url": "https://marvel-tcg.janime.cn/6a7065e49da74fc0904e9ebc?e=1786609250&token=dxX6EkvGO2QtG3VBlVqoAJbA_QRYBeyz1U7Spd5z:nowrPgnZiCXdVaQ62vk-ew3COlA="
+  },
+  {
+    "source_id": "6a70661b9da74fc0904e9ed5",
+    "product_code": "SD03",
+    "product_name": "空间",
+    "category": "base",
+    "release_date": "2026-06-17",
+    "description": null,
+    "cover_image_key": "6a7066179da74fc0904e9ed3",
+    "cover_image_url": "https://marvel-tcg.janime.cn/6a7066179da74fc0904e9ed3?e=1786609250&token=dxX6EkvGO2QtG3VBlVqoAJbA_QRYBeyz1U7Spd5z:tWaxHHMkmwN48SarImLY4grfDow="
+  },
+  {
+    "source_id": "6a7066349da74fc0904e9edd",
+    "product_code": "SD04",
+    "product_name": "时间",
+    "category": "base",
+    "release_date": "2026-06-17",
+    "description": null,
+    "cover_image_key": "6a7066309da74fc0904e9eda",
+    "cover_image_url": "https://marvel-tcg.janime.cn/6a7066309da74fc0904e9eda?e=1786609250&token=dxX6EkvGO2QtG3VBlVqoAJbA_QRYBeyz1U7Spd5z:3WLphSAKxcdSw09-RYd97CE-nlE="
+  }
+]
