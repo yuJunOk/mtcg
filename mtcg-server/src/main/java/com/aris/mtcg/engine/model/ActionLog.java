@@ -44,7 +44,7 @@ public class ActionLog {
         this(0L, turnCount, phase, playerId, actionType, actionDetail);
     }
 
-    /** 持久化 / 恢复用：显式指定 seq */
+    /** 持久化用：显式指定 seq，timestamp 取当前时刻 */
     public ActionLog(
             long seq,
             int turnCount,
@@ -52,13 +52,25 @@ public class ActionLog {
             String playerId,
             String actionType,
             String actionDetail) {
+        this(seq, turnCount, phase, playerId, actionType, actionDetail, System.currentTimeMillis());
+    }
+
+    /** 反序列化 / 恢复用：完整字段含 timestamp */
+    public ActionLog(
+            long seq,
+            int turnCount,
+            PhaseType phase,
+            String playerId,
+            String actionType,
+            String actionDetail,
+            long timestamp) {
         this.seq = seq;
         this.turnCount = turnCount;
         this.phase = phase;
         this.playerId = playerId;
         this.actionType = actionType;
         this.actionDetail = actionDetail;
-        this.timestamp = System.currentTimeMillis();
+        this.timestamp = timestamp;
     }
 
     public long getSeq() {
