@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useGameStore } from '@mtcg/common/stores'
 import { Card } from '@mtcg/common/components'
 
-const emit = defineEmits<{
-  navigate: [view: string]
-}>()
-
+const router = useRouter()
 const store = useGameStore()
+
+function goHome(): void {
+  router.push('/')
+}
 
 /* 全屏切换 */
 const isFullscreen = ref(false)
@@ -60,12 +62,12 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   <div class="battle-pc">
     <!-- 顶部 HUD: 返回(左) | 对手信息(居中) | 全屏(右) -->
     <header class="hud-top">
-      <button class="btn-back" @click="emit('navigate', 'home')">←</button>
+      <button class="btn-back" @click="goHome">←</button>
       <div class="opponent-info">
         <span class="opponent-avatar"></span>
         <div class="opponent-meta">
           <span class="opponent-name">{{ store.opponent?.playerId ?? 'AI 对手' }}</span>
-          <span class="opponent-hand">手牌 {{ store.opponent?.handCount ?? 5 }}</span>
+          <span class="opponent-hand">手牌 {{ store.opponent?.hand?.length ?? 5 }}</span>
         </div>
       </div>
       <button

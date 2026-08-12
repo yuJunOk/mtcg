@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { useThemeStore } from '@mtcg/common/stores'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useThemeStore, useUserStore } from '@mtcg/common/stores'
 
 interface ExploreModule {
   key: string
@@ -22,11 +24,70 @@ interface StatItem {
   cssVar: string
 }
 
-const emit = defineEmits<{
-  navigate: [view: string]
-}>()
-
+const router = useRouter()
 const theme = useThemeStore()
+const userStore = useUserStore()
+const loggingOut = ref(false)
+
+const displayName = computed(() => {
+  const info = userStore.userInfo
+  if (!info) return '加载中…'
+  return info.username?.trim() || info.usercode || '玩家'
+})
+
+const displayUsercode = computed(() => userStore.userInfo?.usercode ?? '')
+
+const avatarLetter = computed(() => {
+  const name = displayName.value
+  if (!name || name === '加载中…') return '?'
+  return name.charAt(0).toUpperCase()
+})
+
+onMounted(async () => {
+  if (!userStore.userInfo) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch {
+      // 守卫通常已拉取；失败时保持占位，后续请求会触发 401 跳转
+    }
+  }
+})
+
+function goBattle(): void {
+  router.push('/match')
+}
+
+function goDecks(): void {
+  router.push('/decks')
+}
+
+function goComingSoon(): void {
+  router.push('/coming-soon')
+}
+
+function onExploreClick(key: string): void {
+  if (key === 'deck-builder' || key === 'my-decks') {
+    goDecks()
+    return
+  }
+  if (key === 'cards' || key === 'collection' || key === 'leaderboard' || key === 'career') {
+    goComingSoon()
+  }
+}
+
+async function handleLogout(): Promise<void> {
+  if (loggingOut.value) return
+  if (!window.confirm('确定退出登录？')) {
+    return
+  }
+  loggingOut.value = true
+  try {
+    await userStore.logout()
+    await router.replace('/login')
+  } finally {
+    loggingOut.value = false
+  }
+}
 
 const exploreModules: ExploreModule[] = [
   {
@@ -81,11 +142,12 @@ const popularDecks: PopularDeck[] = [
   { rank: 5, name: '蜘蛛侠联动', format: '标准', wins: 1108 },
 ]
 
+/** 演示数据，正式生涯统计待对战后端接通 */
 const stats: StatItem[] = [
-  { value: '248', label: '收集卡牌', cssVar: '--accent-red' },
-  { value: '12', label: '卡组', cssVar: '--accent' },
-  { value: '67', label: '胜场', cssVar: '--accent-blue' },
-  { value: '54%', label: '胜率', cssVar: '--accent-green' },
+  { value: '—', label: '收集卡牌（演示）', cssVar: '--accent-red' },
+  { value: '—', label: '卡组（演示）', cssVar: '--accent' },
+  { value: '—', label: '胜场（演示）', cssVar: '--accent-blue' },
+  { value: '—', label: '胜率（演示）', cssVar: '--accent-green' },
 ]
 </script>
 
@@ -102,33 +164,42 @@ const stats: StatItem[] = [
           <span class="nav-icon">🏠</span>
           <span>首页</span>
         </a>
-        <a class="nav-item" @click="emit('navigate', 'battle')">
+        <a class="nav-item" @click="goBattle">
           <span class="nav-icon">⚔️</span>
           <span>对战</span>
         </a>
-        <a class="nav-item">
+        <a class="nav-item" @click="goComingSoon">
           <span class="nav-icon">📇</span>
           <span>图鉴</span>
         </a>
-        <a class="nav-item">
+        <a class="nav-item" @click="goDecks">
           <span class="nav-icon">🃏</span>
           <span>卡组</span>
         </a>
-        <a class="nav-item">
+        <a class="nav-item" @click="goComingSoon">
           <span class="nav-icon">📚</span>
           <span>收藏</span>
         </a>
-        <a class="nav-item">
+        <a class="nav-item" @click="goComingSoon">
           <span class="nav-icon">🏆</span>
           <span>排行</span>
         </a>
       </nav>
       <div class="user-info">
-        <div class="avatar">U</div>
+        <div class="avatar">{{ avatarLetter }}</div>
         <div class="user-detail">
-          <div class="username">PlayerOne</div>
-          <div class="rank">青铜 III</div>
+          <div class="username">{{ displayName }}</div>
+          <div class="usercode">{{ displayUsercode || '—' }}</div>
         </div>
+        <button
+          type="button"
+          class="btn-logout"
+          :disabled="loggingOut"
+          title="退出登录"
+          @click="handleLogout"
+        >
+          {{ loggingOut ? '…' : '退出' }}
+        </button>
       </div>
       <div class="theme-toggle" @click="theme.toggle()">
         {{ theme.theme === 'dark' ? '☀️ 亮色' : '🌙 暗色' }}
@@ -147,15 +218,13 @@ const stats: StatItem[] = [
             <span class="hero-stat"><strong>12</strong> 个扩展</span>
             <span class="hero-stat"><strong>4</strong> 种赛制</span>
           </div>
-          <button class="hero-cta" @click="emit('navigate', 'battle')">
-            开始对战
-          </button>
+          <button class="hero-cta" @click="goBattle">开始对战</button>
         </div>
       </section>
 
-      <!-- 个人统计 -->
+      <!-- 个人统计（演示占位） -->
       <section class="stats-bar">
-        <div class="stat-item" v-for="s in stats" :key="s.label">
+        <div v-for="s in stats" :key="s.label" class="stat-item">
           <span class="stat-value" :style="{ color: `var(${s.cssVar})` }">{{ s.value }}</span>
           <span class="stat-label">{{ s.label }}</span>
         </div>
@@ -169,7 +238,7 @@ const stats: StatItem[] = [
             v-for="m in exploreModules"
             :key="m.key"
             class="explore-card"
-            @click="m.key === 'deck-builder' ? emit('navigate', 'battle') : null"
+            @click="onExploreClick(m.key)"
           >
             <span class="explore-icon">{{ m.icon }}</span>
             <div class="explore-info">
@@ -186,11 +255,7 @@ const stats: StatItem[] = [
         <section class="section popular-section">
           <h2 class="section-title">热门卡组</h2>
           <div class="popular-list">
-            <div
-              v-for="d in popularDecks"
-              :key="d.rank"
-              class="popular-item"
-            >
+            <div v-for="d in popularDecks" :key="d.rank" class="popular-item">
               <span class="popular-rank">#{{ d.rank }}</span>
               <div class="popular-info">
                 <span class="popular-name">{{ d.name }}</span>
@@ -201,8 +266,7 @@ const stats: StatItem[] = [
         </section>
 
         <section class="section community-section">
-          <h2 class="section-title">加入社区</h2>
-          <p class="community-desc">与数千名玩家一起对战、交流、构筑卡组。</p>
+          <h2 class="section-title">加入社区</h2>          <p class="community-desc">与数千名玩家一起对战、交流、构筑卡组。</p>
           <div class="community-links">
             <a class="community-link">💬 Discord</a>
             <a class="community-link">📋 论坛</a>
@@ -317,11 +381,37 @@ const stats: StatItem[] = [
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rank {
+.usercode {
   font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.btn-logout {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.btn-logout:hover:not(:disabled) {
   color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-logout:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .theme-toggle {
