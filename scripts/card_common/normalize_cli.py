@@ -4,9 +4,9 @@
 批量规范化卡图：去透明边 + 统一画布尺寸 + 统一圆角。
 
 用法（仓库根目录）:
-  python scripts/card_common/normalize_cli.py assets/card/official
-  python scripts/card_common/normalize_cli.py assets/card/extracted -o assets/card/official/RP01
-  python scripts/card_common/normalize_cli.py assets/card/official --force
+  python scripts/card_common/normalize_cli.py assets/card/faces
+  python scripts/card_common/normalize_cli.py assets/card/extracted -o assets/card/faces/RP01
+  python scripts/card_common/normalize_cli.py assets/card/faces --force
 """
 
 from __future__ import annotations

@@ -9,6 +9,7 @@ import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { adminCardApi } from '@mtcg/common/api'
+import { resolveCardImageUrl } from '@mtcg/common'
 import ImageUploader from './ImageUploader.vue'
 import CardFeatureSelector from './CardFeatureSelector.vue'
 import ProductSelector from './ProductSelector.vue'
@@ -305,10 +306,10 @@ watch(
           <el-form-item label="卡图">
             <div v-if="mode === 'edit' && form.imagePath && !form.imageFile" class="existing-image">
               <el-image
-                :src="form.imagePath"
+                :src="resolveCardImageUrl(form.imagePath)"
                 fit="contain"
                 class="image-preview"
-                :preview-src-list="[form.imagePath]"
+                :preview-src-list="[resolveCardImageUrl(form.imagePath)]"
               />
               <div class="image-tip">已有图片，可重新上传替换</div>
             </div>

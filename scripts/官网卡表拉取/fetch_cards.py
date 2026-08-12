@@ -36,6 +36,11 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from card_common.normalize import is_normalized, normalize_card_file  # noqa: E402
+from card_common.seed_sql import (  # noqa: E402
+    CARD_TYPE_MAP,
+    COLOR_MAP,
+    build_monolith_sql,
+)
 from card_common.spec import CARD_HEIGHT, CARD_WIDTH  # noqa: E402
 
 API_BASE = "https://server.marvelherorush.com"
@@ -47,23 +52,8 @@ PNG_IEND = b"IEND\xaeB`\x82"
 # CDN 偶发断流；完整卡图通常 >1MB（1559x2150 PNG）
 MIN_VALID_PNG_BYTES = 200_000
 
-COLOR_MAP = {
-    "红色": "RED",
-    "黄色": "YELLOW",
-    "蓝色": "BLUE",
-    "绿色": "GREEN",
-    "橙色": "ORANGE",
-    "紫色": "PURPLE",
-}
-
-CARD_TYPE_MAP = {
-    "character": "CHARACTER",
-    "rush_point": "RUSH_POINT",
-    "rush": "RUSH_POINT",
-}
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_IMAGE_DIR = REPO_ROOT / "assets" / "card" / "official"
+DEFAULT_IMAGE_DIR = REPO_ROOT / "assets" / "card" / "faces"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent / "out"
 DEFAULT_SQL_PATH = (
     REPO_ROOT / "mtcg-server" / "src" / "main" / "resources" / "sql" / "seed-official-cards.sql"
@@ -254,16 +244,6 @@ def parse_int(raw: Any) -> int | None:
         return None
 
 
-def sql_quote(value: str | None) -> str:
-    if value is None:
-        return "NULL"
-    return "'" + value.replace("'", "''") + "'"
-
-
-def sql_num(value: int | None) -> str:
-    return "NULL" if value is None else str(value)
-
-
 def normalize_product(raw: dict[str, Any]) -> dict[str, Any]:
     series = strip_text(raw.get("series"))
     name = strip_text(raw.get("name")) or series
@@ -294,7 +274,7 @@ def normalize_card(raw: dict[str, Any]) -> dict[str, Any]:
     image = raw.get("image") or {}
     image_key = strip_text(image.get("key"))
     image_url = strip_text(image.get("url"))
-    rel_path = f"card/official/{product_code}/{card_code}.png"
+    rel_path = f"card/faces/{product_code}/{card_code}.png"
     return {
         "source_id": strip_text(raw.get("id")),
         "card_code": card_code,
@@ -437,55 +417,26 @@ def download_images(
 
 
 def build_sql(products: list[dict[str, Any]], cards: list[dict[str, Any]]) -> str:
-    lines: list[str] = [
-        "-- 官网卡表种子数据（自动生成，勿手改）",
-        "-- 来源: https://www.marvelherorush.com/cn/cards",
-        "-- card_code 格式: {编号}-{罕度}，如 BP01-001-MR",
-        "-- 幂等：按 product_code / card_code 去重插入",
-        "",
-        "BEGIN;",
-        "",
-        "-- ========== 产品 ==========",
+    # description 字段官网侧暂无，保持与历史种子一致写 NULL
+    products_for_sql = [
+        {
+            "product_code": p["product_code"],
+            "product_name": p["product_name"],
+            "release_date": p.get("release_date"),
+            "description": None,
+        }
+        for p in products
     ]
-    for p in products:
-        lines.append(
-            "INSERT INTO mtcg_product (product_code, product_name, release_date, description)\n"
-            f"SELECT {sql_quote(p['product_code'])}, {sql_quote(p['product_name'])}, "
-            f"{sql_quote(p['release_date']) if p['release_date'] else 'NULL'}, NULL\n"
-            f"WHERE NOT EXISTS (SELECT 1 FROM mtcg_product WHERE product_code = {sql_quote(p['product_code'])});"
-        )
-        lines.append("")
-
-    lines.append("-- ========== 卡牌 ==========")
-    for c in cards:
-        lines.append(
-            "INSERT INTO mtcg_card (\n"
-            "    card_code, product_code, card_name, card_type, level, color,\n"
-            "    environment, traits, attack_range, power, rarity,\n"
-            "    effect_text, effect_json, image_path\n"
-            ")\n"
-            "SELECT\n"
-            f"    {sql_quote(c['card_code'])},\n"
-            f"    {sql_quote(c['product_code'])},\n"
-            f"    {sql_quote(c['card_name'])},\n"
-            f"    {sql_quote(c['card_type'])},\n"
-            f"    {sql_num(c['level'])},\n"
-            f"    {sql_quote(c['color'])},\n"
-            f"    {sql_quote(c['environment'])},\n"
-            f"    {sql_quote(c['traits'])},\n"
-            f"    {sql_num(c['attack_range'])},\n"
-            f"    {sql_num(c['power'])},\n"
-            f"    {sql_quote(c['rarity'])},\n"
-            f"    {sql_quote(c['effect_text'])},\n"
-            "    NULL,\n"
-            f"    {sql_quote(c['image_path'])}\n"
-            f"WHERE NOT EXISTS (SELECT 1 FROM mtcg_card WHERE card_code = {sql_quote(c['card_code'])});"
-        )
-        lines.append("")
-
-    lines.append("COMMIT;")
-    lines.append("")
-    return "\n".join(lines)
+    return build_monolith_sql(
+        products_for_sql,
+        cards,
+        header_lines=[
+            "-- 官网卡表种子数据（自动生成，勿手改）",
+            "-- 来源: https://www.marvelherorush.com/cn/cards",
+            "-- card_code 格式: {编号}-{罕度}，如 BP01-001-MR",
+            "-- 幂等：按 product_code / card_code 去重插入",
+        ],
+    )
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -528,7 +479,7 @@ def main() -> int:
         "product_count": len(products),
         "card_count": len(cards),
         "card_code_format": "{card_no}-{rarity}",
-        "image_path_format": "card/official/{product_code}/{card_code}.png",
+        "image_path_format": "card/faces/{product_code}/{card_code}.png",
         "card_canvas": f"{CARD_WIDTH}x{CARD_HEIGHT}",
     }
 

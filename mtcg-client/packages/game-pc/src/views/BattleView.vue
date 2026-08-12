@@ -67,7 +67,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
         <span class="opponent-avatar"></span>
         <div class="opponent-meta">
           <span class="opponent-name">{{ store.opponent?.playerId ?? 'AI 对手' }}</span>
-          <span class="opponent-hand">手牌 {{ store.opponent?.hand?.length ?? 5 }}</span>
+          <span class="opponent-hand">手牌 {{ store.opponent?.handCount ?? 0 }}</span>
         </div>
       </div>
       <button

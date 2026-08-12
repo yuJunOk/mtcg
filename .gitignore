@@ -33,8 +33,11 @@ data/*.db-wal
 uploads/
 mtcg-server/uploads/
 
-### Official card art (local-only, large / copyrighted) ###
-assets/card/official/
+### Card assets ###
+# 卡图与加工中间产物均不入库（faces 用网盘共享，本地放到 assets/card/faces/）
+assets/card/raw/
+assets/card/extracted/
+assets/card/faces/
 
 ### Logs ###
 logs/

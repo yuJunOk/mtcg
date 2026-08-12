@@ -27,13 +27,19 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/decks',
     name: 'deck-list',
-    component: () => import('@/views/PlaceholderView.vue'),
+    component: () => import('@/views/DeckListView.vue'),
     meta: { title: '我的卡组' },
+  },
+  {
+    path: '/decks/new',
+    name: 'deck-create',
+    component: () => import('@/views/DeckBuilderView.vue'),
+    meta: { title: '新建卡组' },
   },
   {
     path: '/decks/:id',
     name: 'deck-builder',
-    component: () => import('@/views/PlaceholderView.vue'),
+    component: () => import('@/views/DeckBuilderView.vue'),
     meta: { title: '卡组构筑' },
   },
   {

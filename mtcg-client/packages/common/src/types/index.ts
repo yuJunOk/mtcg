@@ -2,11 +2,13 @@
 
 export * from './common'
 export * from './user'
-export * from './card'       // API 类型（CardVO + DTO）
-export * from './card-ui'   // 前端 UI 类型（下拉选项 + 工具函数）
+export * from './card' // API 类型（CardVO + DTO）
+export * from './card-ui' // 前端 UI 类型（下拉选项 + 工具函数）
 export * from './product'
 export * from './card-feature'
 export * from './dashboard'
+export * from './deck'
+export * from './game'
 
 // ==================== 前端特有类型 ====================
 
@@ -16,15 +18,12 @@ export type UserRole = 'PLAYER' | 'CARD_ADMIN' | 'SYS_ADMIN' | 'AI'
 /** 用户状态 */
 export type UserStatus = 'ACTIVE' | 'DISABLED'
 
-// ==================== 区域（游戏引擎用） ====================
+// ==================== 引擎 / Pixi 渲染用（非 API VO） ====================
+// 对战 REST 请用 types/game.ts 的 *VO / *DTO；下列保留给 Card.vue / GameCanvas。
 
-/** 区域 */
-export type Zone =
-  | 'VANGUARD' | 'FLANK_LEFT' | 'FLANK_RIGHT' | 'REARGUARD'
-  | 'BASE'
-  | 'DECK' | 'RUSH_DECK' | 'HAND' | 'TIMELINE' | 'RETREAT' | 'VOID'
+import type { ActionType, GameStatus, PhaseType, PlayerSide, Zone } from './game'
 
-/** 卡牌快照（不可变，来自后端） */
+/** 卡牌快照（不可变，来自后端引擎模型） */
 export interface CardSnapshot {
   cardCode: string
   name: string
@@ -37,7 +36,7 @@ export interface CardSnapshot {
   cardType: string
 }
 
-/** 卡牌实例（运行时） */
+/** 卡牌实例（引擎运行时；UI 组件可选绑定） */
 export interface CardInstance {
   instanceId: string
   snapshot: CardSnapshot
@@ -52,7 +51,7 @@ export interface CardInstance {
   attachedCards: CardInstance[]
 }
 
-/** 场上区域 */
+/** 场上区域（引擎形） */
 export interface FieldZone {
   vanguard: CardInstance | null
   flank: [CardInstance | null, CardInstance | null]
@@ -60,17 +59,7 @@ export interface FieldZone {
   base: (CardInstance | null)[]
 }
 
-/** 回合阶段 */
-export type PhaseType =
-  | 'TURN_START' | 'DRAW' | 'ACTION' | 'COMBAT' | 'RESPONSE' | 'TURN_END'
-
-/** 对局状态 */
-export type GameStatus = 'WAITING' | 'IN_PROGRESS' | 'FINISHED'
-
-/** 先后攻 */
-export type PlayerSide = 'FIRST' | 'SECOND'
-
-/** 玩家状态 */
+/** 玩家状态（引擎形；对战 API 请用 PlayerStateVO） */
 export interface PlayerState {
   playerId: string
   side: PlayerSide
@@ -85,7 +74,7 @@ export interface PlayerState {
   summonCount: number
 }
 
-/** 对局全局状态 */
+/** 对局全局状态（引擎形；对战 API 请用 GameStateVO） */
 export interface GameState {
   gameId: string
   activePlayer: PlayerState
@@ -97,22 +86,7 @@ export interface GameState {
   winnerId: string | null
 }
 
-/** 操作类型 */
-export type ActionType =
-  | 'MULLIGAN'
-  | 'BASE_DEPLOY'
-  | 'SUMMON'
-  | 'MOVE'
-  | 'ACTIVATE_EFFECT'
-  | 'RESPONSE_SUMMON'
-  | 'ADJUST_POSITION'
-  | 'ATTACK'
-  | 'INTERCEPT'
-  | 'PASS'
-  | 'END_PHASE'
-  | 'SURRENDER'
-
-/** 操作请求 */
+/** @deprecated 请用 ActionRequestDTO */
 export interface ActionRequest {
   gameId: string
   playerId: string
@@ -120,7 +94,7 @@ export interface ActionRequest {
   payload: Record<string, unknown>
 }
 
-/** 操作响应 */
+/** @deprecated 请用 ActionResultVO */
 export interface ActionResponse {
   success: boolean
   gameState: GameState

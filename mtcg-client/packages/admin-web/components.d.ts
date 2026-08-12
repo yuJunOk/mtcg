@@ -52,8 +52,6 @@ declare module 'vue' {
     ProductSelector: typeof import('./src/components/ProductSelector.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    Selector: typeof import('./src/components/Selector.vue')['default']
-    SplitPanel: typeof import('./src/components/SplitPanel.vue')['default']
     UserFormDialog: typeof import('./src/components/UserFormDialog.vue')['default']
     UserResetPasswordDialog: typeof import('./src/components/UserResetPasswordDialog.vue')['default']
   }

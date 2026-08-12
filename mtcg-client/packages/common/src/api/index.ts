@@ -22,6 +22,10 @@ export { cardApi } from './cardApi'
 export { productApi } from './productApi'
 export { cardFeatureApi } from './cardFeatureApi'
 
+// 需登录
+export { deckApi } from './deckApi'
+export { gameApi } from './gameApi'
+
 // 管理员 API（需登录 Token）
 export { adminUserApi, adminProductApi, adminCardApi } from './adminApi'
 export { dashboardApi } from './dashboardApi'

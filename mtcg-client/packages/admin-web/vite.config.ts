@@ -29,11 +29,17 @@ export default defineConfig({
         target: 'http://localhost:8081',
         changeOrigin: true,
       },
-      // 开发环境：图片文件代理到后端 uploads 目录
-      '/uploads': {
+      // 卡图 / 上传文件：/files/... → /api/files/...
+      '/files': {
         target: 'http://localhost:8081',
         changeOrigin: true,
         rewrite: (path: string) => `/api${path}`,
+      },
+      // 兼容旧路径
+      '/uploads': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+        rewrite: (path: string) => `/api/files${path.slice('/uploads'.length)}`,
       },
     },
   },

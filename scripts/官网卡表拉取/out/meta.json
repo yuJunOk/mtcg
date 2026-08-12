@@ -6,5 +6,5 @@
   "product_count": 5,
   "card_count": 233,
   "card_code_format": "{card_no}-{rarity}",
-  "image_path_format": "card/official/{product_code}/{card_code}.png"
+  "image_path_format": "card/faces/{product_code}/{card_code}.png"
 }

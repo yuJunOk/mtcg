@@ -29,7 +29,6 @@ spring:
     resources:
       static-locations:
         - classpath:/static/
-        - file:./uploads/
 
 mybatis-flex:
   configuration:
@@ -53,9 +52,13 @@ mtcg:
     header: Authorization
     token-prefix: "Bearer "
 
-# 文件上传配置
+# 文件：上传目录 + 卡面素材目录（image_path 相对路径经 /files/** 访问）
 file:
   upload:
     base-path: ./uploads
     image-suffixes: .jpg,.jpeg,.png,.gif,.webp
     max-size: 5242880
+  assets:
+    # 仓库 assets/（内含 card/faces/{产品}/{card_code}.png）
+    # 默认相对 mtcg-server 启动目录；可用绝对路径覆盖
+    base-path: ../assets
