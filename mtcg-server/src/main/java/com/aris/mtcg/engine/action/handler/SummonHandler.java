@@ -6,8 +6,11 @@ import com.aris.mtcg.engine.action.ActionSupport;
 import com.aris.mtcg.engine.action.ActionType;
 import com.aris.mtcg.engine.action.ActionTypeHandler;
 import com.aris.mtcg.engine.action.EngineException;
+import com.aris.mtcg.engine.effect.EffectResolver;
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.enums.Zone;
+import com.aris.mtcg.engine.keyword.Keyword;
+import com.aris.mtcg.engine.keyword.UniqueKeywordHandler;
 import com.aris.mtcg.engine.model.ActionLog;
 import com.aris.mtcg.engine.model.CardInstance;
 import com.aris.mtcg.engine.model.GameState;
@@ -25,6 +28,17 @@ import java.util.List;
 public class SummonHandler implements ActionTypeHandler {
 
     private static final String EXTRA_RETREAT_CODES = "retreatCodes";
+
+    private final EffectResolver effectResolver;
+
+    public SummonHandler(EffectResolver effectResolver) {
+        this.effectResolver = effectResolver;
+    }
+
+    /** 无效果系统时的兼容构造（测试兜底）。 */
+    public SummonHandler() {
+        this(null);
+    }
 
     @Override
     public ActionType supportedType() {
@@ -68,8 +82,8 @@ public class SummonHandler implements ActionTypeHandler {
         }
 
         // 305.6：唯一关键词 —— 我方场上不能有同名卡
-        if (ActionSupport.hasUniqueKeyword(card)
-                && ActionSupport.hasSameNameOnField(ap, card.getSnapshot().getName())) {
+        if ((card.hasKeyword(Keyword.UNIQUE) || ActionSupport.hasUniqueKeyword(card))
+                && UniqueKeywordHandler.wouldViolateUnique(ap, card.getSnapshot().getName())) {
             throw new EngineException("唯一关键词：场上已有同名卡", "305.6");
         }
     }
@@ -93,6 +107,12 @@ public class SummonHandler implements ActionTypeHandler {
         ActionSupport.placeOnField(ap, card, request.getTargetZone(), request.getTargetIndex());
 
         ap.setSummonCount(ap.getSummonCount() + 1);
+
+        // Q&A Q6：进场 → 常驻重算 → 触发
+        if (effectResolver != null) {
+            effectResolver.onCardEntersZone(card, ap, state);
+        }
+
         state.logAction(
                 new ActionLog(
                         state.getTurnCount(),
@@ -111,7 +131,6 @@ public class SummonHandler implements ActionTypeHandler {
         if (!(raw instanceof List<?> list)) {
             return Collections.emptyList();
         }
-        // 仅保留字符串项
         return list.stream().filter(String.class::isInstance).map(String.class::cast).toList();
     }
 }

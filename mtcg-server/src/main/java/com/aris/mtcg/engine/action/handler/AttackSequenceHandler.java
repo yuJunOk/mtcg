@@ -12,6 +12,8 @@ import com.aris.mtcg.engine.combat.CombatStep;
 import com.aris.mtcg.engine.combat.DistanceCalculator;
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.enums.Zone;
+import com.aris.mtcg.engine.keyword.AirStrikeKeywordHandler;
+import com.aris.mtcg.engine.keyword.ComboKeywordHandler;
 import com.aris.mtcg.engine.model.ActionLog;
 import com.aris.mtcg.engine.model.CardInstance;
 import com.aris.mtcg.engine.model.GameState;
@@ -60,10 +62,10 @@ public class AttackSequenceHandler implements ActionTypeHandler {
             throw new EngineException("盖卡不能攻击", "303.2.a.4.5");
         }
 
-        // 重选目标不重复扣次数；新声明检查攻击次数
+        // 重选目标不重复扣次数；新声明检查攻击次数（连击 305.3）
         boolean retarget = ctx.getStep() == CombatStep.TARGET && ctx.getAttacker() == attacker;
         if (!retarget) {
-            int attackLimit = ActionSupport.hasComboKeyword(attacker) ? 2 : 1;
+            int attackLimit = ComboKeywordHandler.maxAttacks(attacker);
             if (attacker.getAttackUsed() >= attackLimit) {
                 throw new EngineException("该角色本回合攻击次数已用尽", "303.2.a.4.4");
             }
@@ -163,11 +165,11 @@ public class AttackSequenceHandler implements ActionTypeHandler {
         }
     }
 
-    /** 破绽：目标战区须空置，且距离可达（空袭关键词迭代六）。 */
+    /** 破绽校验：默认目标战区须空置；有【空袭】时可攻击有角色的战区作破绽（305.5）。 */
     private static void assertVulnerable(
             PlayerState defender, Zone targetZone, CardInstance attacker) {
         CardInstance occupied = ActionSupport.getAt(defender.getField(), targetZone, 0);
-        if (occupied != null) {
+        if (occupied != null && !AirStrikeKeywordHandler.allowsOccupiedAsVulnerable(attacker)) {
             throw new EngineException("目标区域非破绽（有角色）", "303.2.a.4.3.1");
         }
         if (!DistanceCalculator.canReach(attacker, targetZone)) {

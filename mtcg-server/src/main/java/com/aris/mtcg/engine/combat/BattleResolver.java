@@ -3,6 +3,8 @@ package com.aris.mtcg.engine.combat;
 import com.aris.mtcg.engine.action.ActionRequest;
 import com.aris.mtcg.engine.action.ActionSupport;
 import com.aris.mtcg.engine.enums.Zone;
+import com.aris.mtcg.engine.keyword.AssaultKeywordHandler;
+import com.aris.mtcg.engine.keyword.Keyword;
 import com.aris.mtcg.engine.model.CardInstance;
 import com.aris.mtcg.engine.model.GameState;
 import com.aris.mtcg.engine.model.PlayerState;
@@ -64,8 +66,8 @@ public final class BattleResolver {
         if (ap > tp) {
             ActionSupport.retreatCard(defender, target);
             // 强袭：战胜时视为成功攻击破绽（305.4）
-            if (ActionSupport.hasAssaultKeyword(attacker)) {
-                drawRushToTimeline(attackerPlayer);
+            if (attacker.hasKeyword(Keyword.ASSAULT) || ActionSupport.hasAssaultKeyword(attacker)) {
+                AssaultKeywordHandler.applySuccessfulBreak(attackerPlayer);
             }
         } else if (ap < tp) {
             ActionSupport.retreatCard(attackerPlayer, attacker);

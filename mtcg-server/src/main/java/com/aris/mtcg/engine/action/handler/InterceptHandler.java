@@ -49,6 +49,10 @@ public class InterceptHandler implements ActionTypeHandler {
         if (interceptor.isInterceptUsed()) {
             throw new EngineException("该角色本回合已使用拦截", "305.2");
         }
+        // 305.2：须具备拦截关键词
+        if (!ActionSupport.hasInterceptKeyword(interceptor)) {
+            throw new EngineException("该角色不具备拦截能力", "305.2");
+        }
         CardInstance attacker = ctx.getAttacker();
         if (attacker == null) {
             throw new EngineException("当前无攻击可拦截", "305.2");

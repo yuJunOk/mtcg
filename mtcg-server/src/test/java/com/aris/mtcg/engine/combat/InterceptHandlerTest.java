@@ -36,7 +36,10 @@ class InterceptHandlerTest {
                 placeOnCombat(attackerPlayer, Zone.VANGUARD, character("ATK", 1, 2, 1000));
         CardInstance original = placeOnCombat(defender, Zone.VANGUARD, character("DEF", 1, 1, 500));
         CardInstance interceptor =
-                placeOnCombat(defender, Zone.FLANK_LEFT, character("INT", 1, 1, 3000));
+                placeOnCombat(
+                        defender,
+                        Zone.FLANK_LEFT,
+                        character("INT", "拦截者", 1, 1, 3000, "【拦截】可将攻击目标改为此卡"));
 
         ActionRequest attack = request(attackerPlayer.getPlayerId(), ActionType.ATTACK);
         attack.setCardCode(attacker.getInstanceId());

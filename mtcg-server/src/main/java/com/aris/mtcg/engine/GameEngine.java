@@ -21,8 +21,12 @@ import com.aris.mtcg.engine.action.handler.SetFaceDownHandler;
 import com.aris.mtcg.engine.action.handler.SummonHandler;
 import com.aris.mtcg.engine.action.handler.SurrenderHandler;
 import com.aris.mtcg.engine.combat.WinChecker;
+import com.aris.mtcg.engine.effect.EffectResolver;
+import com.aris.mtcg.engine.effect.NoOpEffectParser;
+import com.aris.mtcg.engine.effect.PowerModifierStack;
 import com.aris.mtcg.engine.enums.GameStatus;
 import com.aris.mtcg.engine.enums.PhaseType;
+import com.aris.mtcg.engine.keyword.KeywordHandlerRegistry;
 import com.aris.mtcg.engine.model.GameState;
 import com.aris.mtcg.engine.phase.ActionPhaseHandler;
 import com.aris.mtcg.engine.phase.CombatHandler;
@@ -48,6 +52,8 @@ public class GameEngine {
 
     @Getter private final GameState state;
     @Getter private final ActionDispatcher actionDispatcher;
+    @Getter private final EffectResolver effectResolver;
+    @Getter private final KeywordHandlerRegistry keywordHandlerRegistry;
 
     private final Map<PhaseType, PhaseHandler> handlers = new EnumMap<>(PhaseType.class);
     private final GameInitializer gameInitializer;
@@ -61,6 +67,8 @@ public class GameEngine {
         this.state = state;
         this.gameInitializer = gameInitializer;
         this.actionDispatcher = new ActionDispatcher();
+        this.effectResolver = new EffectResolver(new PowerModifierStack(), new NoOpEffectParser());
+        this.keywordHandlerRegistry = new KeywordHandlerRegistry();
         registerPhaseHandlers();
         registerActionHandlers();
     }
@@ -79,9 +87,9 @@ public class GameEngine {
     private void registerActionHandlers() {
         actionDispatcher.register(new MulliganHandler(gameInitializer));
         actionDispatcher.register(new BaseDeployHandler());
-        actionDispatcher.register(new SummonHandler());
+        actionDispatcher.register(new SummonHandler(effectResolver));
         actionDispatcher.register(new CombatBaseMoveHandler());
-        actionDispatcher.register(new ActivateEffectHandler());
+        actionDispatcher.register(new ActivateEffectHandler(effectResolver));
         actionDispatcher.register(new SetFaceDownHandler());
         actionDispatcher.register(new FlipFaceUpHandler());
         actionDispatcher.register(new AttachHandler());
@@ -91,7 +99,7 @@ public class GameEngine {
         actionDispatcher.register(new CombatAdjustHandler());
         actionDispatcher.register(new AttackSequenceHandler());
         actionDispatcher.register(new CombatResponseHandler());
-        actionDispatcher.register(new ResponseSummonHandler());
+        actionDispatcher.register(new ResponseSummonHandler(effectResolver));
         actionDispatcher.register(new InterceptHandler());
     }
 

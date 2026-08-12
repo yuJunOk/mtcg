@@ -2,6 +2,7 @@ package com.aris.mtcg.engine.action;
 
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.enums.Zone;
+import com.aris.mtcg.engine.keyword.Keyword;
 import com.aris.mtcg.engine.model.CardInstance;
 import com.aris.mtcg.engine.model.FieldZone;
 import com.aris.mtcg.engine.model.GameState;
@@ -271,9 +272,12 @@ public final class ActionSupport {
     /**
      * 是否具备「唯一」关键词（305.6）。
      *
-     * <p>完整关键词系统在迭代六；此处以效果文本含「【唯一】」作为轻量判定。
+     * <p>优先查 {@link CardInstance#getKeywords()}；效果文本含「【唯一】」作兼容兜底。
      */
     public static boolean hasUniqueKeyword(CardInstance card) {
+        if (card.hasKeyword(Keyword.UNIQUE)) {
+            return true;
+        }
         String text = card.getSnapshot().getEffectText();
         return text != null && text.contains("【唯一】");
     }
@@ -361,9 +365,12 @@ public final class ActionSupport {
     /**
      * 是否具备「连击」关键词（305.3）。
      *
-     * <p>完整关键词系统在迭代六；此处以效果文本含「【连击】」作为轻量判定。
+     * <p>优先查 {@link CardInstance#getKeywords()}；效果文本含「【连击】」作兼容兜底。
      */
     public static boolean hasComboKeyword(CardInstance card) {
+        if (card.hasKeyword(Keyword.COMBO)) {
+            return true;
+        }
         String text = card.getSnapshot().getEffectText();
         return text != null && text.contains("【连击】");
     }
@@ -371,11 +378,53 @@ public final class ActionSupport {
     /**
      * 是否具备「强袭」关键词（305.4）。
      *
-     * <p>完整关键词系统在迭代六；此处以效果文本含「【强袭】」作为轻量判定。
+     * <p>优先查 {@link CardInstance#getKeywords()}；效果文本含「【强袭】」作兼容兜底。
      */
     public static boolean hasAssaultKeyword(CardInstance card) {
+        if (card.hasKeyword(Keyword.ASSAULT)) {
+            return true;
+        }
         String text = card.getSnapshot().getEffectText();
         return text != null && text.contains("【强袭】");
+    }
+
+    /**
+     * 是否具备「拦截」关键词（305.2）。
+     *
+     * <p>优先查 keywords；效果文本含「【拦截】」作兼容兜底。
+     */
+    public static boolean hasInterceptKeyword(CardInstance card) {
+        if (card.hasKeyword(Keyword.INTERCEPT)) {
+            return true;
+        }
+        String text = card.getSnapshot().getEffectText();
+        return text != null && text.contains("【拦截】");
+    }
+
+    /**
+     * 是否具备「应对」关键词（305.1）。
+     *
+     * <p>优先查 keywords；效果文本含「【应对】」作兼容兜底。
+     */
+    public static boolean hasResponseKeyword(CardInstance card) {
+        if (card.hasKeyword(Keyword.RESPONSE)) {
+            return true;
+        }
+        String text = card.getSnapshot().getEffectText();
+        return text != null && text.contains("【应对】");
+    }
+
+    /**
+     * 是否具备「空袭」关键词（305.5）。
+     *
+     * <p>优先查 keywords；效果文本含「【空袭】」作兼容兜底。
+     */
+    public static boolean hasAirStrikeKeyword(CardInstance card) {
+        if (card.hasKeyword(Keyword.AIR_STRIKE)) {
+            return true;
+        }
+        String text = card.getSnapshot().getEffectText();
+        return text != null && text.contains("【空袭】");
     }
 
     /**

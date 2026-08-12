@@ -1,6 +1,9 @@
 package com.aris.mtcg.engine.phase;
 
 import com.aris.mtcg.engine.GameEngine;
+import com.aris.mtcg.engine.effect.EffectResolver;
+import com.aris.mtcg.engine.effect.TriggerEvent;
+import com.aris.mtcg.engine.effect.TriggerType;
 import com.aris.mtcg.engine.enums.GameStatus;
 import com.aris.mtcg.engine.enums.Zone;
 import com.aris.mtcg.engine.model.CardInstance;
@@ -15,8 +18,8 @@ import java.util.List;
  * <p>执行顺序：
  *
  * <ol>
- *   <li>触发「回合结束时」效果
- *   <li>终止「仅本回合有效」效果
+ *   <li>触发「回合结束时」效果并结算
+ *   <li>终止「仅本回合有效」效果并重算
  *   <li>手牌 &gt; 9 → 舍弃至 9（301.15）
  *   <li>重置回合标记与计数器
  *   <li>切换回合玩家，进入下一回合
@@ -29,12 +32,16 @@ public class TurnEndHandler implements PhaseHandler {
     @Override
     public void onEnter(GameState state, GameEngine engine) {
         PlayerState active = state.getActivePlayer();
+        EffectResolver resolver = engine.getEffectResolver();
 
-        // 303.2.a.6.1 触发「回合结束时」效果
-        // TODO 迭代六：触发并结算回合结束效果
-
-        // 303.2.a.6.2 终止「仅本回合有效」效果
-        // TODO 迭代六：终止本回合效果
+        // 303.2.a.6.1 触发「回合结束时」效果 → 结算
+        if (resolver != null) {
+            resolver.fireTriggers(new TriggerEvent(TriggerType.TURN_END, active, null), state);
+            resolver.resolveAll(state);
+            // 303.2.a.6.2 / Q&A Q2：终止本回合修改器，再重算
+            resolver.getModifierStack().removeExpiredThisTurn();
+            resolver.reevaluateContinuous(state);
+        }
 
         // 303.2.a.6.3 手牌 > 9 → 舍弃至 9（301.15 舍弃 = 移至撤退区）
         discardToHandLimit(active);

@@ -8,6 +8,7 @@ import com.aris.mtcg.engine.action.ActionTypeHandler;
 import com.aris.mtcg.engine.action.EngineException;
 import com.aris.mtcg.engine.combat.BattleResolver;
 import com.aris.mtcg.engine.combat.CombatContext;
+import com.aris.mtcg.engine.effect.EffectResolver;
 import com.aris.mtcg.engine.enums.PhaseType;
 import com.aris.mtcg.engine.enums.Zone;
 import com.aris.mtcg.engine.model.ActionLog;
@@ -16,13 +17,23 @@ import com.aris.mtcg.engine.model.GameState;
 import com.aris.mtcg.engine.model.PlayerState;
 
 /**
- * 应对号召处理器（303.2.a.4.3.2.3.1）。
+ * 应对号召处理器（303.2.a.4.3.2.3.1 / 305.1）。
  *
- * <p>本步骤双方各 1 次；目标可为战区空位或基地（Q&A Q1）。不占用行动阶段号召次数。
+ * <p>本步骤双方各 1 次；目标可为战区空位或基地（Q&A Q1）。不占用行动阶段号召次数。须具备【应对】关键词。
  *
  * @author pengYuJun
  */
 public class ResponseSummonHandler implements ActionTypeHandler {
+
+    private final EffectResolver effectResolver;
+
+    public ResponseSummonHandler(EffectResolver effectResolver) {
+        this.effectResolver = effectResolver;
+    }
+
+    public ResponseSummonHandler() {
+        this(null);
+    }
 
     @Override
     public ActionType supportedType() {
@@ -42,6 +53,10 @@ public class ResponseSummonHandler implements ActionTypeHandler {
         CardInstance card = ActionSupport.findInHand(player, request.getCardCode());
         if (card == null || !ActionSupport.isCharacter(card)) {
             throw new EngineException("手牌中不存在可号召的角色卡", "303.2.a.4.3.2.3.1");
+        }
+        // 305.1：须具备应对关键词
+        if (!ActionSupport.hasResponseKeyword(card)) {
+            throw new EngineException("该角色不具备应对能力", "305.1");
         }
 
         Zone targetZone = request.getTargetZone();
@@ -64,6 +79,11 @@ public class ResponseSummonHandler implements ActionTypeHandler {
 
         ctx.markResponseSummonUsed(request.getPlayerId());
         ctx.resetPassStreak();
+
+        // Q&A Q6：进场钩子
+        if (effectResolver != null) {
+            effectResolver.onCardEntersZone(card, player, state);
+        }
 
         state.logAction(
                 new ActionLog(
