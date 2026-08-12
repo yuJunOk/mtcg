@@ -153,6 +153,33 @@ CREATE TABLE IF NOT EXISTS mtcg_card_collection (
 CREATE INDEX IF NOT EXISTS idx_collection_user_id ON mtcg_card_collection (user_id);
 
 -- =====================================================
+-- 迭代七：对局记录表（操作流水 + 回合快照混合持久化，D2）
+-- player1 = 发起方；先攻由应用层/引擎决定，不强制等于 player1
+-- =====================================================
+CREATE TABLE IF NOT EXISTS mtcg_game_record (
+    id                  BIGSERIAL       PRIMARY KEY,
+    player1_id          BIGINT          NOT NULL,
+    player2_id          BIGINT          NOT NULL,
+    deck1_id            BIGINT          NOT NULL,
+    deck2_id            BIGINT          NOT NULL,
+    winner              VARCHAR(16),
+    game_mode           VARCHAR(16)     NOT NULL,
+    status              VARCHAR(16)     NOT NULL,
+    turn_snapshot       JSONB,
+    action_log          TEXT            NOT NULL DEFAULT '[]',
+    create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
+    update_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
+    end_time            TIMESTAMP,
+    CONSTRAINT ck_game_winner CHECK (winner IS NULL OR winner IN ('PLAYER1', 'PLAYER2', 'DRAW')),
+    CONSTRAINT ck_game_mode   CHECK (game_mode IN ('CASUAL', 'RANKED', 'AI')),
+    CONSTRAINT ck_game_status CHECK (status IN ('IN_PROGRESS', 'FINISHED'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_player1     ON mtcg_game_record (player1_id);
+CREATE INDEX IF NOT EXISTS idx_game_player2     ON mtcg_game_record (player2_id);
+CREATE INDEX IF NOT EXISTS idx_game_create_time ON mtcg_game_record (create_time DESC);
+
+-- =====================================================
 -- 自动更新 update_time 触发器
 -- =====================================================
 DO $$
@@ -198,6 +225,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_collection_update_time') THEN
         CREATE TRIGGER trigger_collection_update_time
             BEFORE UPDATE ON mtcg_card_collection
+            FOR EACH ROW EXECUTE FUNCTION update_update_time();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_game_record_update_time') THEN
+        CREATE TRIGGER trigger_game_record_update_time
+            BEFORE UPDATE ON mtcg_game_record
             FOR EACH ROW EXECUTE FUNCTION update_update_time();
     END IF;
 END $$;

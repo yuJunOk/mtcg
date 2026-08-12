@@ -105,7 +105,24 @@ public enum ErrorCode {
     COLLECTION_NOT_FOUND(4003, "收藏记录不存在"),
 
     /** 卡牌编号不存在 */
-    CARD_CODE_NOT_EXIST(4004, "卡牌编号不存在");
+    CARD_CODE_NOT_EXIST(4004, "卡牌编号不存在"),
+
+    // === 对局领域（5101-5199）===
+
+    /** 对局不存在 */
+    GAME_NOT_FOUND(5101, "对局不存在"),
+
+    /** 非对局参与方 */
+    NOT_GAME_PARTICIPANT(5102, "非对局参与方"),
+
+    /** 对局已结束 */
+    GAME_ALREADY_FINISHED(5103, "对局已结束"),
+
+    /** 当前不是你的操作回合 */
+    NOT_YOUR_TURN(5104, "当前不是你的操作回合"),
+
+    /** 卡组未通过合法性校验 */
+    DECK_INVALID(5105, "卡组未通过合法性校验");
 
     private final int code;
 
