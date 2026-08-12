@@ -96,6 +96,30 @@ class GameStateSerializerTest {
     }
 
     @Test
+    void snapshot_roundTrip_preservesFieldAndFaceDown() {
+        GameState state = buildSampleState();
+        CardSnapshot snap =
+                new CardSnapshot(
+                        "BP01-002", "盖卡测试", 2, "BLUE", 2, 2000, List.of("异能"), null, "CHARACTER");
+        CardInstance faceDown = new CardInstance("inst-fd", snap);
+        faceDown.setCurrentZone(Zone.BASE);
+        faceDown.setFaceDown(true);
+        state.getActivePlayer().getField().getBase()[0] = faceDown;
+        state.getActivePlayer().getField().setVanguard(state.getActivePlayer().getHand().get(0));
+
+        GameState restored =
+                serializer
+                        .deserializeSnapshot(serializer.serializeSnapshot(state, 1L))
+                        .getGameState();
+        assertTrue(restored.getActivePlayer().getField().getBase()[0].isFaceDown());
+        assertEquals(
+                "BP01-002",
+                restored.getActivePlayer().getField().getBase()[0].getSnapshot().getCardCode());
+        assertNotNull(restored.getActivePlayer().getField().getVanguard());
+        assertEquals("inst-1", restored.getActivePlayer().getField().getVanguard().getInstanceId());
+    }
+
+    @Test
     void gameManager_putGetRemove() {
         assertEquals(0, gameManager.activeCount());
         // engine 可为 null：本测只验证缓存 API

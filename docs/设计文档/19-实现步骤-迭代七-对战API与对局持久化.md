@@ -152,8 +152,8 @@
 | 5 | 后端 - GameManager / Context / Serializer | ✅ |
 | 6 | 后端 - GameService 主链路 | ✅ |
 | 7 | 后端 - 历史 / 统计 / 复盘 / 隐私 | ✅ |
-| 8 | 后端 - GameController | ⬜ |
-| 9 | 后端 - 单测 | ⬜ |
+| 8 | 后端 - GameController | ✅ |
+| 9 | 后端 - 单测 | ✅ |
 | 10 | 前端 - Hash 路由 + 登录/注册 + 守卫 | ⬜ |
 | 11 | 前端 - 首页接用户态（去假用户） | ⬜ |
 | 12 | 前端 - `deckApi` + 卡组类型（完整 CRUD） | ⬜ |

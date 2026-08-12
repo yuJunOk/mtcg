@@ -23,12 +23,18 @@ public final class EngineFixtures {
     private EngineFixtures() {}
 
     public static GameEngine newStartedEngine(long seed) {
+        return newStartedEngine(seed, "g-test", "p1", "p2");
+    }
+
+    /** 可指定 gameId / 双方玩家 ID（供 Service 层单测对齐 userId）。 */
+    public static GameEngine newStartedEngine(
+            long seed, String gameId, String firstPlayerId, String secondPlayerId) {
         GameInitializer initializer = new GameInitializer(new Random(seed));
         GameState state =
                 initializer.initialize(
-                        "g-test",
-                        "p1",
-                        "p2",
+                        gameId,
+                        firstPlayerId,
+                        secondPlayerId,
                         mainDeck("A"),
                         rushDeck("A"),
                         mainDeck("B"),
