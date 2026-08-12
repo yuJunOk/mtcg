@@ -147,7 +147,7 @@
 | --- | --- | --- |
 | 1 | 后端 - `init-schema.sql` 追加 `mtcg_game_record` | ✅ |
 | 2 | 后端 - ErrorCode + ActionLog.seq | ✅ |
-| 3 | 后端 - DO / DTO / VO | ⬜ |
+| 3 | 后端 - DO / DTO / VO | ✅ |
 | 4 | 后端 - GameMapper | ⬜ |
 | 5 | 后端 - GameManager / Context / Serializer | ⬜ |
 | 6 | 后端 - GameService 主链路 | ⬜ |
