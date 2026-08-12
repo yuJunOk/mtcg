@@ -2,7 +2,7 @@
 
 > 完整手册：[卡牌素材补充指南](../../docs/设计文档/卡牌素材补充指南.md)
 
-从 [超英击战官方卡表](https://www.marvelherorush.com/cn/cards) 拉取元数据与卡图，生成 JSON 与幂等 SQL。
+从 [超英击战官方卡表](https://www.marvelherorush.com/cn/cards) 拉取元数据与卡图，生成 JSON，并与截图补齐 **合并** 写入统一种子。
 
 卡图与截图补齐写入 **同一目录/规格**；SQL 由共享模块 `scripts/card_common/seed_sql.py` 生成。
 
@@ -10,13 +10,13 @@
 
 | 路径 | 说明 |
 |------|------|
-| `assets/card/faces/{系列}/{编号}-{罕度}.png` | 卡图（1488×2080） |
+| `assets/card/faces/{系列}/{编号}-{罕度}.png` | 卡图（1488×2080，不入库） |
 | `scripts/官网卡表拉取/out/cards.json` | 卡牌 JSON |
 | `scripts/官网卡表拉取/out/products.json` | 产品 JSON |
-| `scripts/官网卡表拉取/out/seed-official-cards.sql` | SQL 副本 |
-| `mtcg-server/src/main/resources/sql/seed-official-cards.sql` | 正式种子 |
+| `sql/seed-cards/{产品}.sql` | 按产品种子（含截图补齐） |
+| `sql/seed-cards.sql` | 总种子（可直接全部执行） |
 
-官网缺少的冲击卡/推广包等 → 走 `scripts/卡面提取/pipeline.py`，种子写到 `sql/seed-cards/`。
+官网缺少的冲击卡/推广包等 → `scripts/卡面提取/pipeline.py`；仅重生成 SQL → `scripts/card_common/rebuild_seed_cli.py`。
 
 ## 运行
 

@@ -11,10 +11,11 @@
 
 ```
 scripts/card_common/
-├── spec.py            # 尺寸/圆角常量
-├── normalize.py       # trim / fit / round
-├── normalize_cli.py   # 批量规范化 CLI
-├── seed_sql.py        # ★ INSERT 生成（整包 / 按产品拆分）
+├── spec.py              # 尺寸/圆角常量
+├── normalize.py         # trim / fit / round
+├── normalize_cli.py     # 批量规范化 CLI
+├── seed_sql.py          # ★ INSERT 生成（按产品 + 总文件）
+├── rebuild_seed_cli.py  # 合并官网 out/ + catalogs → seed-cards
 └── __init__.py
 ```
 
@@ -28,13 +29,22 @@ scripts/card_common/
 
 ## SQL
 
+统一产出：
+
+- `sql/seed-cards/{产品}.sql` — 按产品
+- `sql/seed-cards.sql` — 总文件（拼接，可直接全部执行）
+
+```bash
+python scripts/card_common/rebuild_seed_cli.py
+```
+
 ```python
-from card_common.seed_sql import build_monolith_sql, write_seed_by_product
+from card_common.seed_sql import rebuild_merged_seed, write_seed_by_product
 
-# 官网：整包 seed-official-cards.sql
-sql = build_monolith_sql(products, cards, header_lines=[...])
+# 推荐：合并官网 JSON + 截图 catalog
+rebuild_merged_seed()
 
-# 截图补齐：sql/seed-cards/{产品}.sql + seed-cards.sql 入口
+# 或仅写入给定 products/cards
 write_seed_by_product(products, cards, out_dir=..., index_path=...)
 ```
 

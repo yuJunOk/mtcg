@@ -8,5 +8,5 @@
 | `extracted/` | 截图提取中间结果 | 不提交 |
 | `faces/` | 最终卡图（1488×2080） | 不提交；用网盘共享，本地解压/同步到此目录 |
 
-种子 SQL（可提交）：`seed-official-cards.sql`（官网整包）+ `seed-cards/{产品}.sql`（截图补齐）。  
+种子 SQL（可提交）：`sql/seed-cards.sql`（总文件）+ `sql/seed-cards/{产品}.sql`（按产品）。  
 本地访问：`/files/` + `image_path`（如 `/files/card/faces/BP01/BP01-001-MR.png`）。

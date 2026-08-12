@@ -2,6 +2,7 @@
 """卡牌/产品幂等种子 SQL 生成（官网拉取与截图补齐共用）。"""
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,14 @@ CARD_TYPE_MAP = {
     "rush_point": "RUSH_POINT",
     "rush": "RUSH_POINT",
 }
+
+_SCRIPTS = Path(__file__).resolve().parents[1]
+REPO_ROOT = _SCRIPTS.parent
+DEFAULT_OFFICIAL_OUT = _SCRIPTS / "官网卡表拉取" / "out"
+DEFAULT_CATALOG_DIR = _SCRIPTS / "卡面提取" / "catalogs"
+DEFAULT_SQL_DIR = REPO_ROOT / "mtcg-server" / "src" / "main" / "resources" / "sql"
+DEFAULT_SEED_DIR = DEFAULT_SQL_DIR / "seed-cards"
+DEFAULT_SEED_ALL = DEFAULT_SQL_DIR / "seed-cards.sql"
 
 
 def sql_quote(value: str | None) -> str:
@@ -146,6 +155,128 @@ def build_monolith_sql(
     return "\n".join(lines)
 
 
+def _slim_product(product: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "product_code": product["product_code"],
+        "product_name": product.get("product_name") or product["product_code"],
+        "release_date": product.get("release_date"),
+        "description": product.get("description"),
+    }
+
+
+def merge_products(*product_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 product_code 合并，后出现的覆盖先出现的。"""
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for products in product_lists:
+        for raw in products:
+            if not raw.get("product_code"):
+                continue
+            p = _slim_product(raw)
+            code = p["product_code"]
+            if code not in merged:
+                order.append(code)
+            merged[code] = p
+    return [merged[c] for c in order]
+
+
+def merge_cards(*card_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 card_code 合并，后出现的覆盖先出现的。"""
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for cards in card_lists:
+        for raw in cards:
+            c = normalize_seed_card(raw)
+            code = c["card_code"]
+            if code not in merged:
+                order.append(code)
+            merged[code] = c
+    return [merged[c] for c in order]
+
+
+def load_json(path: Path) -> Any:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def load_official_seed(
+    out_dir: Path | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    out_dir = Path(out_dir or DEFAULT_OFFICIAL_OUT)
+    products_path = out_dir / "products.json"
+    cards_path = out_dir / "cards.json"
+    if not products_path.is_file() or not cards_path.is_file():
+        return [], []
+    products = [_slim_product(p) for p in load_json(products_path)]
+    cards = list(load_json(cards_path))
+    return products, cards
+
+
+def load_catalog_seeds(
+    catalog_dir: Path | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    catalog_dir = Path(catalog_dir or DEFAULT_CATALOG_DIR)
+    products: list[dict[str, Any]] = []
+    cards: list[dict[str, Any]] = []
+    if not catalog_dir.is_dir():
+        return products, cards
+    for path in sorted(catalog_dir.glob("*.json")):
+        data = load_json(path)
+        products.extend(data.get("products") or [])
+        cards.extend(data.get("cards") or [])
+    return products, cards
+
+
+def load_merged_seed_sources(
+    *,
+    official_out: Path | None = None,
+    catalog_dir: Path | None = None,
+    extra_products: list[dict[str, Any]] | None = None,
+    extra_cards: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """官网 JSON + 截图 catalog + 可选增量，合并为一套种子。"""
+    official_products, official_cards = load_official_seed(official_out)
+    catalog_products, catalog_cards = load_catalog_seeds(catalog_dir)
+    products = merge_products(
+        official_products,
+        catalog_products,
+        extra_products or [],
+    )
+    # 补齐覆盖官网同号（一般无交集）
+    cards = merge_cards(
+        official_cards,
+        catalog_cards,
+        extra_cards or [],
+    )
+    return products, cards
+
+
+def write_seed_bundle(
+    out_dir: Path,
+    index_path: Path,
+    written: list[tuple[str, int]],
+    *,
+    title_prefix: str = "卡牌/产品种子",
+) -> None:
+    """把 seed-cards/*.sql 拼成可直接执行的总 SQL。"""
+    total = sum(n for _, n in written)
+    header = [
+        f"-- {title_prefix}（总文件，可直接全部执行）",
+        f"-- 由 seed-cards/{{产品}}.sql 拼接生成，共 {len(written)} 个产品 / {total} 张卡",
+        "-- 单产品请执行: seed-cards/{产品编码}.sql",
+        "-- 幂等：按 product_code / card_code 去重插入",
+        "",
+    ]
+    parts = ["\n".join(header)]
+    for code, n in written:
+        path = Path(out_dir) / f"{code}.sql"
+        body = path.read_text(encoding="utf-8").rstrip() + "\n"
+        parts.append(f"-- ========== {code}（{n}）==========\n")
+        parts.append(body)
+        if not body.endswith("\n"):
+            parts.append("\n")
+    Path(index_path).write_text("\n".join(parts), encoding="utf-8")
+
+
 def write_seed_by_product(
     products: list[dict[str, Any]],
     cards: list[dict[str, Any]],
@@ -153,14 +284,16 @@ def write_seed_by_product(
     out_dir: Path,
     index_path: Path,
     title_prefix: str = "卡牌/产品种子",
+    wipe: bool = True,
 ) -> list[tuple[str, int]]:
-    """按产品拆分写入 seed-cards/{CODE}.sql，并生成入口 index。"""
+    """按产品拆分写入 seed-cards/{CODE}.sql，并生成可执行总文件 seed-cards.sql。"""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for old in out_dir.glob("*.sql"):
-        old.unlink()
+    if wipe:
+        for old in out_dir.glob("*.sql"):
+            old.unlink()
 
-    product_map = {p["product_code"]: p for p in products}
+    product_map = {p["product_code"]: _slim_product(p) for p in products}
     by_product: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for raw in cards:
         c = normalize_seed_card(raw)
@@ -173,7 +306,6 @@ def write_seed_by_product(
                 "description": None,
             }
 
-    # 稳定顺序：先按传入 products 顺序，再补遗漏
     ordered_codes: list[str] = []
     for p in products:
         code = p["product_code"]
@@ -186,6 +318,8 @@ def write_seed_by_product(
     written: list[tuple[str, int]] = []
     for code in ordered_codes:
         prod_cards = by_product[code]
+        # 同产品内按 card_code 稳定排序
+        prod_cards.sort(key=lambda c: c["card_code"])
         p = product_map[code]
         title = f"{code} {p.get('product_name') or ''}".strip()
         lines = [
@@ -208,17 +342,34 @@ def write_seed_by_product(
         (out_dir / f"{code}.sql").write_text("\n".join(lines), encoding="utf-8")
         written.append((code, len(prod_cards)))
 
-    index_lines = [
-        f"-- {title_prefix}入口（按产品拆分）",
-        "-- 官网整包: seed-official-cards.sql",
-        "-- 本目录分文件: seed-cards/{产品编码}.sql",
-        "-- 全部执行（psql）: \\i .../sql/seed-cards.sql",
-        "-- 单产品执行: \\i .../sql/seed-cards/BP01.sql",
-        "",
-    ]
-    for code, n in written:
-        index_lines.append(f"-- {code}（{n}）")
-        index_lines.append(f"\\ir seed-cards/{code}.sql")
-        index_lines.append("")
-    Path(index_path).write_text("\n".join(index_lines), encoding="utf-8")
+    write_seed_bundle(out_dir, index_path, written, title_prefix=title_prefix)
     return written
+
+
+def rebuild_merged_seed(
+    *,
+    official_out: Path | None = None,
+    catalog_dir: Path | None = None,
+    extra_products: list[dict[str, Any]] | None = None,
+    extra_cards: list[dict[str, Any]] | None = None,
+    out_dir: Path | None = None,
+    index_path: Path | None = None,
+    title_prefix: str = "卡牌/产品种子",
+) -> list[tuple[str, int]]:
+    """合并官网 + catalog（+可选增量）并写 seed-cards。"""
+    products, cards = load_merged_seed_sources(
+        official_out=official_out,
+        catalog_dir=catalog_dir,
+        extra_products=extra_products,
+        extra_cards=extra_cards,
+    )
+    if not cards:
+        raise RuntimeError("没有可写入的卡牌（检查官网 out/cards.json 与 catalogs）")
+    return write_seed_by_product(
+        products,
+        cards,
+        out_dir=Path(out_dir or DEFAULT_SEED_DIR),
+        index_path=Path(index_path or DEFAULT_SEED_ALL),
+        title_prefix=title_prefix,
+        wipe=True,
+    )

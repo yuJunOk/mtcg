@@ -33,7 +33,7 @@ from card_common.seed_sql import (  # noqa: E402
     ensure_product_code,
     image_rel_path,
     normalize_seed_card,
-    write_seed_by_product,
+    rebuild_merged_seed,
 )
 from card_common.spec import CARD_HEIGHT, CARD_WIDTH  # noqa: E402
 
@@ -256,11 +256,11 @@ def cmd_apply(args: argparse.Namespace) -> int:
         c["image_path"] = image_rel_path(c["product_code"], c["card_code"])
         print(f"  [img] {c['card_code']} <- {stub.get('source')}")
 
-    # 去掉内部字段再写 SQL
+    # 去掉内部字段；与官网 out/ 合并后写 seed-cards
     seed_cards = [{k: v for k, v in c.items() if not k.startswith("_")} for c in cards]
-    written = write_seed_by_product(
-        products,
-        seed_cards,
+    written = rebuild_merged_seed(
+        extra_products=products,
+        extra_cards=seed_cards,
         out_dir=seed_dir,
         index_path=index_path,
         title_prefix="卡牌/产品种子",
@@ -268,7 +268,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
     print("-" * 50)
     for code, n in written:
         print(f"  [sql] seed-cards/{code}.sql ({n})")
-    print(f"入口: {index_path}")
+    print(f"总文件: {index_path}")
     return 0
 
 
@@ -281,13 +281,13 @@ def cmd_sql(args: argparse.Namespace) -> int:
     for c in cards:
         c["image_path"] = image_rel_path(c["product_code"], c["card_code"])
     seed_cards = [{k: v for k, v in c.items() if not k.startswith("_")} for c in cards]
-    written = write_seed_by_product(
-        products,
-        seed_cards,
+    written = rebuild_merged_seed(
+        extra_products=products,
+        extra_cards=seed_cards,
         out_dir=sql_dir / "seed-cards",
         index_path=sql_dir / "seed-cards.sql",
     )
-    print(f"已重生成 SQL，产品数={len(written)}，卡牌数={len(seed_cards)}")
+    print(f"已重生成 SQL，产品数={len(written)}，总卡数={sum(n for _, n in written)}")
     return 0
 
 

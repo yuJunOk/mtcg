@@ -39,7 +39,9 @@ from card_common.normalize import is_normalized, normalize_card_file  # noqa: E4
 from card_common.seed_sql import (  # noqa: E402
     CARD_TYPE_MAP,
     COLOR_MAP,
-    build_monolith_sql,
+    DEFAULT_SEED_ALL,
+    DEFAULT_SEED_DIR,
+    rebuild_merged_seed,
 )
 from card_common.spec import CARD_HEIGHT, CARD_WIDTH  # noqa: E402
 
@@ -55,9 +57,8 @@ MIN_VALID_PNG_BYTES = 200_000
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IMAGE_DIR = REPO_ROOT / "assets" / "card" / "faces"
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent / "out"
-DEFAULT_SQL_PATH = (
-    REPO_ROOT / "mtcg-server" / "src" / "main" / "resources" / "sql" / "seed-official-cards.sql"
-)
+DEFAULT_SQL_DIR = DEFAULT_SEED_DIR
+DEFAULT_SQL_ALL = DEFAULT_SEED_ALL
 
 
 def http_get_json(path: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -416,26 +417,13 @@ def download_images(
     return ok, skipped, failed, norm_ok
 
 
-def build_sql(products: list[dict[str, Any]], cards: list[dict[str, Any]]) -> str:
-    # description 字段官网侧暂无，保持与历史种子一致写 NULL
-    products_for_sql = [
-        {
-            "product_code": p["product_code"],
-            "product_name": p["product_name"],
-            "release_date": p.get("release_date"),
-            "description": None,
-        }
-        for p in products
-    ]
-    return build_monolith_sql(
-        products_for_sql,
-        cards,
-        header_lines=[
-            "-- 官网卡表种子数据（自动生成，勿手改）",
-            "-- 来源: https://www.marvelherorush.com/cn/cards",
-            "-- card_code 格式: {编号}-{罕度}，如 BP01-001-MR",
-            "-- 幂等：按 product_code / card_code 去重插入",
-        ],
+def write_seed_sql(out_dir: Path, seed_dir: Path, seed_all: Path) -> list[tuple[str, int]]:
+    """根据 out/ JSON + 截图 catalogs 合并写入 seed-cards。"""
+    return rebuild_merged_seed(
+        official_out=out_dir,
+        out_dir=seed_dir,
+        index_path=seed_all,
+        title_prefix="卡牌/产品种子",
     )
 
 
@@ -451,13 +439,15 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=3, help="图片下载并发数（CDN 易断流，默认 3）")
     parser.add_argument("--image-dir", type=Path, default=DEFAULT_IMAGE_DIR)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
-    parser.add_argument("--sql-path", type=Path, default=DEFAULT_SQL_PATH)
+    parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
+    parser.add_argument("--seed-all", type=Path, default=DEFAULT_SEED_ALL)
     args = parser.parse_args()
 
     print(f"[init] repo={REPO_ROOT}")
     print(f"[init] image_dir={args.image_dir}")
     print(f"[init] out_dir={args.out_dir}")
-    print(f"[init] sql_path={args.sql_path}")
+    print(f"[init] seed_dir={args.seed_dir}")
+    print(f"[init] seed_all={args.seed_all}")
 
     products = fetch_products()
     print(f"[product] count={len(products)} codes={[p['product_code'] for p in products]}")
@@ -490,12 +480,11 @@ def main() -> int:
     print(f"[json] wrote {args.out_dir / 'products.json'}")
     print(f"[json] wrote {args.out_dir / 'cards.json'}")
 
-    sql = build_sql(products, cards)
-    args.sql_path.parent.mkdir(parents=True, exist_ok=True)
-    args.sql_path.write_text(sql, encoding="utf-8")
-    (args.out_dir / "seed-official-cards.sql").write_text(sql, encoding="utf-8")
-    print(f"[sql] wrote {args.sql_path}")
-    print(f"[sql] wrote {args.out_dir / 'seed-official-cards.sql'}")
+    written = write_seed_sql(args.out_dir, args.seed_dir, args.seed_all)
+    total = sum(n for _, n in written)
+    print(f"[sql] wrote {args.seed_all} ({len(written)} products / {total} cards)")
+    for code, n in written:
+        print(f"  - seed-cards/{code}.sql ({n})")
 
     if args.skip_images:
         print("[img] skipped")
