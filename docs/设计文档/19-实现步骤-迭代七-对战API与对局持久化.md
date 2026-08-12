@@ -150,8 +150,8 @@
 | 3 | 后端 - DO / DTO / VO | ✅ |
 | 4 | 后端 - GameMapper | ✅ |
 | 5 | 后端 - GameManager / Context / Serializer | ✅ |
-| 6 | 后端 - GameService 主链路 | ⬜ |
-| 7 | 后端 - 历史 / 统计 / 复盘 / 隐私 | ⬜ |
+| 6 | 后端 - GameService 主链路 | ✅ |
+| 7 | 后端 - 历史 / 统计 / 复盘 / 隐私 | ✅ |
 | 8 | 后端 - GameController | ⬜ |
 | 9 | 后端 - 单测 | ⬜ |
 | 10 | 前端 - Hash 路由 + 登录/注册 + 守卫 | ⬜ |
