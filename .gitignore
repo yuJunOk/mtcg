@@ -40,6 +40,14 @@ assets/card/official/
 logs/
 *.log
 
+### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+
 ### Node (mtcg-client-*) ###
 node_modules/
 dist/
