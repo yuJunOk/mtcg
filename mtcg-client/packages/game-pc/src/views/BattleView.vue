@@ -5,6 +5,8 @@ import type { CardInstanceVO, Zone } from '@mtcg/common'
 import { useGameStore } from '@mtcg/common/stores'
 import { Card } from '@mtcg/common/components'
 import BattleFieldCard from '@/components/battle/BattleFieldCard.vue'
+import { confirm } from '@/feedback'
+import { NButton } from 'naive-ui'
 
 const route = useRoute()
 const router = useRouter()
@@ -101,9 +103,17 @@ const clockUrgent = computed(() => {
   return ''
 })
 
-/** SVG 圆环：周长约 100，用 dashoffset 表示剩余 */
-const CLOCK_RING = 100
-const clockDashOffset = computed(() => CLOCK_RING * (1 - clockRatio.value))
+/** CSS 圆锥进度（不用 SVG 图标） */
+const clockRingStyle = computed(() => {
+  const pct = Math.round(clockRatio.value * 100)
+  let color = 'var(--accent)'
+  if (!store.isLocalPlayerActive) color = 'var(--accent-blue)'
+  if (clockUrgent.value === 'warn') color = 'var(--accent-gold)'
+  if (clockUrgent.value === 'danger') color = 'var(--accent-red)'
+  return {
+    background: `conic-gradient(${color} ${pct}%, var(--border) 0)`,
+  }
+})
 
 const canAct = computed(
   () => store.isLocalPlayerActive && !store.loading && !store.isGameOver,
@@ -262,6 +272,7 @@ async function runAction(
     await store.doAction(dto)
     clearSelection()
   } catch {
+    // HTTP 业务错误已由全局 notifier 弹 Toast；此处只更新局内提示
     actionError.value = store.error ?? '操作失败'
   }
 }
@@ -273,7 +284,13 @@ async function onEndPhase(): Promise<void> {
 
 async function onSurrender(): Promise<void> {
   if (!hasSurrender.value || store.loading || store.isGameOver) return
-  if (!window.confirm('确认认输？')) return
+  const ok = await confirm({
+    title: '认输',
+    content: '确认认输？对局将立即结束。',
+    positiveText: '认输',
+    danger: true,
+  })
+  if (!ok) return
   await runAction({ actionType: 'SURRENDER' })
 }
 
@@ -492,7 +509,7 @@ onUnmounted(() => {
   >
     <!-- 顶栏：导航 + 阶段步进 + 回合 -->
     <header class="chrome-top">
-      <button type="button" class="icon-btn" title="返回" @click="goHome">←</button>
+      <n-button size="tiny" quaternary @click="goHome" title="返回">←</n-button>
 
       <nav class="phase-rail" aria-label="回合阶段">
         <span
@@ -520,17 +537,8 @@ onUnmounted(() => {
           ]"
           :title="`本阶段限时 ${TURN_LIMIT_SEC} 秒，超时自动结束阶段`"
         >
-          <svg class="clock-ring" viewBox="0 0 36 36" aria-hidden="true">
-            <circle class="ring-track" cx="18" cy="18" r="15.9" />
-            <circle
-              class="ring-value"
-              cx="18"
-              cy="18"
-              r="15.9"
-              :style="{ strokeDashoffset: clockDashOffset }"
-            />
-          </svg>
-          <span class="clock-num">{{ clockDisplay }}</span>
+          <span class="clock-ring" :style="clockRingStyle" aria-hidden="true" />
+          <span class="clock-num">⏱️ {{ clockDisplay }}</span>
         </div>
         <span
           class="turn-owner"
@@ -540,37 +548,14 @@ onUnmounted(() => {
         </span>
       </div>
 
-      <button
-        type="button"
-        class="icon-btn"
+      <n-button
+        size="tiny"
+        quaternary
         :title="isFullscreen ? '退出全屏' : '全屏'"
         @click="toggleFullscreen"
       >
-        <svg
-          v-if="!isFullscreen"
-          viewBox="0 0 16 16"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-        >
-          <path d="M2.5 5.5V2.5h3M13.5 5.5V2.5h-3M2.5 10.5v3h3M13.5 10.5v3h-3" />
-        </svg>
-        <svg
-          v-else
-          viewBox="0 0 16 16"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-        >
-          <path d="M5.5 2.5v3h-3M10.5 2.5v3h3M5.5 13.5v-3h-3M10.5 13.5v-3h3" />
-        </svg>
-      </button>
+        {{ isFullscreen ? '⬜' : '⛶' }}
+      </n-button>
     </header>
 
     <!-- 对手仪表条 -->
@@ -883,7 +868,7 @@ onUnmounted(() => {
                   : '对手赢得了本局'
             }}
           </p>
-          <button type="button" class="btn-home" @click="goHome">返回首页</button>
+          <n-button type="primary" size="small" @click="goHome">🏠 返回首页</n-button>
         </div>
       </div>
     </main>
@@ -951,54 +936,56 @@ onUnmounted(() => {
       <div class="dock-left">
         <p class="hint" :class="{ error: !!actionError }">{{ hintText }}</p>
         <div class="cmds">
-          <button
+          <n-button
             v-if="hasBaseDeploy"
-            type="button"
-            class="cmd"
-            :class="{ on: pendingMode === 'BASE_DEPLOY' }"
+            size="small"
+            :type="pendingMode === 'BASE_DEPLOY' ? 'primary' : 'default'"
+            :secondary="pendingMode !== 'BASE_DEPLOY'"
             :disabled="!canAct"
             @click="setPendingMode('BASE_DEPLOY')"
           >
-            基地部署
-          </button>
-          <button
+            🏕️ 基地部署
+          </n-button>
+          <n-button
             v-if="hasSummon"
-            type="button"
-            class="cmd"
-            :class="{ on: pendingMode === 'SUMMON' }"
+            size="small"
+            :type="pendingMode === 'SUMMON' ? 'primary' : 'default'"
+            :secondary="pendingMode !== 'SUMMON'"
             :disabled="!canAct"
             @click="setPendingMode('SUMMON')"
           >
-            号召
-          </button>
-          <button
+            ✨ 号召
+          </n-button>
+          <n-button
             v-if="hasAttack"
-            type="button"
-            class="cmd"
-            :class="{ on: pendingMode === 'ATTACK' }"
+            size="small"
+            :type="pendingMode === 'ATTACK' ? 'primary' : 'default'"
+            :secondary="pendingMode !== 'ATTACK'"
             :disabled="!canAct"
             @click="setPendingMode('ATTACK')"
           >
-            攻击
-          </button>
-          <button
+            ⚔️ 攻击
+          </n-button>
+          <n-button
             v-if="hasEndPhase"
-            type="button"
-            class="cmd primary"
+            type="primary"
+            size="small"
             :disabled="!canAct"
+            :loading="store.loading"
             @click="onEndPhase"
           >
-            结束阶段
-          </button>
-          <button
+            ▶️ 结束阶段
+          </n-button>
+          <n-button
             v-if="hasSurrender"
-            type="button"
-            class="cmd danger"
+            type="error"
+            size="small"
+            secondary
             :disabled="store.loading || store.isGameOver"
             @click="onSurrender"
           >
-            认输
-          </button>
+            🏳️ 认输
+          </n-button>
         </div>
       </div>
 
@@ -1062,25 +1049,6 @@ onUnmounted(() => {
   z-index: 8;
 }
 
-.icon-btn {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.icon-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .phase-rail {
   display: flex;
   align-items: center;
@@ -1131,67 +1099,37 @@ onUnmounted(() => {
 
 .turn-clock {
   position: relative;
-  width: 40px;
+  min-width: 64px;
   height: 40px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  padding: 0 4px;
 }
 
 .clock-ring {
   position: absolute;
-  inset: 0;
-  width: 40px;
-  height: 40px;
-  transform: rotate(-90deg);
-}
-
-.ring-track,
-.ring-value {
-  fill: none;
-  stroke-width: 3.2;
-}
-
-.ring-track {
-  stroke: var(--border);
-}
-
-.ring-value {
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-dasharray: 100;
-  transition: stroke-dashoffset 0.2s linear, stroke 0.15s ease;
-}
-
-.turn-clock.mine .ring-value {
-  stroke: var(--accent);
-}
-
-.turn-clock.theirs .ring-value {
-  stroke: var(--accent-blue);
-}
-
-.turn-clock.warn .ring-value {
-  stroke: var(--accent-gold);
-}
-
-.turn-clock.danger .ring-value {
-  stroke: var(--accent-red);
-}
-
-.turn-clock.danger .clock-num {
-  color: var(--accent-red);
-  animation: clock-pulse 0.7s ease-in-out infinite;
+  inset: 2px;
+  border-radius: 50%;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  transition: background 0.2s linear;
 }
 
 .clock-num {
   position: relative;
   z-index: 1;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+  white-space: nowrap;
   letter-spacing: -0.02em;
+}
+
+.turn-clock.danger .clock-num {
+  color: var(--accent-red);
+  animation: clock-pulse 0.7s ease-in-out infinite;
 }
 
 @keyframes clock-pulse {
@@ -1716,52 +1654,6 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-.cmd {
-  height: 28px;
-  padding: 0 11px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  transition: color var(--transition-fast), border-color var(--transition-fast),
-    background var(--transition-fast);
-}
-
-.cmd:hover:not(:disabled),
-.cmd.on {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.cmd.primary {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-color: transparent;
-}
-
-.cmd.primary:hover:not(:disabled) {
-  filter: brightness(1.05);
-  color: var(--accent-contrast);
-}
-
-.cmd.danger {
-  color: var(--accent-red);
-  border-color: var(--accent-red);
-}
-
-.cmd.danger:hover:not(:disabled) {
-  background: var(--accent-red);
-  color: #fff;
-}
-
-.cmd:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 /* 手牌托盘：flex 重叠扇形，宽高写死，不再依赖 absolute 塌缩 */
 .hand-tray {
   display: flex;
@@ -1850,22 +1742,6 @@ onUnmounted(() => {
   margin: 0 0 16px;
   font-size: 13px;
   color: var(--text-secondary);
-}
-
-.btn-home {
-  height: 28px;
-  padding: 0 16px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-home:hover {
-  filter: brightness(1.05);
 }
 
 @media (max-width: 900px) {

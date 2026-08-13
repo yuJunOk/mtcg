@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { NEmpty, NPagination, NSpin, NTag } from 'naive-ui'
 import {
   PRODUCT_CATEGORY_OPTIONS,
   getProductCategoryLabel,
@@ -56,8 +57,12 @@ function openProduct(p: ProductVO): void {
   void router.push({ path: '/cards', query: { product: p.productCode } })
 }
 
-function setCategory(next: '' | ProductCategory): void {
-  category.value = next
+function setCategory(next: '' | ProductCategory, checked: boolean): void {
+  if (checked) {
+    category.value = next
+  } else if (category.value === next) {
+    category.value = ''
+  }
 }
 
 async function loadProducts(): Promise<void> {
@@ -89,23 +94,34 @@ watch(pageCount, (n) => {
 
     <div class="filter-bar">
       <div class="chips">
-        <button type="button" class="chip" :class="{ on: !category }" @click="setCategory('')">全部</button>
-        <button
+        <n-tag
+          checkable
+          :checked="!category"
+          size="small"
+          @update:checked="(v) => v && setCategory('', true)"
+        >
+          全部
+        </n-tag>
+        <n-tag
           v-for="o in PRODUCT_CATEGORY_OPTIONS"
           :key="o.code"
-          type="button"
-          class="chip"
-          :class="{ on: category === o.code }"
-          @click="setCategory(o.code)"
+          checkable
+          :checked="category === o.code"
+          size="small"
+          @update:checked="(v) => setCategory(o.code, v)"
         >
           {{ o.desc }}
-        </button>
+        </n-tag>
       </div>
       <span class="count">共 {{ total }} 条</span>
     </div>
 
-    <p v-if="loading && allProducts.length === 0" class="hint">加载中…</p>
-    <p v-else-if="!loading && pageRows.length === 0" class="hint">暂无商品</p>
+    <div v-if="loading && allProducts.length === 0" class="spin-wrap">
+      <n-spin size="large" />
+    </div>
+    <div v-else-if="!loading && pageRows.length === 0" class="empty">
+      <n-empty description="暂无商品" />
+    </div>
 
     <div v-else class="grid">
       <button
@@ -124,22 +140,14 @@ watch(pageCount, (n) => {
       </button>
     </div>
 
-    <div class="pager">
-      <label>
-        每页
-        <select v-model.number="pageSize" class="select compact">
-          <option :value="10">10</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-          <option :value="100">100</option>
-        </select>
-        条
-      </label>
-      <button type="button" class="ghost sm" :disabled="pageNum <= 1" @click="pageNum -= 1">上一页</button>
-      <span>{{ pageNum }} / {{ pageCount }}</span>
-      <button type="button" class="ghost sm" :disabled="pageNum >= pageCount" @click="pageNum += 1">
-        下一页
-      </button>
+    <div v-if="total > 0" class="pager">
+      <n-pagination
+        v-model:page="pageNum"
+        v-model:page-size="pageSize"
+        :item-count="total"
+        show-size-picker
+        :page-sizes="[10, 20, 50, 100]"
+      />
     </div>
   </div>
 </template>
@@ -175,27 +183,17 @@ watch(pageCount, (n) => {
   gap: 6px;
 }
 
-.chip {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.chip.on {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
 .count {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.spin-wrap,
+.empty {
+  padding: 48px 0;
+  display: flex;
+  justify-content: center;
 }
 
 .grid {
@@ -255,62 +253,11 @@ watch(pageCount, (n) => {
   color: var(--text-secondary);
 }
 
-.hint {
-  padding: 24px 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
 .pager {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   margin-top: 20px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.pager label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
-}
-
-.select {
-  height: var(--ctrl-h);
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-}
-
-.select.compact {
-  height: 28px;
-  padding: 0 8px;
-}
-
-.ghost {
-  height: 30px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.ghost:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.ghost:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

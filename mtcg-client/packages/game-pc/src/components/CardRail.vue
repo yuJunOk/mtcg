@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { NButton } from 'naive-ui'
 
 const props = defineProps<{
   /** 内容变化时（列表长度）重新计算可否滚动 */
@@ -93,45 +94,29 @@ defineExpose({ refresh })
 
 <template>
   <div class="rail">
-    <button
-      type="button"
+    <n-button
       class="rail-btn prev"
+      circle
+      strong
       :disabled="!canPrev"
       aria-label="向左一张"
       @click="scrollByCard(-1)"
     >
-      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-        <path
-          d="M10.5 3.5 5.5 8l5 4.5"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
+      ◀
+    </n-button>
     <div ref="viewport" class="rail-view" @scroll.passive="syncFromScroll">
       <slot />
     </div>
-    <button
-      type="button"
+    <n-button
       class="rail-btn next"
+      circle
+      strong
       :disabled="!canNext"
       aria-label="向右一张"
       @click="scrollByCard(1)"
     >
-      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-        <path
-          d="M5.5 3.5 10.5 8l-5 4.5"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
+      ▶
+    </n-button>
   </div>
 </template>
 
@@ -164,27 +149,11 @@ defineExpose({ refresh })
   position: absolute;
   top: 50%;
   z-index: 2;
-  display: grid;
-  place-items: center;
-  padding: 0;
   width: 40px;
   height: 40px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
-  color: var(--text-primary);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
   transform: translateY(-50%);
-  transition:
-    opacity var(--transition-fast),
-    border-color var(--transition-fast),
-    color var(--transition-fast),
-    background var(--transition-fast);
-}
-
-.rail-btn svg {
-  display: block;
+  box-shadow: var(--shadow-sm);
+  transition: opacity var(--transition-fast);
 }
 
 .rail-btn.prev {
@@ -193,12 +162,6 @@ defineExpose({ refresh })
 
 .rail-btn.next {
   right: 4px;
-}
-
-.rail-btn:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  color: var(--accent);
-  background: var(--bg-surface);
 }
 
 .rail-btn:disabled {

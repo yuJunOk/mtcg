@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { NRadioButton, NRadioGroup } from 'naive-ui'
 import type { AIDifficulty, AIPlayStyle, CreateAIGameDTO, DeckVO, GameSeat } from '@mtcg/common'
 import DeckCover from '@/components/DeckCover.vue'
 import MtcgDialog from '@/components/MtcgDialog.vue'
@@ -178,53 +179,29 @@ watch(
         <span>难度</span>
         <em>{{ difficultyHint }}</em>
       </div>
-      <div class="seg" role="group" aria-label="难度">
-        <button
-          v-for="item in difficulties"
-          :key="item.id"
-          type="button"
-          class="seg-item"
-          :class="{ on: difficulty === item.id }"
-          :disabled="busy"
-          @click="difficulty = item.id"
-        >
+      <n-radio-group v-model:value="difficulty" :disabled="busy" size="medium" class="seg">
+        <n-radio-button v-for="item in difficulties" :key="item.id" :value="item.id">
           {{ item.label }}
-        </button>
-      </div>
+        </n-radio-button>
+      </n-radio-group>
     </section>
 
     <section class="field">
       <div class="field-label"><span>打牌倾向</span></div>
-      <div class="seg" role="group" aria-label="打牌倾向">
-        <button
-          v-for="item in styles"
-          :key="item.id"
-          type="button"
-          class="seg-item"
-          :class="{ on: playStyle === item.id }"
-          :disabled="busy"
-          @click="playStyle = item.id"
-        >
+      <n-radio-group v-model:value="playStyle" :disabled="busy" size="medium" class="seg">
+        <n-radio-button v-for="item in styles" :key="item.id" :value="item.id">
           {{ item.label }}
-        </button>
-      </div>
+        </n-radio-button>
+      </n-radio-group>
     </section>
 
     <section class="field">
       <div class="field-label"><span>先后手</span></div>
-      <div class="seg" role="group" aria-label="先后手">
-        <button
-          v-for="item in seats"
-          :key="item.label"
-          type="button"
-          class="seg-item"
-          :class="{ on: firstPlayer === item.id }"
-          :disabled="busy"
-          @click="firstPlayer = item.id"
-        >
+      <n-radio-group v-model:value="firstPlayer" :disabled="busy" size="medium" class="seg">
+        <n-radio-button v-for="item in seats" :key="item.label" :value="item.id">
           {{ item.label }}
-        </button>
-      </div>
+        </n-radio-button>
+      </n-radio-group>
     </section>
   </MtcgDialog>
 </template>
@@ -378,42 +355,16 @@ watch(
 }
 
 .seg {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 0;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface-2);
+  display: flex;
+  width: 100%;
 }
 
-.seg-item {
-  height: 36px;
-  border: none;
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
+.seg :deep(.n-radio-button) {
+  flex: 1;
+  text-align: center;
 }
 
-.seg-item.on {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-.seg-item:hover:not(:disabled):not(.on) {
-  color: var(--text-primary);
-}
-
-.tile:disabled,
-.seg-item:disabled {
+.tile:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

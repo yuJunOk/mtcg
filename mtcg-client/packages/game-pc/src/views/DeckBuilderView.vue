@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { NButton, NEmpty, NInput, NPagination, NSelect, NSpin, NTag } from 'naive-ui'
 import {
   CARD_ATTACK_RANGE_FILTER_OPTIONS,
   CARD_COLOR_OPTIONS,
@@ -23,6 +24,7 @@ import type {
   ProductVO,
 } from '@mtcg/common'
 import { useThemeStore } from '@mtcg/common/stores'
+import { confirm, toast } from '@/feedback'
 
 useThemeStore()
 
@@ -83,6 +85,11 @@ const filters = reactive({
   trait: '',
 })
 
+const productOptions = computed(() => [
+  { label: '商品系列', value: '' },
+  ...products.value.map((p) => ({ label: p.productCode, value: p.productCode })),
+])
+
 const hasActiveFilters = computed(() =>
   Boolean(
     filters.cardName.trim() ||
@@ -110,10 +117,6 @@ const mainColorCount = computed(() => {
   }
   return set.size
 })
-
-const poolPages = computed(() =>
-  Math.max(1, Math.ceil(poolTotal.value / poolPageSize.value)),
-)
 
 const inDeckCount = computed(() => {
   const map: Record<string, number> = {}
@@ -255,13 +258,24 @@ function clearFilters(): void {
   void loadPool()
 }
 
-function toggleChip<T extends string>(field: 'cardType' | 'color' | 'rarity' | 'trait', value: T): void {
-  const current = filters[field] as string
-  ;(filters[field] as string) = current === value ? '' : value
+function toggleChip(
+  field: 'cardType' | 'color' | 'rarity' | 'trait',
+  value: string,
+  checked: boolean,
+): void {
+  if (checked) {
+    ;(filters[field] as string) = value
+  } else if (filters[field] === value) {
+    ;(filters[field] as string) = ''
+  }
 }
 
-function toggleNumChip(field: 'level' | 'attackRange', value: number): void {
-  filters[field] = filters[field] === value ? null : value
+function toggleNumChip(field: 'level' | 'attackRange', value: number, checked: boolean): void {
+  if (checked) {
+    filters[field] = value
+  } else if (filters[field] === value) {
+    filters[field] = null
+  }
 }
 
 function cardImage(codeOrCard: string | CardVO): string {
@@ -415,7 +429,7 @@ function onEntryDragEnd(): void {
 
 async function handleSave(): Promise<void> {
   if (!deckName.value.trim()) {
-    window.alert('请填写卡组名称')
+    toast.warning('请填写卡组名称')
     return
   }
   if (mainDeck.value.length === 0) {
@@ -435,7 +449,7 @@ function cancelCoverPicker(): void {
 
 async function confirmCoverAndSave(): Promise<void> {
   if (!pendingCover.value) {
-    window.alert('请选择一张角色卡作为封面')
+    toast.warning('请选择一张角色卡作为封面')
     return
   }
   coverCardCode.value = pendingCover.value
@@ -461,23 +475,23 @@ async function persistDeck(): Promise<void> {
     if (isNew.value) {
       const id = await deckApi.create(payload, saving)
       dirty.value = false
+      toast.success('卡组已创建')
       await router.replace(`/decks/${id}`)
-      window.alert('已创建卡组')
     } else {
       await deckApi.update(deckId.value!, payload, saving)
       dirty.value = false
       const vo = await deckApi.get(deckId.value!)
       serverValid.value = vo.isValid
-      window.alert('已保存')
+      toast.success('卡组已保存')
     }
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   }
 }
 
 async function handleValidate(): Promise<void> {
   if (isNew.value || dirty.value) {
-    window.alert('请先保存卡组再校验')
+    toast.warning('请先保存卡组再校验')
     return
   }
   try {
@@ -485,29 +499,29 @@ async function handleValidate(): Promise<void> {
     validateResult.value = result
     serverValid.value = result.valid
     if (result.valid) {
-      window.alert('校验通过')
+      toast.success('校验通过')
+    } else {
+      toast.warning(result.errors.join('；') || '校验未通过')
     }
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   }
 }
 
 async function handleBack(): Promise<void> {
-  if (dirty.value && !window.confirm('有未保存的修改，确定返回？')) {
-    return
+  if (dirty.value) {
+    const ok = await confirm({
+      title: '未保存的修改',
+      content: '有未保存的修改，确定返回？',
+      positiveText: '返回',
+    })
+    if (!ok) return
   }
   await router.push('/decks')
 }
 
-function prevPoolPage(): void {
-  if (poolPage.value <= 1) return
-  poolPage.value -= 1
-  void loadPool()
-}
-
-function nextPoolPage(): void {
-  if (poolPage.value >= poolPages.value) return
-  poolPage.value += 1
+function onPoolPageChange(page: number): void {
+  poolPage.value = page
   void loadPool()
 }
 </script>
@@ -516,13 +530,13 @@ function nextPoolPage(): void {
   <div class="builder">
     <!-- 顶栏：Snap / Arena 式工具条 -->
     <header class="topbar">
-      <button type="button" class="ghost" @click="handleBack">←</button>
-      <input
-        v-model="deckName"
+      <n-button quaternary @click="handleBack">←</n-button>
+      <n-input
+        v-model:value="deckName"
         class="name"
         maxlength="64"
         placeholder="卡组名称"
-        @input="markDirty"
+        @update:value="markDirty"
       />
       <span class="stat" :class="{ ok: mainCount === MAIN_TARGET, over: mainCount > MAIN_TARGET }">
         主 {{ mainCount }}/{{ MAIN_TARGET }}
@@ -533,15 +547,20 @@ function nextPoolPage(): void {
       <span class="stat" :class="{ over: mainColorCount > COLOR_MAX }">
         {{ mainColorCount }}/{{ COLOR_MAX }} 色
       </span>
-      <span v-if="serverValid !== null" class="pill" :class="serverValid ? 'ok' : 'bad'">
+      <n-tag
+        v-if="serverValid !== null"
+        size="small"
+        :type="serverValid ? 'success' : 'default'"
+        :bordered="false"
+      >
         {{ serverValid ? '合法' : '未合法' }}
-      </span>
-      <span v-if="dirty" class="pill dirty">未保存</span>
+      </n-tag>
+      <n-tag v-if="dirty" size="small" type="info" :bordered="false">未保存</n-tag>
       <div class="actions">
-        <button type="button" class="ghost" :disabled="saving" @click="handleValidate">校验</button>
-        <button type="button" class="primary" :disabled="saving || loading" @click="handleSave">
-          {{ saving ? '保存中…' : '保存' }}
-        </button>
+        <n-button :disabled="saving" @click="handleValidate">校验</n-button>
+        <n-button type="primary" :disabled="saving || loading" :loading="saving" @click="handleSave">
+          保存
+        </n-button>
       </div>
     </header>
 
@@ -583,10 +602,12 @@ function nextPoolPage(): void {
                 <span class="ecode">{{ entry.cardCode }}</span>
               </div>
               <div class="qty-ctrl">
-                <button type="button" @click.stop="changeQty('main', index, -1)">−</button>
+                <n-button size="tiny" secondary @click.stop="changeQty('main', index, -1)">−</n-button>
                 <span>{{ entry.quantity }}</span>
-                <button type="button" @click.stop="changeQty('main', index, 1)">+</button>
-                <button type="button" class="del" @click.stop="removeEntry('main', index)">×</button>
+                <n-button size="tiny" secondary @click.stop="changeQty('main', index, 1)">+</n-button>
+                <n-button size="tiny" quaternary type="error" @click.stop="removeEntry('main', index)">
+                  ✕
+                </n-button>
               </div>
             </div>
             <p v-if="mainDeck.length === 0" class="hint">从右侧卡池点选角色卡</p>
@@ -621,10 +642,12 @@ function nextPoolPage(): void {
                 <span class="ecode">{{ entry.cardCode }}</span>
               </div>
               <div class="qty-ctrl">
-                <button type="button" @click.stop="changeQty('rush', index, -1)">−</button>
+                <n-button size="tiny" secondary @click.stop="changeQty('rush', index, -1)">−</n-button>
                 <span>{{ entry.quantity }}</span>
-                <button type="button" @click.stop="changeQty('rush', index, 1)">+</button>
-                <button type="button" class="del" @click.stop="removeEntry('rush', index)">×</button>
+                <n-button size="tiny" secondary @click.stop="changeQty('rush', index, 1)">+</n-button>
+                <n-button size="tiny" quaternary type="error" @click.stop="removeEntry('rush', index)">
+                  ✕
+                </n-button>
               </div>
             </div>
             <p v-if="rushDeck.length === 0" class="hint">从右侧卡池点选冲击卡</p>
@@ -634,13 +657,18 @@ function nextPoolPage(): void {
 
       <section class="pool-side">
         <div class="filter-bar">
-          <input v-model="filters.cardName" class="search" placeholder="搜索卡牌" />
-          <select v-model="filters.productCode" class="select">
-            <option value="">商品系列</option>
-            <option v-for="p in products" :key="p.productCode" :value="p.productCode">
-              {{ p.productCode }}
-            </option>
-          </select>
+          <n-input
+            v-model:value="filters.cardName"
+            class="search"
+            clearable
+            placeholder="搜索卡牌"
+          />
+          <n-select
+            v-model:value="filters.productCode"
+            class="select"
+            :options="productOptions"
+            :consistent-menu-width="false"
+          />
           <div class="quick-colors">
             <button
               v-for="o in CARD_COLOR_OPTIONS"
@@ -649,13 +677,13 @@ function nextPoolPage(): void {
               class="color-dot"
               :class="[o.code.toLowerCase(), { on: filters.color === o.code }]"
               :title="o.desc + '色'"
-              @click="toggleChip('color', o.code)"
+              @click="toggleChip('color', o.code, filters.color !== o.code)"
             />
           </div>
-          <button type="button" class="ghost sm" @click="advancedOpen = !advancedOpen">
+          <n-button size="small" @click="advancedOpen = !advancedOpen">
             {{ advancedOpen ? '收起' : '高级筛选' }}
-          </button>
-          <button v-if="hasActiveFilters" type="button" class="link" @click="clearFilters">清除</button>
+          </n-button>
+          <n-button v-if="hasActiveFilters" text type="primary" @click="clearFilters">清除</n-button>
           <span class="count">共 {{ poolTotal }} 条</span>
         </div>
 
@@ -663,86 +691,130 @@ function nextPoolPage(): void {
           <div class="row">
             <span>类型</span>
             <div class="chips">
-              <button type="button" class="chip" :class="{ on: !filters.cardType }" @click="filters.cardType = ''">全部</button>
-              <button
+              <n-tag
+                checkable
+                size="small"
+                :checked="!filters.cardType"
+                @update:checked="(v) => v && (filters.cardType = '')"
+              >
+                全部
+              </n-tag>
+              <n-tag
                 v-for="o in CARD_TYPE_OPTIONS"
                 :key="o.code"
-                type="button"
-                class="chip"
-                :class="{ on: filters.cardType === o.code }"
-                @click="toggleChip('cardType', o.code)"
+                checkable
+                size="small"
+                :checked="filters.cardType === o.code"
+                @update:checked="(v) => toggleChip('cardType', o.code, v)"
               >
                 {{ o.desc }}
-              </button>
+              </n-tag>
             </div>
           </div>
           <div class="row">
             <span>稀有度</span>
             <div class="chips">
-              <button type="button" class="chip" :class="{ on: !filters.rarity }" @click="filters.rarity = ''">全部</button>
-              <button
+              <n-tag
+                checkable
+                size="small"
+                :checked="!filters.rarity"
+                @update:checked="(v) => v && (filters.rarity = '')"
+              >
+                全部
+              </n-tag>
+              <n-tag
                 v-for="code in CARD_RARITY_FILTER_CODES"
                 :key="code"
-                type="button"
-                class="chip mono"
-                :class="{ on: filters.rarity === code }"
-                @click="toggleChip('rarity', code)"
+                checkable
+                size="small"
+                class="mono"
+                :checked="filters.rarity === code"
+                @update:checked="(v) => toggleChip('rarity', code, v)"
               >
                 {{ code }}
-              </button>
+              </n-tag>
             </div>
           </div>
           <div class="row">
             <span>等级</span>
             <div class="chips">
-              <button type="button" class="chip" :class="{ on: filters.level == null }" @click="filters.level = null">全部</button>
-              <button
+              <n-tag
+                checkable
+                size="small"
+                :checked="filters.level == null"
+                @update:checked="(v) => v && (filters.level = null)"
+              >
+                全部
+              </n-tag>
+              <n-tag
                 v-for="lv in CARD_LEVEL_FILTER_OPTIONS"
                 :key="lv"
-                type="button"
-                class="chip mono"
-                :class="{ on: filters.level === lv }"
-                @click="toggleNumChip('level', lv)"
+                checkable
+                size="small"
+                class="mono"
+                :checked="filters.level === lv"
+                @update:checked="(v) => toggleNumChip('level', lv, v)"
               >
                 {{ lv }}
-              </button>
+              </n-tag>
             </div>
           </div>
           <div class="row">
             <span>攻击距离</span>
             <div class="chips">
-              <button type="button" class="chip" :class="{ on: filters.attackRange == null }" @click="filters.attackRange = null">全部</button>
-              <button
+              <n-tag
+                checkable
+                size="small"
+                :checked="filters.attackRange == null"
+                @update:checked="(v) => v && (filters.attackRange = null)"
+              >
+                全部
+              </n-tag>
+              <n-tag
                 v-for="r in CARD_ATTACK_RANGE_FILTER_OPTIONS"
                 :key="r"
-                type="button"
-                class="chip mono"
-                :class="{ on: filters.attackRange === r }"
-                @click="toggleNumChip('attackRange', r)"
+                checkable
+                size="small"
+                class="mono"
+                :checked="filters.attackRange === r"
+                @update:checked="(v) => toggleNumChip('attackRange', r, v)"
               >
                 {{ r }}
-              </button>
+              </n-tag>
             </div>
           </div>
           <div class="row">
             <span>特征</span>
             <div class="chips wrap">
-              <button type="button" class="chip" :class="{ on: !filters.trait }" @click="filters.trait = ''">全部</button>
-              <button
+              <n-tag
+                checkable
+                size="small"
+                :checked="!filters.trait"
+                @update:checked="(v) => v && (filters.trait = '')"
+              >
+                全部
+              </n-tag>
+              <n-tag
                 v-for="t in CARD_TRAIT_FILTER_OPTIONS"
                 :key="t"
-                type="button"
-                class="chip"
-                :class="{ on: filters.trait === t }"
-                @click="toggleChip('trait', t)"
+                checkable
+                size="small"
+                :checked="filters.trait === t"
+                @update:checked="(v) => toggleChip('trait', t, v)"
               >
                 {{ t }}
-              </button>
+              </n-tag>
             </div>
           </div>
         </div>
 
-        <div class="pool-grid">
+        <div v-if="poolLoading && pool.length === 0" class="spin-wrap">
+          <n-spin size="medium" />
+        </div>
+        <div v-else-if="!poolLoading && pool.length === 0" class="empty">
+          <n-empty description="没有匹配卡牌" size="small" />
+        </div>
+        <div v-else class="pool-grid">
           <button
             v-for="card in pool"
             :key="card.id"
@@ -769,21 +841,17 @@ function nextPoolPage(): void {
           </button>
         </div>
 
-        <div class="pager">
-          <label>
-            每页
-            <select v-model.number="poolPageSize" class="select compact">
-              <option :value="20">20</option>
-              <option :value="50">50</option>
-              <option :value="100">100</option>
-            </select>
-          </label>
-          <button type="button" class="ghost sm" :disabled="poolPage <= 1" @click="prevPoolPage">上一页</button>
-          <span>{{ poolPage }} / {{ poolPages }}</span>
-          <button type="button" class="ghost sm" :disabled="poolPage >= poolPages" @click="nextPoolPage">下一页</button>
+        <div v-if="poolTotal > 0" class="pager">
+          <n-pagination
+            :page="poolPage"
+            :page-size="poolPageSize"
+            :item-count="poolTotal"
+            show-size-picker
+            :page-sizes="[20, 50, 100]"
+            @update:page="onPoolPageChange"
+            @update:page-size="(s) => (poolPageSize = s)"
+          />
         </div>
-        <p v-if="poolLoading" class="hint center">加载中…</p>
-        <p v-else-if="pool.length === 0" class="hint center">没有匹配卡牌</p>
       </section>
     </div>
 
@@ -810,10 +878,15 @@ function nextPoolPage(): void {
           </button>
         </div>
         <div class="cover-actions">
-          <button type="button" class="ghost" :disabled="saving" @click="cancelCoverPicker">取消</button>
-          <button type="button" class="primary" :disabled="saving || !pendingCover" @click="confirmCoverAndSave">
-            {{ saving ? '保存中…' : '确定保存' }}
-          </button>
+          <n-button :disabled="saving" @click="cancelCoverPicker">取消</n-button>
+          <n-button
+            type="primary"
+            :disabled="saving || !pendingCover"
+            :loading="saving"
+            @click="confirmCoverAndSave"
+          >
+            确定保存
+          </n-button>
         </div>
       </div>
     </div>
@@ -843,22 +916,9 @@ function nextPoolPage(): void {
   z-index: 20;
 }
 
-.name,
-.search,
-.select {
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-}
-
 .name {
   width: 180px;
   flex: 0 1 220px;
-  height: 34px;
-  padding: 0 10px;
-  font-weight: 600;
-  font-size: 15px;
 }
 
 .stat {
@@ -871,17 +931,6 @@ function nextPoolPage(): void {
 .stat.ok { color: var(--accent); }
 .stat.over { color: var(--accent-red); }
 .stat.rush.ok { color: var(--accent-gold); }
-
-.pill {
-  flex-shrink: 0;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-.pill.ok { color: var(--accent); }
-.pill.bad { color: var(--text-secondary); }
-.pill.dirty { color: var(--accent-blue); }
 
 .actions {
   display: flex;
@@ -1041,33 +1090,6 @@ function nextPoolPage(): void {
   font-weight: 700;
 }
 
-.qty-ctrl button {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-  cursor: pointer;
-  line-height: 1;
-}
-
-.qty-ctrl button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.del {
-  width: auto !important;
-  padding: 0 6px;
-  font-size: 11px;
-}
-
-.del:hover {
-  border-color: var(--accent-red);
-  color: var(--accent-red);
-}
-
 .pool-side {
   display: flex;
   flex-direction: column;
@@ -1086,18 +1108,14 @@ function nextPoolPage(): void {
 }
 
 .search {
-  height: 34px;
-  padding: 0 12px;
   flex: 1 1 160px;
   min-width: 140px;
+  max-width: 240px;
 }
 
 .select {
-  height: 34px;
-  padding: 0 8px;
+  width: 130px;
 }
-
-.select.compact { height: 28px; }
 
 .quick-colors {
   display: flex;
@@ -1164,23 +1182,17 @@ function nextPoolPage(): void {
 
 .chips.wrap { flex-wrap: wrap; overflow: visible; }
 
-.chip {
-  flex: 0 0 auto;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
+.mono {
+  font-family: Consolas, monospace;
 }
 
-.chip.mono { min-width: 34px; font-family: Consolas, monospace; }
-.chip.on {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+.spin-wrap,
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
 }
 
 .pool-grid {
@@ -1282,67 +1294,8 @@ function nextPoolPage(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   margin-top: 12px;
   flex-shrink: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.pager label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
-}
-
-.primary,
-.ghost,
-.link {
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.primary {
-  height: var(--ctrl-h);
-  padding: 0 16px;
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
-}
-
-.ghost {
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.ghost.sm {
-  height: 30px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.ghost:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.link {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  padding: 0 4px;
-}
-
-.primary:disabled,
-.ghost:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .hint {
@@ -1350,8 +1303,6 @@ function nextPoolPage(): void {
   color: var(--text-secondary);
   font-size: 12px;
 }
-
-.hint.center { text-align: center; }
 
 .cover-mask {
   position: fixed;

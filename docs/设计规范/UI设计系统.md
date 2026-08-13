@@ -263,6 +263,18 @@ PC 页边距：`--space-lg`；移动：`--space-md`。
 
 「与 AI 对战」等内容：对阵封面 + AI 卡组横选 + 难度/倾向/先后手段控，全部放在内容区滚动。
 
+### 7.5 全局反馈与常规控件（Naive）
+
+| 场景 | 用法 |
+| --- | --- |
+| HTTP / 业务错误 | `toast.error`（`setHttpErrorNotifier`） |
+| 成功 / 提示 / 本地校验 | `toast.success` / `info` / `warning` |
+| 删除、认输、退出等确认 | `confirm`（禁止 `window.confirm`） |
+| 按钮 / 输入 / 空态 / 加载 / 分页 / 标签 | `NButton` / `NInput` / `NEmpty` / `NSpin` / `NPagination` / `NTag` 等 |
+
+**图标**：禁止自写 SVG 图标；用 emoji（如 ⚡ 匹配、🃏 卡组、☀️/🌙 主题）。  
+实现入口：`game-pc/src/feedback/`；主题与 `--accent` 同色相。
+
 ---
 
 ## 8. 页面线框

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { NButton, NEmpty, NInput, NSpin, NTag, NSpace } from 'naive-ui'
 import { deckApi, gameApi } from '@mtcg/common'
 import { useGameStore } from '@mtcg/common/stores'
 import type { CreateAIGameDTO, DeckVO } from '@mtcg/common'
 import AiBattleDialog from '@/components/AiBattleDialog.vue'
 import CardRail from '@/components/CardRail.vue'
 import DeckCover from '@/components/DeckCover.vue'
+import { toast } from '@/feedback'
 
 const READY_DECK_KEY = 'mtcg_ready_deck_id'
 const POLL_MS = 2000
@@ -49,6 +51,7 @@ function requireDeck(): DeckVO | null {
   const deck = selected.value
   if (!deck) {
     formError.value = '请先完成一套合法卡组'
+    toast.warning('请先完成一套合法卡组')
     return null
   }
   return deck
@@ -75,9 +78,11 @@ async function handleMatch(): Promise<void> {
   try {
     const result = await gameApi.match({ deckId: deck.id })
     if (result.matched && result.gameId != null) {
+      toast.success('匹配成功，进入对局')
       await enterBattle(result.gameId)
       return
     }
+    toast.info('暂无对手，可开房或与 AI 练手')
     phase.value = 'offer-ai'
   } catch {
     phase.value = 'idle'
@@ -95,6 +100,7 @@ async function handleCreateRoom(): Promise<void> {
     hostedGameId.value = id
     phase.value = 'hosting'
     startHostPoll(id)
+    toast.success(`房间已创建，对局 ID ${id}`)
   } catch {
     phase.value = 'idle'
   } finally {
@@ -126,8 +132,9 @@ async function handleCancelHost(): Promise<void> {
   busy.value = true
   try {
     await gameApi.cancelWaiting(id)
+    toast.info('已取消房间')
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   } finally {
     stopPoll()
     hostedGameId.value = null
@@ -139,10 +146,13 @@ async function handleCancelHost(): Promise<void> {
 async function copyRoomId(): Promise<void> {
   const id = hostedGameId.value
   if (id == null) return
+  const text = String(id)
   try {
-    await navigator.clipboard.writeText(String(id))
+    await navigator.clipboard.writeText(text)
+    toast.success('对局 ID 已复制')
   } catch {
-    window.prompt('复制对局 ID', String(id))
+    window.prompt('复制对局 ID', text)
+    toast.info('请手动复制对局 ID')
   }
 }
 
@@ -152,14 +162,16 @@ async function handleJoin(): Promise<void> {
   const id = Number(joinGameId.value.trim())
   if (!Number.isFinite(id) || id <= 0) {
     formError.value = '请填写对局 ID'
+    toast.warning('请填写对局 ID')
     return
   }
   busy.value = true
   try {
     const gameId = await gameApi.join(id, { deckId: deck.id })
+    toast.success('已加入对局')
     await enterBattle(gameId)
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   } finally {
     busy.value = false
   }
@@ -175,9 +187,10 @@ async function handleAiConfirm(dto: CreateAIGameDTO): Promise<void> {
   try {
     const gameId = await gameApi.createAi(dto)
     aiOpen.value = false
+    toast.success('对局已创建')
     await enterBattle(gameId)
   } catch {
-    // 后端 5106，toast 已提示尚未开放
+    // 后端业务错误由全局 notifier 提示
   } finally {
     busy.value = false
   }
@@ -211,13 +224,20 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <div v-if="loading" class="empty">加载中…</div>
+    <div v-if="loading" class="spin-wrap">
+      <n-spin size="large" />
+    </div>
 
     <div v-else-if="validDecks.length === 0" class="empty-room">
-      <span class="empty-ico" aria-hidden="true">🃏</span>
-      <p>还没有合法卡组，无法出战。</p>
-      <p class="hint">主卡组 50 张角色 · 冲击卡组 9 张。</p>
-      <button type="button" class="primary" @click="router.push('/decks')">去构筑</button>
+      <n-empty description="还没有合法卡组，无法出战。">
+        <template #icon>
+          <span class="empty-ico">🃏</span>
+        </template>
+        <template #extra>
+          <p class="hint">主卡组 50 张角色 · 冲击卡组 9 张。</p>
+          <n-button type="primary" @click="router.push('/decks')">去构筑</n-button>
+        </template>
+      </n-empty>
     </div>
 
     <template v-else>
@@ -232,11 +252,13 @@ onUnmounted(() => {
         <div class="brief">
           <p class="ready-kicker">出战卡组</p>
           <h2>{{ selected?.deckName }}</h2>
-          <div class="meta">
-            <span class="chip ok">合法</span>
-            <span class="chip">主 {{ selected?.mainDeckSize ?? 0 }}/50</span>
-            <span class="chip rush">冲击 {{ selected?.rushDeckSize ?? 0 }}/9</span>
-          </div>
+          <n-space class="meta" :size="8">
+            <n-tag type="success" size="small" :bordered="false">合法</n-tag>
+            <n-tag size="small" :bordered="false">主 {{ selected?.mainDeckSize ?? 0 }}/50</n-tag>
+            <n-tag type="warning" size="small" :bordered="false">
+              冲击 {{ selected?.rushDeckSize ?? 0 }}/9
+            </n-tag>
+          </n-space>
 
           <p v-if="formError" class="banner">{{ formError }}</p>
 
@@ -252,74 +274,45 @@ onUnmounted(() => {
             <p class="status-title">房间已创建，等待对手加入</p>
             <div class="room-row">
               <p class="room-id">对局 ID {{ hostedGameId }}</p>
-              <button type="button" class="ghost sm" @click="copyRoomId">复制</button>
+              <n-button size="small" @click="copyRoomId">复制</n-button>
             </div>
             <p class="hint">把 ID 发给对手，对方在下方加入即可开打。</p>
-            <button type="button" class="ghost" :disabled="busy" @click="handleCancelHost">
+            <n-button class="cancel-host" :disabled="busy" @click="handleCancelHost">
               取消房间
-            </button>
+            </n-button>
           </div>
 
           <div v-else-if="phase === 'offer-ai'" class="status-box">
             <p class="status-title">没有匹配到对手</p>
             <p class="hint">可以创建房间等好友，或先与 AI 练手。</p>
             <div class="cta-row">
-              <button type="button" class="primary" :disabled="busy" @click="handleCreateRoom">
-                创建房间
-              </button>
-              <button type="button" class="ghost" :disabled="busy" @click="handleAi">
-                与 AI 对战
-              </button>
+              <n-button type="primary" :loading="busy" @click="handleCreateRoom">
+                🏠 创建房间
+              </n-button>
+              <n-button :disabled="busy" @click="handleAi">🤖 与 AI 对战</n-button>
             </div>
-            <button type="button" class="link" @click="phase = 'idle'">返回</button>
+            <n-button text type="primary" class="back-link" @click="phase = 'idle'">返回</n-button>
           </div>
 
           <div v-else class="cta-row main">
-            <button type="button" class="primary" :disabled="busy" @click="handleMatch">
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8.9 1.6 3.2 8.2c-.2.3 0 .7.4.7h3.1l-.8 5.1c-.1.5.5.8.8.4l5.7-6.6c.2-.3 0-.7-.4-.7H8.9l.8-5.1c.1-.5-.5-.8-.8-.4Z"
-                />
-              </svg>
-              在线匹配
-            </button>
-            <button type="button" class="ghost" :disabled="busy" @click="handleCreateRoom">
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                <path
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  d="M3 5.5h10M5.5 3v5M10.5 3v5M3.5 8.5h9v4.2a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1V8.5Z"
-                />
-              </svg>
-              创建房间
-            </button>
-            <button type="button" class="ghost" :disabled="busy" @click="handleAi">
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                <rect x="4" y="5" width="8" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
-                <circle cx="6.5" cy="8.2" r="0.9" fill="currentColor" />
-                <circle cx="9.5" cy="8.2" r="0.9" fill="currentColor" />
-                <path d="M8 2.5v2.2M5.2 3.6 6.4 5M10.8 3.6 9.6 5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
-              </svg>
-              与 AI 对战
-            </button>
+            <n-button type="primary" :loading="busy" @click="handleMatch">
+              ⚡ 在线匹配
+            </n-button>
+            <n-button :disabled="busy" @click="handleCreateRoom">🏠 创建房间</n-button>
+            <n-button :disabled="busy" @click="handleAi">🤖 与 AI 对战</n-button>
           </div>
 
           <form class="join" @submit.prevent="handleJoin">
-            <label class="field grow">
-              <span>加入房间</span>
-              <input
-                v-model="joinGameId"
-                type="text"
-                inputmode="numeric"
+            <div class="field grow">
+              <span class="field-label">加入房间</span>
+              <n-input
+                v-model:value="joinGameId"
                 placeholder="输入对局 ID"
                 :disabled="locked"
+                inputmode="numeric"
               />
-            </label>
-            <button class="ghost join-btn" type="submit" :disabled="locked">
-              {{ busy ? '请稍候…' : '加入' }}
-            </button>
+            </div>
+            <n-button attr-type="submit" :loading="busy" :disabled="locked">加入</n-button>
           </form>
         </div>
       </section>
@@ -327,7 +320,7 @@ onUnmounted(() => {
       <section class="block">
         <header class="sec">
           <h2>可出战卡组</h2>
-          <button type="button" class="more" @click="router.push('/decks')">全部 →</button>
+          <n-button text type="primary" @click="router.push('/decks')">全部 →</n-button>
         </header>
         <CardRail :item-count="validDecks.length">
           <button
@@ -383,17 +376,14 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-.empty {
-  padding: 40px 0;
-  color: var(--text-secondary);
+.spin-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
 }
 
 .empty-room {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   padding: 48px 24px;
-  text-align: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
@@ -403,21 +393,12 @@ onUnmounted(() => {
 .empty-ico {
   font-size: 40px;
   line-height: 1;
-  margin-bottom: 12px;
-}
-
-.empty-room p {
-  margin: 0;
-  color: var(--text-secondary);
 }
 
 .empty-room .hint {
-  margin-top: 6px;
+  margin: 0 0 16px;
   font-size: var(--font-size-sm);
-}
-
-.empty-room .primary {
-  margin-top: 20px;
+  color: var(--text-secondary);
 }
 
 .ready {
@@ -482,34 +463,7 @@ onUnmounted(() => {
 }
 
 .meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   margin: 12px 0 0;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-surface-2) 80%, transparent);
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.chip.ok {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  font-weight: 600;
-}
-
-.chip.rush {
-  color: var(--accent-gold);
-  border-color: color-mix(in srgb, var(--accent-gold) 30%, var(--border));
 }
 
 .banner {
@@ -581,9 +535,8 @@ onUnmounted(() => {
   font-size: 15px;
 }
 
-.ghost.sm {
-  height: 32px;
-  padding: 0 12px;
+.cancel-host {
+  margin-top: 12px;
 }
 
 .cta-row {
@@ -595,6 +548,10 @@ onUnmounted(() => {
 
 .cta-row.main {
   margin-top: 18px;
+}
+
+.back-link {
+  margin-top: 12px;
 }
 
 .join {
@@ -610,8 +567,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
 }
 
 .field.grow {
@@ -619,19 +574,9 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.field input {
-  height: 40px;
-  padding: 0 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-  outline: none;
-}
-
-.field input:focus {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-glow);
+.field-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .block {
@@ -651,21 +596,6 @@ onUnmounted(() => {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-}
-
-.more,
-.link {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.status-box .link {
-  margin-top: 12px;
-  padding: 0;
 }
 
 .strip-card {
@@ -713,49 +643,6 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.primary,
-.ghost {
-  height: 40px;
-  padding: 0 16px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: auto;
-}
-
-.primary {
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.ghost {
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
-  color: var(--text-primary);
-  flex-shrink: 0;
-}
-
-.join-btn {
-  height: 40px;
-}
-
-.primary svg,
-.ghost svg {
-  flex-shrink: 0;
-}
-
-.primary:disabled,
-.ghost:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 @media (max-width: 860px) {

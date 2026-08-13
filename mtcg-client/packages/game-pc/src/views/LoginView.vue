@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { NButton, NCheckbox, NForm, NFormItem, NInput } from 'naive-ui'
 import { authApi, useThemeStore, useUserStore } from '@mtcg/common'
+import { toast } from '@/feedback'
 
 const USERCODE_BASE = 100_000
 const REMEMBER_KEY = 'mtcg_remember_usercode'
@@ -38,10 +40,12 @@ async function handleLogin(): Promise<void> {
   registerHint.value = ''
   if (!loginForm.usercode.trim()) {
     formError.value = '请输入玩家编号'
+    toast.warning('请输入玩家编号')
     return
   }
   if (!loginForm.password) {
     formError.value = '请输入密码'
+    toast.warning('请输入密码')
     return
   }
   try {
@@ -54,9 +58,10 @@ async function handleLogin(): Promise<void> {
     } else {
       localStorage.removeItem(REMEMBER_KEY)
     }
+    toast.success('登录成功')
     await router.replace(redirectPath.value)
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   }
 }
 
@@ -65,10 +70,12 @@ async function handleRegister(): Promise<void> {
   registerHint.value = ''
   if (!registerForm.password || registerForm.password.length < 6) {
     formError.value = '密码至少 6 位'
+    toast.warning('密码至少 6 位')
     return
   }
   if (registerForm.password !== registerForm.confirmPassword) {
     formError.value = '两次密码不一致'
+    toast.warning('两次密码不一致')
     return
   }
   try {
@@ -84,9 +91,10 @@ async function handleRegister(): Promise<void> {
     loginForm.usercode = usercode
     registerHint.value = `注册成功，玩家编号 ${usercode}，请妥善保存`
     localStorage.setItem(REMEMBER_KEY, usercode)
+    toast.success(`注册成功，玩家编号 ${usercode}`)
     await router.replace(redirectPath.value)
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   }
 }
 </script>
@@ -100,22 +108,15 @@ async function handleRegister(): Promise<void> {
     </aside>
 
     <section class="form-pane">
-      <button
-        type="button"
+      <n-button
+        quaternary
+        circle
         class="theme-btn"
         :title="theme.theme === 'dark' ? '切换亮色' : '切换暗色'"
         @click="theme.toggle()"
       >
-        <svg v-if="theme.theme === 'dark'" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-          <circle cx="8" cy="8" r="3.2" fill="currentColor" />
-          <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-            <path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M3.1 12.9l1.1-1.1M11.8 4.2l1.1-1.1" />
-          </g>
-        </svg>
-        <svg v-else viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-          <path fill="currentColor" d="M11.4 10.2A5.2 5.2 0 0 1 6.2 3.4 5.4 5.4 0 1 0 11.4 10.2Z" />
-        </svg>
-      </button>
+        {{ theme.theme === 'dark' ? '☀️' : '🌙' }}
+      </n-button>
 
       <div class="panel">
         <header class="head">
@@ -126,69 +127,80 @@ async function handleRegister(): Promise<void> {
         <p v-if="formError" class="banner err">{{ formError }}</p>
         <p v-if="registerHint" class="banner ok">{{ registerHint }}</p>
 
-        <form class="form" @submit.prevent="handleLogin">
-          <label class="field">
-            <span>玩家编号</span>
-            <input
-              v-model="loginForm.usercode"
-              type="text"
+        <n-form class="form" @submit.prevent="handleLogin">
+          <n-form-item label="玩家编号" :show-feedback="false">
+            <n-input
+              v-model:value="loginForm.usercode"
               autocomplete="username"
               placeholder="如 100001"
               :disabled="loading"
+              size="large"
             />
-          </label>
-          <label class="field">
-            <span>密码</span>
-            <input
-              v-model="loginForm.password"
+          </n-form-item>
+          <n-form-item label="密码" :show-feedback="false">
+            <n-input
+              v-model:value="loginForm.password"
               type="password"
+              show-password-on="click"
               autocomplete="current-password"
               placeholder="请输入密码"
               :disabled="loading"
+              size="large"
             />
-          </label>
-          <label class="check">
-            <input v-model="loginForm.remember" type="checkbox" :disabled="loading" />
-            <span>记住玩家编号</span>
-          </label>
-          <button class="primary" type="submit" :disabled="loading">
-            {{ loading ? '请稍候…' : '进入游戏' }}
-          </button>
-        </form>
+          </n-form-item>
+          <n-checkbox v-model:checked="loginForm.remember" :disabled="loading">
+            记住玩家编号
+          </n-checkbox>
+          <n-button type="primary" attr-type="submit" block size="large" :loading="loading">
+            进入游戏
+          </n-button>
+        </n-form>
 
-        <button type="button" class="link" :disabled="loading" @click="showRegister = !showRegister">
+        <n-button
+          text
+          type="primary"
+          class="toggle-reg"
+          :disabled="loading"
+          @click="showRegister = !showRegister"
+        >
           {{ showRegister ? '收起注册' : '没有账号？注册' }}
-        </button>
+        </n-button>
 
-        <form v-if="showRegister" class="form register" @submit.prevent="handleRegister">
-          <label class="field">
-            <span>昵称（可选）</span>
-            <input v-model="registerForm.username" type="text" maxlength="64" :disabled="loading" />
-          </label>
-          <label class="field">
-            <span>设置密码</span>
-            <input
-              v-model="registerForm.password"
+        <n-form v-if="showRegister" class="form register" @submit.prevent="handleRegister">
+          <n-form-item label="昵称（可选）" :show-feedback="false">
+            <n-input
+              v-model:value="registerForm.username"
+              maxlength="64"
+              :disabled="loading"
+              size="large"
+            />
+          </n-form-item>
+          <n-form-item label="设置密码" :show-feedback="false">
+            <n-input
+              v-model:value="registerForm.password"
               type="password"
+              show-password-on="click"
               autocomplete="new-password"
               placeholder="至少 6 位"
               :disabled="loading"
+              size="large"
             />
-          </label>
-          <label class="field">
-            <span>确认密码</span>
-            <input
-              v-model="registerForm.confirmPassword"
+          </n-form-item>
+          <n-form-item label="确认密码" :show-feedback="false">
+            <n-input
+              v-model:value="registerForm.confirmPassword"
               type="password"
+              show-password-on="click"
               autocomplete="new-password"
               :disabled="loading"
+              size="large"
             />
-          </label>
+          </n-form-item>
           <p class="note">玩家编号由系统分配，注册成功后显示</p>
-          <button class="secondary" type="submit" :disabled="loading">
-            {{ loading ? '注册中…' : '注册并登录' }}
-          </button>
-        </form>
+          <n-button attr-type="submit" block size="large" :loading="loading">
+            注册并登录
+          </n-button>
+        </n-form>
       </div>
     </section>
   </div>
@@ -271,20 +283,7 @@ async function handleRegister(): Promise<void> {
   position: absolute;
   top: var(--space-md);
   right: var(--space-md);
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.theme-btn:hover {
-  color: var(--accent);
-  background: var(--accent-soft);
+  font-size: 16px;
 }
 
 .panel {
@@ -327,7 +326,7 @@ async function handleRegister(): Promise<void> {
 .form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 4px;
 }
 
 .form.register {
@@ -336,80 +335,12 @@ async function handleRegister(): Promise<void> {
   border-top: 1px solid var(--border);
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.field input {
-  height: 44px;
-  padding: 0 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-size: var(--font-size-md);
-  outline: none;
-}
-
-.field input:focus {
-  box-shadow: var(--shadow-glow);
-  border-color: var(--accent);
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.primary,
-.secondary {
-  height: 44px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primary {
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.secondary {
-  border: 1px solid var(--border);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-}
-
-.primary:disabled,
-.secondary:disabled,
-.link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.link {
+.toggle-reg {
   margin-top: 16px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text-link);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  padding: 8px;
 }
 
 .note {
-  margin: 0;
+  margin: 0 0 8px;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }

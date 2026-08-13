@@ -1,27 +1,37 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, watch } from 'vue'
+import { NConfigProvider, darkTheme } from 'naive-ui'
 import { setHttpErrorNotifier } from '@mtcg/common'
 import { useThemeStore } from '@mtcg/common/stores'
+import { buildThemeOverrides, syncFeedbackTheme, toast } from '@/feedback'
 
-useThemeStore()
+const themeStore = useThemeStore()
 
-const toastMessage = ref('')
-let hideTimer: ReturnType<typeof setTimeout> | undefined
+syncFeedbackTheme(themeStore.theme)
+watch(
+  () => themeStore.theme,
+  (mode) => {
+    syncFeedbackTheme(mode)
+  },
+)
 
 setHttpErrorNotifier((message: string) => {
-  toastMessage.value = message
-  if (hideTimer) clearTimeout(hideTimer)
-  hideTimer = setTimeout(() => {
-    toastMessage.value = ''
-  }, 3200)
+  toast.error(message)
 })
+
+const naiveTheme = computed(() => (themeStore.theme === 'dark' ? darkTheme : null))
+const themeOverrides = computed(() => buildThemeOverrides(themeStore.theme))
 </script>
 
 <template>
-  <router-view />
-  <Transition name="toast">
-    <div v-if="toastMessage" class="app-toast" role="status">{{ toastMessage }}</div>
-  </Transition>
+  <!-- 必须撑满 #app，否则 html/body overflow:hidden 会裁掉下方内容且无法滚动 -->
+  <NConfigProvider
+    class="app-root"
+    :theme="naiveTheme"
+    :theme-overrides="themeOverrides"
+  >
+    <router-view />
+  </NConfigProvider>
 </template>
 
 <style>
@@ -29,34 +39,11 @@ html,
 body,
 #app {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
-.app-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 36px;
-  z-index: 9999;
-  transform: translateX(-50%);
-  max-width: min(480px, calc(100vw - 32px));
-  padding: 12px 18px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface-3);
-  border: 1px solid var(--border-light);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-md);
-  font-size: var(--font-size-sm);
-  text-align: center;
-}
-
-.toast-enter-active,
-.toast-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 8px);
+.app-root {
+  height: 100%;
 }
 </style>

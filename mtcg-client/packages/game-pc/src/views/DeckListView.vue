@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { NButton, NEmpty, NSpin, NTag } from 'naive-ui'
 import { deckApi } from '@mtcg/common'
 import type { DeckVO } from '@mtcg/common'
 import DeckCover from '@/components/DeckCover.vue'
+import { confirm, toast } from '@/feedback'
 
 const router = useRouter()
 const loading = ref(false)
@@ -28,22 +30,36 @@ async function handleValidate(deck: DeckVO): Promise<void> {
   noticeText.value = ''
   try {
     const result = await deckApi.validate(deck.id)
-    noticeText.value = result.valid ? `「${deck.deckName}」校验通过` : result.errors.join('；')
+    if (result.valid) {
+      noticeText.value = `「${deck.deckName}」校验通过`
+      toast.success(`「${deck.deckName}」校验通过`)
+    } else {
+      const detail = result.errors.join('；')
+      noticeText.value = detail
+      toast.warning(detail || '校验未通过')
+    }
     await loadDecks()
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   } finally {
     validatingId.value = null
   }
 }
 
 async function handleDelete(deck: DeckVO): Promise<void> {
-  if (!window.confirm(`删除「${deck.deckName}」？`)) return
+  const ok = await confirm({
+    title: '删除卡组',
+    content: `确定删除「${deck.deckName}」？此操作不可恢复。`,
+    positiveText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   try {
     await deckApi.delete(deck.id, loading)
+    toast.success('卡组已删除')
     await loadDecks()
   } catch {
-    // notifier
+    // HTTP 错误由全局 notifier 提示
   }
 }
 
@@ -97,9 +113,9 @@ async function persistOrder(): Promise<void> {
         <h1>我的卡组</h1>
         <p class="hint">主 50 · 冲击 9 · 拖拽排序</p>
       </div>
-      <button type="button" class="primary" :disabled="loading" @click="router.push('/decks/new')">
+      <n-button type="primary" :disabled="loading" @click="router.push('/decks/new')">
         新建卡组
-      </button>
+      </n-button>
     </header>
 
     <p v-if="noticeText" class="notice">{{ noticeText }}</p>
@@ -107,9 +123,16 @@ async function persistOrder(): Promise<void> {
       暂无合法卡组，完成构筑并校验后方可开打
     </p>
 
-    <div v-if="!loading && decks.length === 0" class="empty">
-      <p>还没有卡组</p>
-      <button type="button" class="primary" @click="router.push('/decks/new')">开始构筑</button>
+    <div v-if="loading && decks.length === 0" class="spin-wrap">
+      <n-spin size="large" />
+    </div>
+
+    <div v-else-if="!loading && decks.length === 0" class="empty">
+      <n-empty description="还没有卡组">
+        <template #extra>
+          <n-button type="primary" @click="router.push('/decks/new')">开始构筑</n-button>
+        </template>
+      </n-empty>
     </div>
 
     <div v-else class="grid" @dragover="onDragOver">
@@ -130,9 +153,13 @@ async function persistOrder(): Promise<void> {
         <div class="info">
           <div class="title-row">
             <h2>{{ deck.deckName }}</h2>
-            <span class="status" :class="{ on: deck.isValid }">
+            <n-tag
+              size="small"
+              :type="deck.isValid ? 'success' : 'default'"
+              :bordered="false"
+            >
               {{ deck.isValid ? '合法' : '未完成' }}
-            </span>
+            </n-tag>
           </div>
           <p class="meta">
             主 {{ deck.mainDeckSize ?? 0 }}/50
@@ -140,17 +167,33 @@ async function persistOrder(): Promise<void> {
             冲击 {{ deck.rushDeckSize ?? 0 }}/9
           </p>
           <div class="ops" @click.stop>
-            <button v-if="deck.isValid" type="button" class="play" @click="playDeck(deck)">出战</button>
-            <button type="button" :disabled="validatingId === deck.id" @click="handleValidate(deck)">
+            <n-button
+              v-if="deck.isValid"
+              type="primary"
+              size="tiny"
+              @click="playDeck(deck)"
+            >
+              出战
+            </n-button>
+            <n-button
+              size="tiny"
+              quaternary
+              :loading="validatingId === deck.id"
+              @click="handleValidate(deck)"
+            >
               校验
-            </button>
-            <button type="button" class="danger" @click="handleDelete(deck)">删除</button>
+            </n-button>
+            <n-button size="tiny" quaternary type="error" @click="handleDelete(deck)">
+              删除
+            </n-button>
           </div>
         </div>
       </article>
     </div>
 
-    <p v-if="loading" class="loading">加载中</p>
+    <div v-if="loading && decks.length > 0" class="spin-wrap subtle">
+      <n-spin size="small" />
+    </div>
   </div>
 </template>
 
@@ -201,15 +244,19 @@ async function persistOrder(): Promise<void> {
 
 .empty {
   padding: 48px 24px;
-  text-align: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
 }
 
-.empty p {
-  margin: 0 0 16px;
-  color: var(--text-secondary);
+.spin-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.spin-wrap.subtle {
+  padding: 24px 0 0;
 }
 
 .grid {
@@ -261,39 +308,8 @@ async function persistOrder(): Promise<void> {
 
 .ops {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   margin-top: 10px;
-}
-
-.ops button {
-  height: 28px;
-  padding: 0 8px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ops button.play {
-  color: var(--accent-contrast);
-  background: var(--accent);
-  padding: 0 12px;
-}
-
-.ops button:hover:not(:disabled):not(.play) {
-  color: var(--accent);
-}
-
-.ops button.danger:hover:not(:disabled) {
-  color: var(--accent-red);
-}
-
-.ops button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .info {
@@ -317,17 +333,6 @@ async function persistOrder(): Promise<void> {
   white-space: nowrap;
 }
 
-.status {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.status.on {
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .meta {
   margin: 6px 0 0;
   font-size: var(--font-size-xs);
@@ -337,29 +342,5 @@ async function persistOrder(): Promise<void> {
 .sep {
   margin: 0 4px;
   opacity: 0.5;
-}
-
-.primary {
-  height: 40px;
-  padding: 0 18px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.loading {
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  margin-top: 40px;
 }
 </style>

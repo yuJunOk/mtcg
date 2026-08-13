@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { NButton } from 'naive-ui'
 import { useThemeStore, useUserStore } from '@mtcg/common/stores'
+import { confirm, toast } from '@/feedback'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,10 +53,16 @@ onMounted(async () => {
 
 async function handleLogout(): Promise<void> {
   if (loggingOut.value) return
-  if (!window.confirm('确定退出登录？')) return
+  const ok = await confirm({
+    title: '退出登录',
+    content: '确定退出当前账号？',
+    positiveText: '退出',
+  })
+  if (!ok) return
   loggingOut.value = true
   try {
     await userStore.logout()
+    toast.success('已退出登录')
     await router.replace('/login')
   } finally {
     loggingOut.value = false
@@ -83,32 +91,20 @@ async function handleLogout(): Promise<void> {
           </button>
         </nav>
         <div class="right">
-          <button
-            type="button"
-            class="icon-btn"
+          <n-button
+            quaternary
+            circle
+            class="theme-btn"
             :title="theme.theme === 'dark' ? '切换亮色' : '切换暗色'"
             @click="theme.toggle()"
           >
-            <svg v-if="theme.theme === 'dark'" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <circle cx="8" cy="8" r="3.2" fill="currentColor" />
-              <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                <path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M3.1 12.9l1.1-1.1M11.8 4.2l1.1-1.1" />
-              </g>
-            </svg>
-            <svg v-else viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M11.4 10.2A5.2 5.2 0 0 1 6.2 3.4 5.4 5.4 0 1 0 11.4 10.2Z"
-              />
-            </svg>
-          </button>
+            {{ theme.theme === 'dark' ? '☀️' : '🌙' }}
+          </n-button>
           <div class="account" :title="displayUsercode">
             <span class="avatar">{{ avatarLetter }}</span>
             <span class="name">{{ displayName }}</span>
           </div>
-          <button type="button" class="text-btn" :disabled="loggingOut" @click="handleLogout">
-            退出
-          </button>
+          <n-button quaternary :loading="loggingOut" @click="handleLogout">退出</n-button>
         </div>
       </div>
     </header>
@@ -211,38 +207,8 @@ async function handleLogout(): Promise<void> {
   gap: 4px;
 }
 
-.icon-btn,
-.text-btn {
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-}
-
-.icon-btn:hover,
-.text-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.text-btn {
-  height: 32px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
-
-.text-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.theme-btn {
+  font-size: 16px;
 }
 
 .account {
@@ -280,7 +246,9 @@ async function handleLogout(): Promise<void> {
   z-index: 1;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 860px) {

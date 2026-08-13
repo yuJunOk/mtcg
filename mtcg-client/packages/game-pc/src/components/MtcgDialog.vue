@@ -6,6 +6,7 @@
  * - 底栏右侧：取消 / 确定（可用 footer slot 覆盖）
  */
 import { computed, onMounted, onUnmounted, ref, useId, watch } from 'vue'
+import { NButton } from 'naive-ui'
 
 const props = withDefaults(
   defineProps<{
@@ -124,41 +125,25 @@ onUnmounted(() => {
           </div>
           <div class="head-actions">
             <slot name="header-extra" />
-            <button
+            <n-button
               v-if="fullscreenable"
-              type="button"
-              class="icon-btn"
+              quaternary
+              size="small"
               :title="isFullscreen ? '退出全屏' : '全屏'"
               :disabled="closeDisabled"
               @click="toggleFullscreen"
             >
-              <svg v-if="!isFullscreen" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M2 2h4v1.5H3.5V6H2V2zm8 0h4v4h-1.5V3.5H10V2zM2 10h1.5v2.5H6V14H2v-4zm8 2.5V14h4v-4h-1.5v2.5H10z"
-                />
-              </svg>
-              <svg v-else viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M6 2v4H2V4.5h2.5V2H6zm8 2.5V6h-4V2h1.5v2.5H14zM2 10h4v4H4.5v-2.5H2V10zm8 0h4v1.5h-2.5V14H10v-4z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn"
+              {{ isFullscreen ? '⬜ 退出' : '⛶ 全屏' }}
+            </n-button>
+            <n-button
+              quaternary
+              size="small"
               title="关闭"
               :disabled="closeDisabled"
               @click="requestClose"
             >
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M3.2 3.2a.75.75 0 0 1 1.06 0L8 6.94l3.74-3.74a.75.75 0 1 1 1.06 1.06L9.06 8l3.74 3.74a.75.75 0 1 1-1.06 1.06L8 9.06l-3.74 3.74a.75.75 0 1 1-1.06-1.06L6.94 8 3.2 4.26a.75.75 0 0 1 0-1.06z"
-                />
-              </svg>
-            </button>
+              ✕
+            </n-button>
           </div>
         </header>
 
@@ -168,17 +153,17 @@ onUnmounted(() => {
 
         <footer v-if="showFooter" class="foot">
           <slot name="footer">
-            <button type="button" class="ghost" :disabled="closeDisabled" @click="requestClose">
+            <n-button :disabled="closeDisabled" @click="requestClose">
               {{ cancelText }}
-            </button>
-            <button
-              type="button"
-              class="primary"
-              :disabled="confirmDisabled || confirmLoading"
+            </n-button>
+            <n-button
+              type="primary"
+              :disabled="confirmDisabled"
+              :loading="confirmLoading"
               @click="handleConfirm"
             >
-              {{ confirmLoading ? '请稍候…' : confirmText }}
-            </button>
+              {{ confirmText }}
+            </n-button>
           </slot>
         </footer>
       </div>
@@ -255,30 +240,6 @@ onUnmounted(() => {
   gap: 2px;
 }
 
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.icon-btn:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-surface-2);
-}
-
-.icon-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .body {
   min-height: 0;
   overflow: auto;
@@ -296,33 +257,5 @@ onUnmounted(() => {
   padding: 12px 18px;
   border-top: 1px solid var(--border);
   background: var(--bg-surface);
-}
-
-.primary,
-.ghost {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primary {
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.ghost {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-primary);
-}
-
-.primary:disabled,
-.ghost:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

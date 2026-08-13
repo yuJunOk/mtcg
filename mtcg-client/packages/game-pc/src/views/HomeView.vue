@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { NButton } from 'naive-ui'
 import { deckApi, productApi, productCoverPath, resolveCardImageUrl } from '@mtcg/common'
 import type { DeckVO, ProductVO } from '@mtcg/common'
 import { HERO_TRIO_PATHS } from '@/constants/heroArt'
@@ -59,22 +60,12 @@ onMounted(async () => {
           <h1>MTCG</h1>
           <p class="lead">集结超英，构筑击战。一张牌，扭转战局。</p>
           <div class="hero-actions">
-            <button type="button" class="primary" @click="router.push('/match')">
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8.9 1.6 3.2 8.2c-.2.3 0 .7.4.7h3.1l-.8 5.1c-.1.5.5.8.8.4l5.7-6.6c.2-.3 0-.7-.4-.7H8.9l.8-5.1c.1-.5-.5-.8-.8-.4Z"
-                />
-              </svg>
-              开始对战
-            </button>
-            <button type="button" class="ghost" @click="router.push('/decks')">
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                <rect x="2.5" y="3.5" width="8" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4" />
-                <rect x="5.5" y="1.5" width="8" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4" />
-              </svg>
-              管理卡组
-            </button>
+            <n-button type="primary" size="large" @click="router.push('/match')">
+              ⚡ 开始对战
+            </n-button>
+            <n-button size="large" @click="router.push('/decks')">
+              🃏 管理卡组
+            </n-button>
           </div>
           <p class="hero-status">{{ rosterHint }}</p>
         </div>
@@ -97,22 +88,22 @@ onMounted(async () => {
 
     <div class="well">
       <p class="later">
-        <button type="button" class="link" @click="router.push('/cards')">卡表</button>
+        <n-button text type="primary" @click="router.push('/cards')">卡表</n-button>
         ·
-        <button type="button" class="link" @click="router.push('/products')">商品</button>
+        <n-button text type="primary" @click="router.push('/products')">商品</n-button>
         ·
-        <button type="button" class="link muted" @click="router.push('/coming-soon')">排行</button>
+        <n-button text class="muted-link" @click="router.push('/coming-soon')">排行</n-button>
         <span class="later-note">后续开放</span>
       </p>
 
       <section class="block">
         <header class="sec">
           <h2>我的卡组</h2>
-          <button type="button" class="more" @click="router.push('/decks')">全部 →</button>
+          <n-button text type="primary" @click="router.push('/decks')">全部 →</n-button>
         </header>
         <div v-if="previewDecks.length === 0" class="empty">
           还没有卡组。
-          <button type="button" class="link" @click="router.push('/decks/new')">去构筑</button>
+          <n-button text type="primary" @click="router.push('/decks/new')">去构筑</n-button>
         </div>
         <CardRail v-else :item-count="previewDecks.length">
           <button
@@ -137,7 +128,7 @@ onMounted(async () => {
       <section class="block">
         <header class="sec">
           <h2>商品系列</h2>
-          <button type="button" class="more" @click="router.push('/products')">全部 →</button>
+          <n-button text type="primary" @click="router.push('/products')">全部 →</n-button>
         </header>
         <div v-if="series.length === 0" class="empty">暂无系列数据</div>
         <CardRail v-else :item-count="series.length">
@@ -179,22 +170,27 @@ onMounted(async () => {
   position: absolute;
   inset: 0;
   background: var(--shell-art) center / cover no-repeat;
-  opacity: var(--shell-art-opacity);
-  filter: var(--shell-art-filter);
+  opacity: 1;
+  filter: none;
 }
 
+/* 左侧保可读，右侧让氛围图透出；勿叠过重的 shell-scrim */
 .hero-veil {
   position: absolute;
   inset: 0;
   background:
     linear-gradient(
       105deg,
-      color-mix(in srgb, var(--bg-base) 86%, transparent) 0%,
-      color-mix(in srgb, var(--bg-base) 48%, transparent) 46%,
-      color-mix(in srgb, var(--bg-base) 10%, transparent) 78%,
+      color-mix(in srgb, var(--bg-base) 78%, transparent) 0%,
+      color-mix(in srgb, var(--bg-base) 42%, transparent) 38%,
+      color-mix(in srgb, var(--bg-base) 12%, transparent) 68%,
       transparent 100%
     ),
-    var(--shell-scrim);
+    linear-gradient(
+      180deg,
+      transparent 55%,
+      color-mix(in srgb, var(--bg-base) 45%, transparent) 100%
+    );
 }
 
 .hero-inner {
@@ -353,18 +349,8 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.more,
-.link {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.link.muted {
-  color: var(--text-secondary);
+.muted-link {
+  color: var(--text-secondary) !important;
   font-weight: 500;
 }
 
@@ -435,36 +421,6 @@ onMounted(async () => {
   padding: 8px 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
-}
-
-.primary,
-.ghost {
-  height: 40px;
-  padding: 0 18px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.primary svg,
-.ghost svg {
-  flex-shrink: 0;
-}
-
-.primary {
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.ghost {
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
-  color: var(--text-primary);
 }
 
 @media (max-width: 960px) {

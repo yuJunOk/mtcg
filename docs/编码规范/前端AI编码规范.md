@@ -25,6 +25,7 @@
 | 路由 | Vue Router 4 | 懒加载 |
 | HTTP | Axios | 从 `@mtcg/common` 导入 |
 | 管理后台 UI | Element Plus | 表格、表单、对话框 |
+| 游戏端壳层 UI | Naive UI（game-pc） | 常规控件 + Toast/确认；图标用 emoji；**不用** Element Plus |
 | 游戏渲染 | PixiJS 8 | 卡牌 Sprite、动画、拖拽 |
 | 构建 | Vite 5 | npm workspaces Monorepo |
 | 样式 | 纯 CSS / CSS Module | 管理后台用 scoped，游戏端按需 |
@@ -214,6 +215,24 @@ let { a } = obj  // a 失去响应式
 - 表格卡片 `flex: 1`，内容区撑满
 - 表格加 `height="100%"` 让 Element Plus 自动计算滚动区域
 - 列表页搜索区：`el-form--inline` 的 `form-item` 去掉多余 `margin-bottom`，避免操作行下大块空白
+
+---
+
+## 6A. 游戏端 UI（game-pc / Naive UI）
+
+> 对战**局面渲染**仍用 Pixi / 自研战场组件；壳层与工具页的**常规交互控件**优先 Naive。**禁止** Element Plus 进入 game-pc。
+
+### 原则
+
+1. **能用 Naive 就用 Naive**：`NButton` / `NInput` / `NForm` / `NCheckbox` / `NSpin` / `NEmpty` / `NTag` / `NPagination` / `NModal` / `NSelect` / `NSwitch` / `NSpace` 等；不要手写原生 `button`/`input` 当常规控件
+2. **图标**：禁止业务里自写 `<svg>` 图标。Naive 不自带图标库 → **用 emoji**（写在按钮文案或默认槽即可）。功能图（如计时环）用 CSS/emoji，勿手绘 SVG 图标
+3. **例外**：品牌字标、卡面/轨道点选、战场落点等「非常规表单控件」可保留原生结构 + 设计 token CSS
+4. **反馈**：`@/feedback` 的 `toast` / `confirm`；`App.vue` 接 `setHttpErrorNotifier(toast.error)`；禁止 `window.alert` / `window.confirm`
+5. 主题跟随 `themeStore`（青绿 primary）；同一失败勿重复 Toast
+
+### 业务弹窗
+
+优先 `NModal`；若已有 `MtcgDialog` 壳且结构复杂，内部按钮也须改为 `NButton`，图标用 emoji。
 
 ---
 

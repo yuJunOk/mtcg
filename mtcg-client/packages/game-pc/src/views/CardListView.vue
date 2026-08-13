@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { NButton, NEmpty, NInput, NPagination, NSelect, NSpin, NTag } from 'naive-ui'
 import {
   CARD_ATTACK_RANGE_FILTER_OPTIONS,
   CARD_COLOR_OPTIONS,
@@ -46,7 +47,10 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 //#endregion
 
 //#region 计算属性
-const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+const productOptions = computed(() => [
+  { label: '商品系列', value: '' },
+  ...products.value.map((p) => ({ label: p.productCode, value: p.productCode })),
+])
 
 const hasActiveFilters = computed(() =>
   Boolean(
@@ -60,22 +64,6 @@ const hasActiveFilters = computed(() =>
       filters.trait,
   ),
 )
-
-const pageItems = computed((): Array<number | 'ellipsis'> => {
-  const totalPages = pageCount.value
-  const current = pageNum.value
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1)
-  }
-  const items: Array<number | 'ellipsis'> = [1]
-  const start = Math.max(2, current - 1)
-  const end = Math.min(totalPages - 1, current + 1)
-  if (start > 2) items.push('ellipsis')
-  for (let i = start; i <= end; i++) items.push(i)
-  if (end < totalPages - 1) items.push('ellipsis')
-  items.push(totalPages)
-  return items
-})
 
 const selectedTypeLabel = computed(() =>
   selected.value ? codeToDesc(CARD_TYPE_OPTIONS, selected.value.cardType as CardType) : '',
@@ -112,13 +100,20 @@ function onImgError(e: Event): void {
   el.style.visibility = 'hidden'
 }
 
-function toggleChip(field: 'cardType' | 'color' | 'rarity' | 'trait', value: string): void {
-  const current = filters[field] as string
-  ;(filters[field] as string) = current === value ? '' : value
+function toggleChip(field: 'cardType' | 'color' | 'rarity' | 'trait', value: string, checked: boolean): void {
+  if (checked) {
+    ;(filters[field] as string) = value
+  } else if (filters[field] === value) {
+    ;(filters[field] as string) = ''
+  }
 }
 
-function toggleNumChip(field: 'level' | 'attackRange', value: number): void {
-  filters[field] = filters[field] === value ? null : value
+function toggleNumChip(field: 'level' | 'attackRange', value: number, checked: boolean): void {
+  if (checked) {
+    filters[field] = value
+  } else if (filters[field] === value) {
+    filters[field] = null
+  }
 }
 
 function clearFilters(): void {
@@ -166,9 +161,8 @@ async function loadCards(): Promise<void> {
   total.value = page.total ?? 0
 }
 
-function goPage(n: number): void {
-  if (n < 1 || n > pageCount.value || n === pageNum.value) return
-  pageNum.value = n
+function onPageChange(page: number): void {
+  pageNum.value = page
   void loadCards()
 }
 
@@ -236,13 +230,18 @@ onUnmounted(() => {
     </header>
 
     <div class="filter-bar">
-      <input v-model="filters.cardName" class="search" type="search" placeholder="搜索卡牌" />
-      <select v-model="filters.productCode" class="select">
-        <option value="">商品系列</option>
-        <option v-for="p in products" :key="p.productCode" :value="p.productCode">
-          {{ p.productCode }}
-        </option>
-      </select>
+      <n-input
+        v-model:value="filters.cardName"
+        class="search"
+        clearable
+        placeholder="搜索卡牌"
+      />
+      <n-select
+        v-model:value="filters.productCode"
+        class="select"
+        :options="productOptions"
+        :consistent-menu-width="false"
+      />
       <div class="quick-colors">
         <button
           v-for="o in CARD_COLOR_OPTIONS"
@@ -251,13 +250,15 @@ onUnmounted(() => {
           class="color-dot"
           :class="[o.code.toLowerCase(), { on: filters.color === o.code }]"
           :title="o.desc + '色'"
-          @click="toggleChip('color', o.code)"
+          @click="toggleChip('color', o.code, filters.color !== o.code)"
         />
       </div>
-      <button type="button" class="ghost sm" @click="advancedOpen = !advancedOpen">
+      <n-button size="small" @click="advancedOpen = !advancedOpen">
         {{ advancedOpen ? '收起' : '高级筛选' }}
-      </button>
-      <button v-if="hasActiveFilters" type="button" class="link" @click="clearFilters">清除所选</button>
+      </n-button>
+      <n-button v-if="hasActiveFilters" text type="primary" @click="clearFilters">
+        清除所选
+      </n-button>
       <span class="count">共 {{ total }} 条结果</span>
     </div>
 
@@ -265,100 +266,129 @@ onUnmounted(() => {
       <div class="row">
         <span>类型</span>
         <div class="chips">
-          <button type="button" class="chip" :class="{ on: !filters.cardType }" @click="filters.cardType = ''">
+          <n-tag
+            checkable
+            size="small"
+            :checked="!filters.cardType"
+            @update:checked="(v) => v && (filters.cardType = '')"
+          >
             全部
-          </button>
-          <button
+          </n-tag>
+          <n-tag
             v-for="o in CARD_TYPE_OPTIONS"
             :key="o.code"
-            type="button"
-            class="chip"
-            :class="{ on: filters.cardType === o.code }"
-            @click="toggleChip('cardType', o.code)"
+            checkable
+            size="small"
+            :checked="filters.cardType === o.code"
+            @update:checked="(v) => toggleChip('cardType', o.code, v)"
           >
             {{ o.desc }}
-          </button>
+          </n-tag>
         </div>
       </div>
       <div class="row">
         <span>稀有度</span>
         <div class="chips">
-          <button type="button" class="chip" :class="{ on: !filters.rarity }" @click="filters.rarity = ''">
+          <n-tag
+            checkable
+            size="small"
+            :checked="!filters.rarity"
+            @update:checked="(v) => v && (filters.rarity = '')"
+          >
             全部
-          </button>
-          <button
+          </n-tag>
+          <n-tag
             v-for="code in CARD_RARITY_FILTER_CODES"
             :key="code"
-            type="button"
-            class="chip mono"
-            :class="{ on: filters.rarity === code }"
-            @click="toggleChip('rarity', code)"
+            checkable
+            size="small"
+            class="mono"
+            :checked="filters.rarity === code"
+            @update:checked="(v) => toggleChip('rarity', code, v)"
           >
             {{ code }}
-          </button>
+          </n-tag>
         </div>
       </div>
       <div class="row">
         <span>等级</span>
         <div class="chips">
-          <button type="button" class="chip" :class="{ on: filters.level == null }" @click="filters.level = null">
+          <n-tag
+            checkable
+            size="small"
+            :checked="filters.level == null"
+            @update:checked="(v) => v && (filters.level = null)"
+          >
             全部
-          </button>
-          <button
+          </n-tag>
+          <n-tag
             v-for="lv in CARD_LEVEL_FILTER_OPTIONS"
             :key="lv"
-            type="button"
-            class="chip mono"
-            :class="{ on: filters.level === lv }"
-            @click="toggleNumChip('level', lv)"
+            checkable
+            size="small"
+            class="mono"
+            :checked="filters.level === lv"
+            @update:checked="(v) => toggleNumChip('level', lv, v)"
           >
             {{ lv }}
-          </button>
+          </n-tag>
         </div>
       </div>
       <div class="row">
         <span>攻击距离</span>
         <div class="chips">
-          <button
-            type="button"
-            class="chip"
-            :class="{ on: filters.attackRange == null }"
-            @click="filters.attackRange = null"
+          <n-tag
+            checkable
+            size="small"
+            :checked="filters.attackRange == null"
+            @update:checked="(v) => v && (filters.attackRange = null)"
           >
             全部
-          </button>
-          <button
+          </n-tag>
+          <n-tag
             v-for="r in CARD_ATTACK_RANGE_FILTER_OPTIONS"
             :key="r"
-            type="button"
-            class="chip mono"
-            :class="{ on: filters.attackRange === r }"
-            @click="toggleNumChip('attackRange', r)"
+            checkable
+            size="small"
+            class="mono"
+            :checked="filters.attackRange === r"
+            @update:checked="(v) => toggleNumChip('attackRange', r, v)"
           >
             {{ r }}
-          </button>
+          </n-tag>
         </div>
       </div>
       <div class="row">
         <span>特征</span>
         <div class="chips wrap">
-          <button type="button" class="chip" :class="{ on: !filters.trait }" @click="filters.trait = ''">全部</button>
-          <button
+          <n-tag
+            checkable
+            size="small"
+            :checked="!filters.trait"
+            @update:checked="(v) => v && (filters.trait = '')"
+          >
+            全部
+          </n-tag>
+          <n-tag
             v-for="t in CARD_TRAIT_FILTER_OPTIONS"
             :key="t"
-            type="button"
-            class="chip"
-            :class="{ on: filters.trait === t }"
-            @click="toggleChip('trait', t)"
+            checkable
+            size="small"
+            :checked="filters.trait === t"
+            @update:checked="(v) => toggleChip('trait', t, v)"
           >
             {{ t }}
-          </button>
+          </n-tag>
         </div>
       </div>
     </div>
 
-    <p v-if="loading && cards.length === 0" class="hint">加载中…</p>
-    <p v-else-if="!loading && cards.length === 0" class="hint">没有匹配卡牌</p>
+    <div v-if="loading && cards.length === 0" class="spin-wrap">
+      <n-spin size="large" />
+    </div>
+    <div v-else-if="!loading && cards.length === 0" class="empty">
+      <n-empty description="没有匹配卡牌" />
+    </div>
 
     <div v-else class="grid">
       <button
@@ -384,32 +414,16 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div class="pager">
-      <label>
-        每页
-        <select v-model.number="pageSize" class="select compact">
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-          <option :value="100">100</option>
-        </select>
-        条
-      </label>
-      <button type="button" class="ghost sm" :disabled="pageNum <= 1" @click="goPage(pageNum - 1)">上一页</button>
-      <template v-for="(item, idx) in pageItems" :key="`${item}-${idx}`">
-        <span v-if="item === 'ellipsis'" class="ellipsis">…</span>
-        <button
-          v-else
-          type="button"
-          class="page-btn"
-          :class="{ on: item === pageNum }"
-          @click="goPage(item)"
-        >
-          {{ item }}
-        </button>
-      </template>
-      <button type="button" class="ghost sm" :disabled="pageNum >= pageCount" @click="goPage(pageNum + 1)">
-        下一页
-      </button>
+    <div v-if="total > 0" class="pager">
+      <n-pagination
+        :page="pageNum"
+        :page-size="pageSize"
+        :item-count="total"
+        show-size-picker
+        :page-sizes="[20, 50, 100]"
+        @update:page="onPageChange"
+        @update:page-size="(s) => (pageSize = s)"
+      />
     </div>
 
     <MtcgDialog
@@ -504,31 +518,14 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
-.search,
-.select {
-  height: var(--ctrl-h);
-  padding: 0 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-  outline: none;
-}
-
-.search:focus,
-.select:focus {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-glow);
-}
-
 .search {
   flex: 1 1 180px;
   min-width: 160px;
+  max-width: 280px;
 }
 
-.select.compact {
-  height: 28px;
-  padding: 0 8px;
+.select {
+  width: 140px;
 }
 
 .quick-colors {
@@ -609,27 +606,15 @@ onUnmounted(() => {
   overflow: visible;
 }
 
-.chip {
-  flex: 0 0 auto;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.chip.mono {
-  min-width: 34px;
+.mono {
   font-family: Consolas, 'Courier New', monospace;
 }
 
-.chip.on {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+.spin-wrap,
+.empty {
+  padding: 48px 0;
+  display: flex;
+  justify-content: center;
 }
 
 .grid {
@@ -709,88 +694,12 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-.hint {
-  padding: 24px 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
 .pager {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   margin-top: 20px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.pager label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
-}
-
-.page-btn {
-  min-width: 32px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.page-btn.on {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.ellipsis {
-  padding: 0 2px;
-}
-
-.ghost,
-.link {
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.ghost {
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.ghost.sm {
-  height: 30px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.ghost:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.link {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  padding: 0 4px;
-  font-weight: 600;
-}
-
-.ghost:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .detail {
