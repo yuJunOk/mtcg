@@ -1,632 +1,1859 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import type { CardInstanceVO, Zone } from '@mtcg/common'
 import { useGameStore } from '@mtcg/common/stores'
 import { Card } from '@mtcg/common/components'
+import BattleFieldCard from '@/components/battle/BattleFieldCard.vue'
 
 const route = useRoute()
 const router = useRouter()
 const store = useGameStore()
 
+/** 每个「行动窗口」（回合+阶段+当前玩家）时限；超时自动结束阶段，防止长考 */
+const TURN_LIMIT_SEC = 60
+const CLOCK_TICK_MS = 200
+const WARN_SEC = 15
+const DANGER_SEC = 5
+
+/** 操作意图（可选；手牌点选后点目标也可直接推断） */
+type PendingMode = 'BASE_DEPLOY' | 'SUMMON' | 'ATTACK' | null
+
+interface FieldPick {
+  zone: Zone
+  index: number
+  cardCode: string
+  instanceId: string
+}
+
+const PHASE_ORDER = [
+  'TURN_START',
+  'DRAW',
+  'ACTION',
+  'COMBAT',
+  'RESPONSE',
+  'TURN_END',
+] as const
+
+const PHASE_LABELS: Record<string, string> = {
+  TURN_START: '开始',
+  DRAW: '抽卡',
+  ACTION: '行动',
+  COMBAT: '战斗',
+  RESPONSE: '应答',
+  TURN_END: '结束',
+}
+
+const PHASE_FULL: Record<string, string> = {
+  TURN_START: '回合开始',
+  DRAW: '抽卡阶段',
+  ACTION: '行动阶段',
+  COMBAT: '战斗阶段',
+  RESPONSE: '应答阶段',
+  TURN_END: '回合结束',
+}
+
+// ========== 状态 ==========
+const isFullscreen = ref(false)
+const selectedHandId = ref<string | null>(null)
+const selectedHandCode = ref<string | null>(null)
+const selectedField = ref<FieldPick | null>(null)
+const pendingMode = ref<PendingMode>(null)
+const actionError = ref<string | null>(null)
+
+/** 当前行动窗口剩余秒（展示用，含小数平滑） */
+const clockRemainSec = ref(TURN_LIMIT_SEC)
+const clockDeadlineAt = ref(0)
+const autoEnding = ref(false)
+
+let clockTimer: ReturnType<typeof setInterval> | null = null
+
+// ========== 计算属性 ==========
+const turnCount = computed(() => store.gameState?.turnCount ?? 0)
+const currentPhase = computed(() => store.gameState?.currentPhase ?? '')
+const phaseLabel = computed(() => PHASE_FULL[currentPhase.value] ?? '—')
+const phaseIndex = computed(() =>
+  PHASE_ORDER.indexOf(currentPhase.value as (typeof PHASE_ORDER)[number]),
+)
+
+/** 时钟重置键：回合 / 阶段 / 当前玩家任一变化即重开计时 */
+const clockWindowKey = computed(() => {
+  const gs = store.gameState
+  if (!gs || gs.status === 'FINISHED') return ''
+  return `${gs.turnCount}|${gs.currentPhase}|${gs.activePlayerId}`
+})
+
+const clockDisplay = computed(() => {
+  const s = Math.max(0, Math.ceil(clockRemainSec.value))
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${r.toString().padStart(2, '0')}`
+})
+
+const clockRatio = computed(() =>
+  Math.min(1, Math.max(0, clockRemainSec.value / TURN_LIMIT_SEC)),
+)
+
+const clockUrgent = computed(() => {
+  if (store.isGameOver || !clockWindowKey.value) return ''
+  if (clockRemainSec.value <= DANGER_SEC) return 'danger'
+  if (clockRemainSec.value <= WARN_SEC) return 'warn'
+  return ''
+})
+
+/** SVG 圆环：周长约 100，用 dashoffset 表示剩余 */
+const CLOCK_RING = 100
+const clockDashOffset = computed(() => CLOCK_RING * (1 - clockRatio.value))
+
+const canAct = computed(
+  () => store.isLocalPlayerActive && !store.loading && !store.isGameOver,
+)
+
+const hasEndPhase = computed(() => store.availableActions.includes('END_PHASE'))
+const hasSurrender = computed(() => store.availableActions.includes('SURRENDER'))
+const hasBaseDeploy = computed(() => store.availableActions.includes('BASE_DEPLOY'))
+const hasSummon = computed(() => store.availableActions.includes('SUMMON'))
+const hasAttack = computed(() => store.availableActions.includes('ATTACK'))
+
+const localHand = computed(() => store.localPlayer?.hand ?? [])
+const handCount = computed(() => localHand.value.length)
+
+const opponentZones = computed(() => ({
+  characterDeck: store.opponent?.deckCount ?? 0,
+  rushDeck: store.opponent?.rushDeckCount ?? 0,
+  retreat: store.opponent?.retreat?.length ?? 0,
+  voidZone: store.opponent?.voidZone?.length ?? 0,
+}))
+
+const localZones = computed(() => ({
+  characterDeck: store.localPlayer?.deckCount ?? 0,
+  rushDeck: store.localPlayer?.rushDeckCount ?? 0,
+  retreat: store.localPlayer?.retreat?.length ?? 0,
+  voidZone: store.localPlayer?.voidZone?.length ?? 0,
+}))
+
+const opponentField = computed(() => {
+  const f = store.opponent?.field
+  return {
+    vanguard: f?.vanguard ?? null,
+    flankL: f?.flank?.[0] ?? null,
+    flankR: f?.flank?.[1] ?? null,
+    rearguard: f?.rearguard ?? null,
+    base: padSlots(f?.base, 6),
+  }
+})
+
+const localField = computed(() => {
+  const f = store.localPlayer?.field
+  return {
+    vanguard: f?.vanguard ?? null,
+    flankL: f?.flank?.[0] ?? null,
+    flankR: f?.flank?.[1] ?? null,
+    rearguard: f?.rearguard ?? null,
+    base: padSlots(f?.base, 6),
+  }
+})
+
+const opponentTimeline = computed(() => padSlots(store.opponent?.timeline, 9))
+const localTimeline = computed(() => padSlots(store.localPlayer?.timeline, 9))
+
+const opponentTimelineFilled = computed(
+  () => opponentTimeline.value.filter((c) => !!c).length,
+)
+const localTimelineFilled = computed(
+  () => localTimeline.value.filter((c) => !!c).length,
+)
+
+const resultLabel = computed(() => {
+  if (!store.isGameOver) return ''
+  if (store.gameState?.winner === 'DRAW') return '平局'
+  return store.isLocalPlayerWinner ? '胜利' : '失败'
+})
+
+const hintText = computed(() => {
+  if (actionError.value) return actionError.value
+  if (autoEnding.value) return '超时，自动结束阶段…'
+  if (
+    store.isLocalPlayerActive &&
+    !store.isGameOver &&
+    clockUrgent.value === 'danger'
+  ) {
+    return '即将超时，将自动结束阶段'
+  }
+  if (!canAct.value) return store.isLocalPlayerActive ? '' : '等待对手行动'
+  if (pendingMode.value === 'ATTACK' && selectedField.value) return '点选敌方目标'
+  if (pendingMode.value === 'ATTACK') return '点选己方攻击角色'
+  if (selectedHandCode.value) {
+    if (pendingMode.value === 'BASE_DEPLOY') return '点选基地空位盖放'
+    if (pendingMode.value === 'SUMMON') return '点选战区或基地空位'
+    return '点选放置位置'
+  }
+  return '选择手牌或行动'
+})
+
+// ========== 方法 ==========
+function padSlots(
+  arr: (CardInstanceVO | null)[] | null | undefined,
+  len: number,
+): (CardInstanceVO | null)[] {
+  const src = arr ?? []
+  const out: (CardInstanceVO | null)[] = []
+  for (let i = 0; i < len; i++) {
+    out.push(src[i] ?? null)
+  }
+  return out
+}
+
+function clearSelection(): void {
+  selectedHandId.value = null
+  selectedHandCode.value = null
+  selectedField.value = null
+  pendingMode.value = null
+}
+
 function goHome(): void {
   router.push('/')
 }
 
-/* 全屏切换 */
-const isFullscreen = ref(false)
-const toggleFullscreen = () => {
+function toggleFullscreen(): void {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen()
+    void document.documentElement.requestFullscreen()
   } else {
-    document.exitFullscreen()
+    void document.exitFullscreen()
   }
 }
-const onFullscreenChange = () => {
+
+function onFullscreenChange(): void {
   isFullscreen.value = !!document.fullscreenElement
 }
+
+function setPendingMode(mode: PendingMode): void {
+  if (!canAct.value) return
+  pendingMode.value = pendingMode.value === mode ? null : mode
+  if (mode !== 'ATTACK') {
+    selectedField.value = null
+  }
+  if (mode === 'ATTACK') {
+    selectedHandId.value = null
+    selectedHandCode.value = null
+  }
+}
+
+function selectHand(card: CardInstanceVO): void {
+  if (!canAct.value) return
+  if (selectedHandId.value === card.instanceId) {
+    selectedHandId.value = null
+    selectedHandCode.value = null
+    return
+  }
+  selectedHandId.value = card.instanceId
+  selectedHandCode.value = card.cardCode
+  selectedField.value = null
+  if (pendingMode.value === 'ATTACK') {
+    pendingMode.value = null
+  }
+}
+
+async function runAction(
+  dto: Parameters<typeof store.doAction>[0],
+): Promise<void> {
+  actionError.value = null
+  try {
+    await store.doAction(dto)
+    clearSelection()
+  } catch {
+    actionError.value = store.error ?? '操作失败'
+  }
+}
+
+async function onEndPhase(): Promise<void> {
+  if (!canAct.value || !hasEndPhase.value) return
+  await runAction({ actionType: 'END_PHASE' })
+}
+
+async function onSurrender(): Promise<void> {
+  if (!hasSurrender.value || store.loading || store.isGameOver) return
+  if (!window.confirm('确认认输？')) return
+  await runAction({ actionType: 'SURRENDER' })
+}
+
+async function tryBaseDeploy(targetIndex: number): Promise<void> {
+  if (!selectedHandCode.value || !hasBaseDeploy.value) return
+  await runAction({
+    actionType: 'BASE_DEPLOY',
+    cardCode: selectedHandCode.value,
+    targetZone: 'BASE',
+    targetIndex,
+  })
+}
+
+async function trySummon(targetZone: Zone, targetIndex: number): Promise<void> {
+  if (!selectedHandCode.value || !hasSummon.value) return
+  await runAction({
+    actionType: 'SUMMON',
+    cardCode: selectedHandCode.value,
+    targetZone,
+    targetIndex,
+  })
+}
+
+async function onLocalBaseSlotClick(index: number): Promise<void> {
+  if (!canAct.value || !selectedHandCode.value) return
+  const slot = localField.value.base[index]
+  if (slot) return
+
+  if (pendingMode.value === 'SUMMON' && hasSummon.value) {
+    await trySummon('BASE', index)
+    return
+  }
+  if (pendingMode.value === 'BASE_DEPLOY' && hasBaseDeploy.value) {
+    await tryBaseDeploy(index)
+    return
+  }
+  if (hasBaseDeploy.value) {
+    await tryBaseDeploy(index)
+    return
+  }
+  if (hasSummon.value) {
+    await trySummon('BASE', index)
+  }
+}
+
+async function onLocalFieldSlotClick(
+  zone: Zone,
+  index: number,
+  card: CardInstanceVO | null,
+): Promise<void> {
+  if (!canAct.value) return
+
+  if (selectedHandCode.value && !card && hasSummon.value) {
+    await trySummon(zone, index)
+    return
+  }
+
+  if (card && card.cardCode && (hasAttack.value || pendingMode.value === 'ATTACK')) {
+    if (
+      selectedField.value?.instanceId === card.instanceId &&
+      pendingMode.value === 'ATTACK'
+    ) {
+      selectedField.value = null
+      return
+    }
+    selectedHandId.value = null
+    selectedHandCode.value = null
+    selectedField.value = {
+      zone,
+      index,
+      cardCode: card.cardCode,
+      instanceId: card.instanceId,
+    }
+    pendingMode.value = 'ATTACK'
+  }
+}
+
+async function onOpponentFieldSlotClick(
+  zone: Zone,
+  index: number,
+  card: CardInstanceVO | null,
+): Promise<void> {
+  if (!canAct.value || !card?.cardCode) return
+  if (!hasAttack.value || !selectedField.value) return
+
+  await runAction({
+    actionType: 'ATTACK',
+    cardCode: selectedField.value.cardCode,
+    sourceZone: selectedField.value.zone,
+    sourceIndex: selectedField.value.index,
+    targetZone: zone,
+    targetIndex: index,
+    targetCardCode: card.cardCode,
+  })
+}
+
+function isFieldSelected(instanceId: string | undefined): boolean {
+  return !!instanceId && selectedField.value?.instanceId === instanceId
+}
+
+function fanCardStyle(
+  index: number,
+  total: number,
+): { transform: string; zIndex: string } {
+  if (total <= 1) return { transform: 'translateY(0)', zIndex: '10' }
+  const center = (total - 1) / 2
+  const offset = index - center
+  const maxAngle = Math.min(10, 36 / Math.max(total - 1, 1))
+  const angle = (offset / Math.max(center, 0.5)) * maxAngle
+  const y = Math.abs(offset) * 2
+  return {
+    transform: `rotate(${angle}deg) translateY(${y}px)`,
+    zIndex: String(10 + index),
+  }
+}
+
+function resetClock(): void {
+  autoEnding.value = false
+  if (!clockWindowKey.value) {
+    clockRemainSec.value = 0
+    clockDeadlineAt.value = 0
+    return
+  }
+  clockDeadlineAt.value = Date.now() + TURN_LIMIT_SEC * 1000
+  clockRemainSec.value = TURN_LIMIT_SEC
+}
+
+function tickClock(): void {
+  if (!clockWindowKey.value || store.isGameOver) {
+    clockRemainSec.value = 0
+    return
+  }
+  if (!clockDeadlineAt.value) {
+    resetClock()
+    return
+  }
+  const left = (clockDeadlineAt.value - Date.now()) / 1000
+  clockRemainSec.value = Math.max(0, left)
+  if (left <= 0) {
+    void onClockTimeout()
+  }
+}
+
+async function onClockTimeout(): Promise<void> {
+  if (autoEnding.value || store.isGameOver || store.loading) return
+  // 仅本方行动窗口强制推进；对手侧只展示耗尽，等轮询同步
+  if (!store.isLocalPlayerActive) return
+  if (!store.availableActions.includes('END_PHASE')) return
+  autoEnding.value = true
+  clearSelection()
+  try {
+    await store.doAction({ actionType: 'END_PHASE' })
+  } catch {
+    actionError.value = store.error ?? '超时自动结束失败'
+    autoEnding.value = false
+  }
+}
+
+function startClockLoop(): void {
+  stopClockLoop()
+  clockTimer = setInterval(tickClock, CLOCK_TICK_MS)
+}
+
+function stopClockLoop(): void {
+  if (clockTimer != null) {
+    clearInterval(clockTimer)
+    clockTimer = null
+  }
+}
+
+watch(
+  clockWindowKey,
+  (key) => {
+    if (!key) {
+      clockRemainSec.value = 0
+      clockDeadlineAt.value = 0
+      autoEnding.value = false
+      return
+    }
+    resetClock()
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
   document.addEventListener('fullscreenchange', onFullscreenChange)
+  startClockLoop()
   const raw = route.params.gameId
-  const id = typeof raw === 'string' ? Number(raw) : Number(Array.isArray(raw) ? raw[0] : raw)
+  const id =
+    typeof raw === 'string'
+      ? Number(raw)
+      : Number(Array.isArray(raw) ? raw[0] : raw)
   if (Number.isFinite(id) && id > 0) {
     try {
       await store.loadGame(id)
     } catch {
-      // notifier
+      actionError.value = store.error ?? '加载对局失败'
     }
   }
 })
+
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
+  stopClockLoop()
   store.stopPolling()
 })
-
-const turnCount = computed(() => store.gameState?.turnCount ?? 1)
-const phaseLabel = computed(() => store.gameState?.currentPhase ?? '行动阶段')
-
-/* 手牌扇形布局: 根据索引计算每张卡的旋转角度、水平偏移和弧度上抬 */
-const handCount = 5
-
-/* 区域卡牌数量 (TODO: 接入真实游戏状态) */
-const opponentZones = { characterDeck: 38, rushDeck: 9, retreat: 2, crop: 1 }
-const localZones = { characterDeck: 41, rushDeck: 9, retreat: 0, crop: 3 }
-
-/* 战区槽位是否有卡 */
-const opponentField = { flankL: false, vanguard: true, rear: false, flankR: false }
-const localField = { flankL: false, vanguard: true, rear: true, flankR: false }
-const fanCardStyle = (index: number, total: number): { transform: string; zIndex: string } => {
-  if (total <= 1) return { transform: 'none', zIndex: '100' }
-  const center = (total - 1) / 2
-  const offset = index - center
-  const maxAngle = 14
-  const angle = (offset / center) * maxAngle
-  const spacing = 50
-  const xOffset = offset * spacing
-  const arcLift = 5
-  const yOffset = Math.abs(offset) * arcLift
-  return {
-    transform: `translateX(${xOffset}px) translateY(${yOffset}px) rotate(${angle}deg)`,
-    zIndex: String(100 - Math.round(Math.abs(offset) * 10)),
-  }
-}
 </script>
 
 <template>
-  <div class="battle-pc">
-    <!-- 顶部 HUD: 返回(左) | 对手信息(居中) | 全屏(右) -->
-    <header class="hud-top">
-      <button class="btn-back" @click="goHome">←</button>
-      <div class="opponent-info">
-        <span class="opponent-avatar"></span>
-        <div class="opponent-meta">
-          <span class="opponent-name">{{ store.opponent?.playerId ?? '对手' }}</span>
-          <span class="opponent-hand">手牌 {{ store.opponent?.handCount ?? 0 }}</span>
+  <div
+    class="battle-pc"
+    :class="{
+      'is-my-turn': store.isLocalPlayerActive && !store.isGameOver,
+      'is-opp-turn': !store.isLocalPlayerActive && !store.isGameOver,
+    }"
+  >
+    <!-- 顶栏：导航 + 阶段步进 + 回合 -->
+    <header class="chrome-top">
+      <button type="button" class="icon-btn" title="返回" @click="goHome">←</button>
+
+      <nav class="phase-rail" aria-label="回合阶段">
+        <span
+          v-for="(ph, i) in PHASE_ORDER"
+          :key="ph"
+          class="phase-step"
+          :class="{
+            done: phaseIndex > i,
+            current: phaseIndex === i,
+          }"
+        >
+          {{ PHASE_LABELS[ph] }}
+        </span>
+      </nav>
+
+      <div class="turn-block">
+        <span class="turn-no">R{{ turnCount }}</span>
+        <span class="turn-phase">{{ phaseLabel }}</span>
+        <div
+          v-if="clockWindowKey"
+          class="turn-clock"
+          :class="[
+            clockUrgent,
+            store.isLocalPlayerActive ? 'mine' : 'theirs',
+          ]"
+          :title="`本阶段限时 ${TURN_LIMIT_SEC} 秒，超时自动结束阶段`"
+        >
+          <svg class="clock-ring" viewBox="0 0 36 36" aria-hidden="true">
+            <circle class="ring-track" cx="18" cy="18" r="15.9" />
+            <circle
+              class="ring-value"
+              cx="18"
+              cy="18"
+              r="15.9"
+              :style="{ strokeDashoffset: clockDashOffset }"
+            />
+          </svg>
+          <span class="clock-num">{{ clockDisplay }}</span>
         </div>
+        <span
+          class="turn-owner"
+          :class="store.isLocalPlayerActive ? 'mine' : 'theirs'"
+        >
+          {{ store.isLocalPlayerActive ? '你的回合' : '对手回合' }}
+        </span>
       </div>
+
       <button
-        class="btn-fullscreen"
-        @click="toggleFullscreen"
+        type="button"
+        class="icon-btn"
         :title="isFullscreen ? '退出全屏' : '全屏'"
+        @click="toggleFullscreen"
       >
-        <!-- 全屏: 四角向外 -->
-        <svg v-if="!isFullscreen" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <svg
+          v-if="!isFullscreen"
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        >
           <path d="M2.5 5.5V2.5h3M13.5 5.5V2.5h-3M2.5 10.5v3h3M13.5 10.5v3h-3" />
         </svg>
-        <!-- 退出全屏: 四角向内 -->
-        <svg v-else viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <svg
+          v-else
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        >
           <path d="M5.5 2.5v3h-3M10.5 2.5v3h3M5.5 13.5v-3h-3M10.5 13.5v-3h3" />
         </svg>
       </button>
     </header>
 
-    <!-- 战区 - 手牌扇形浮在底部 -->
-    <main class="canvas-area">
-      <div class="battlefield">
+    <!-- 对手仪表条 -->
+    <section class="player-strip opp">
+      <div class="identity">
+        <span class="avatar" />
+        <div class="id-text">
+          <strong>{{ store.opponent?.playerId ?? '对手' }}</strong>
+          <span>手牌 {{ store.opponent?.handCount ?? 0 }}</span>
+        </div>
+      </div>
 
-        <!-- 对手区域一行 = 三列（相对我方镜像）：
-             左列 = 角色卡组(1行/外) → 撤退区 → 裁剪区(靠中线)
-             中列 = 基地(1行/外) → 菱形(靠中线)
-             右列 = 冲击卡组(1行/外) → 时间线(靠中线) -->
-        <div class="row-area opponent-area">
-          <!-- 左列：角色卡组(第1行) -> 撤退区 -> 虚空区（靠中线） -->
-          <div class="col col-left opponent">
-            <!-- 角色卡组 -->
-            <div class="zone deck opponent-deck">
-              <span class="zone-tag bottom-right">角色·{{ opponentZones.characterDeck }}</span>
-              <div class="stack-face" v-if="opponentZones.characterDeck > 0">
-                <Card back-type="character" class="stacked" />
-              </div>
-            </div>
-            <div class="zone stack-zone retreat-stack">
-              <span class="zone-tag bottom-right">撤退·{{ opponentZones.retreat }}</span>
-              <div class="stack-face" v-if="opponentZones.retreat > 0">
-                <Card back-type="character" class="stacked" />
-              </div>
-            </div>
-            <div class="zone stack-zone crop-stack">
-              <span class="zone-tag bottom-right">虚空·{{ opponentZones.crop }}</span>
-              <div class="stack-face" v-if="opponentZones.crop > 0">
-                <Card back-type="character" class="stacked" />
+      <div class="meters">
+        <div class="meter" title="角色卡组">
+          <div class="meter-face">
+            <Card v-if="opponentZones.characterDeck > 0" back-type="character" />
+          </div>
+          <div class="meter-meta">
+            <em>角色</em>
+            <b>{{ opponentZones.characterDeck }}</b>
+          </div>
+        </div>
+        <div class="meter" title="撤退区">
+          <div class="meter-face dim">
+            <Card v-if="opponentZones.retreat > 0" back-type="character" />
+          </div>
+          <div class="meter-meta">
+            <em>撤退</em>
+            <b>{{ opponentZones.retreat }}</b>
+          </div>
+        </div>
+        <div class="meter" title="虚空区">
+          <div class="meter-face dim">
+            <Card v-if="opponentZones.voidZone > 0" back-type="character" />
+          </div>
+          <div class="meter-meta">
+            <em>虚空</em>
+            <b>{{ opponentZones.voidZone }}</b>
+          </div>
+        </div>
+        <div class="meter rush" title="冲击卡组">
+          <div class="meter-face">
+            <Card v-if="opponentZones.rushDeck > 0" back-type="rush" />
+          </div>
+          <div class="meter-meta">
+            <em>冲击</em>
+            <b>{{ opponentZones.rushDeck }}</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="timeline-meter" title="时间线（9 张冲击卡胜利）">
+        <div class="tl-head">
+          <span>时间线</span>
+          <strong>{{ opponentTimelineFilled }}/9</strong>
+        </div>
+        <div class="tl-track" aria-label="对手时间线进度">
+          <div
+            v-for="(card, i) in opponentTimeline"
+            :key="`ot-${i}`"
+            class="tl-cell"
+            :class="{ filled: !!card }"
+            :title="card?.cardCode || `空位 ${i + 1}`"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- 中央战区舞台：基地 + 菱形 -->
+    <main class="stage">
+      <div class="arena">
+        <div class="side opp-side">
+          <div class="bench">
+            <span class="bench-tag">基地</span>
+            <div class="bench-row reverse">
+              <div
+                v-for="(card, i) in opponentField.base"
+                :key="`ob-${i}`"
+                class="bench-slot"
+                :data-n="i + 1"
+              >
+                <BattleFieldCard v-if="card" :card="card" side="opponent" />
               </div>
             </div>
           </div>
 
-          <!-- 中列：基地(第一行=顶部外) → 菱形(靠中线) ; 我方左对齐1→6，对方右对齐6→1镜像 -->
-          <div class="col col-center">
-            <div class="zone base opponent-base">
-              <span class="base-tag left-top">基地</span>
-              <div class="base-row row-reverse">
-                <div class="base-slot" v-for="i in 6" :key="i" :data-slot="7 - i"></div>
-              </div>
+          <div class="diamond opp">
+            <div class="diamond-ring" aria-hidden="true" />
+            <div class="d-col">
+              <button
+                type="button"
+                class="d-slot"
+                data-label="侧翼"
+                :class="{
+                  'is-target':
+                    canAct && hasAttack && !!selectedField && !!opponentField.flankL,
+                }"
+                @click="onOpponentFieldSlotClick('FLANK_LEFT', 0, opponentField.flankL)"
+              >
+                <div
+                  v-if="opponentField.flankL"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(opponentField.flankL.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="opponentField.flankL" side="opponent" />
+                </div>
+              </button>
             </div>
-            <!-- 对手半场菱形：3列 (侧翼 | 中央双槽位 | 侧翼), 中间列垂直堆叠先锋+后卫
-     屏幕布局：
-     ┌─────┐ ┌─────────┐ ┌─────┐
-     │侧翼L│ │  后卫   │ │侧翼R│   ← 外缘
-     ├─────┤ ├─────────┤ ├─────┤
-     │     │ │  先锋   │ │     │   ← 内缘(靠近中线)
-     └─────┘ └─────────┘ └─────┘
-     实时属性已内嵌在卡面边缘 (等级/战力/攻距/结附)
--->
-            <div class="diamond opponent">
-              <!-- 第1列: 侧翼L -->
-              <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
-                  <div class="bc-slot" v-if="opponentField.flankL">
-                    <Card :is-face-down="true" back-type="character" side="opponent" />
-                  </div>
+            <div class="d-col spine">
+              <button
+                type="button"
+                class="d-slot"
+                data-label="后卫"
+                :class="{
+                  'is-target':
+                    canAct && hasAttack && !!selectedField && !!opponentField.rearguard,
+                }"
+                @click="onOpponentFieldSlotClick('REARGUARD', 0, opponentField.rearguard)"
+              >
+                <div
+                  v-if="opponentField.rearguard"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(opponentField.rearguard.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="opponentField.rearguard" side="opponent" />
                 </div>
-              </div>
-
-              <!-- 第2列: 中央槽位列 (后卫上+先锋下) -->
-              <div class="diamond-col col-center-vanguard">
-                <div class="battle-cell rear" data-zone="rear" data-zone-label="后卫">
-                  <div class="bc-slot" v-if="opponentField.rear">
-                    <Card :is-face-down="true" back-type="character" side="opponent" />
-                  </div>
+              </button>
+              <button
+                type="button"
+                class="d-slot"
+                data-label="先锋"
+                :class="{
+                  'is-target':
+                    canAct && hasAttack && !!selectedField && !!opponentField.vanguard,
+                }"
+                @click="onOpponentFieldSlotClick('VANGUARD', 0, opponentField.vanguard)"
+              >
+                <div
+                  v-if="opponentField.vanguard"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(opponentField.vanguard.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="opponentField.vanguard" side="opponent" />
                 </div>
-                <div class="battle-cell vanguard" data-zone="vanguard" data-zone-label="先锋">
-                  <div class="bc-slot has-card" v-if="opponentField.vanguard">
-                    <Card :is-face-down="false" theme="character" side="opponent"
-                      level="5" :power="15000" attack-range="2" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- 第3列: 侧翼R -->
-              <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
-                  <div class="bc-slot" v-if="opponentField.flankR">
-                    <Card :is-face-down="true" back-type="character" side="opponent" />
-                  </div>
-                </div>
-              </div>
+              </button>
             </div>
-          </div>
-
-          <!-- 右列：冲击卡组(第一行=顶部外, 打横放节省高度) → 时间线(吃剩余高度, 3×3=9卡槽阵列) -->
-          <div class="col col-right opponent">
-            <div class="zone deck opponent-deck rush-deck">
-              <span class="zone-tag bottom-right rush">冲击·{{ opponentZones.rushDeck }}</span>
-              <Card v-if="opponentZones.rushDeck > 0" back-type="rush" horizontal />
-            </div>
-            <div class="zone timeline-zone">
-              <span class="stack-label-out top-right">时间线</span>
-              <div class="timeline-stack">
-                <div class="timeline-slot" v-for="i in 9" :key="i" :data-slot="i" :style="{ '--idx': i - 1 }"></div>
-              </div>
+            <div class="d-col">
+              <button
+                type="button"
+                class="d-slot"
+                data-label="侧翼"
+                :class="{
+                  'is-target':
+                    canAct && hasAttack && !!selectedField && !!opponentField.flankR,
+                }"
+                @click="onOpponentFieldSlotClick('FLANK_RIGHT', 0, opponentField.flankR)"
+              >
+                <div
+                  v-if="opponentField.flankR"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(opponentField.flankR.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="opponentField.flankR" side="opponent" />
+                </div>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- 中线: 居中状态药丸(回合+计时) | 右侧操作按钮(认输分隔防误触) -->
-        <div class="row-midline">
-          <span class="turn-badge">
-            第{{ turnCount }}回合 · {{ phaseLabel }}
-          </span>
-          <div class="mid-actions">
-            <button class="btn-phase">结束阶段</button>
-            <button class="btn-end-turn">结束回合</button>
-            <span class="action-divider"></span>
-            <button class="btn-surrender">认输</button>
-          </div>
+        <div class="vs-line">
+          <span>VS</span>
         </div>
 
-        <!-- 我方区域一行 = 三列（相对对方镜像）：
-             左列 = 时间线(靠中线) → 冲击卡组(最后一行/外边缘底)
-             中列 = 菱形(靠中线) → 基地(最后一行/外) ; 卡槽左对齐 1→6
-             右列 = 裁剪区(靠中线) → 撤退区 → 角色卡组(最后一行/外边缘底) -->
-        <div class="row-area local-area">
-          <!-- 左列：时间线(3×3=9卡槽阵列, 吃剩余高度) → 冲击卡组(底部=最后一行, 打横放节省高度) -->
-          <div class="col col-left local">
-            <div class="zone timeline-zone local-timeline">
-              <span class="stack-label-out bottom-left">时间线</span>
-              <div class="timeline-stack">
-                <div class="timeline-slot" v-for="i in 9" :key="i" :data-slot="i" :style="{ '--idx': i - 1 }"></div>
-              </div>
+        <div class="side local-side">
+          <div class="diamond local">
+            <div class="diamond-ring" aria-hidden="true" />
+            <div class="d-col">
+              <button
+                type="button"
+                class="d-slot"
+                data-label="侧翼"
+                :class="{
+                  'is-drop': canAct && !!selectedHandCode && hasSummon && !localField.flankL,
+                }"
+                @click="onLocalFieldSlotClick('FLANK_LEFT', 0, localField.flankL)"
+              >
+                <div
+                  v-if="localField.flankL"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(localField.flankL.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="localField.flankL" side="local" />
+                </div>
+              </button>
             </div>
-            <div class="zone deck local-deck rush-deck">
-              <span class="zone-tag top-left rush">冲击·{{ localZones.rushDeck }}</span>
-              <Card v-if="localZones.rushDeck > 0" back-type="rush" horizontal />
+            <div class="d-col spine">
+              <button
+                type="button"
+                class="d-slot"
+                data-label="先锋"
+                :class="{
+                  'is-drop':
+                    canAct && !!selectedHandCode && hasSummon && !localField.vanguard,
+                }"
+                @click="onLocalFieldSlotClick('VANGUARD', 0, localField.vanguard)"
+              >
+                <div
+                  v-if="localField.vanguard"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(localField.vanguard.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="localField.vanguard" side="local" />
+                </div>
+              </button>
+              <button
+                type="button"
+                class="d-slot"
+                data-label="后卫"
+                :class="{
+                  'is-drop':
+                    canAct && !!selectedHandCode && hasSummon && !localField.rearguard,
+                }"
+                @click="onLocalFieldSlotClick('REARGUARD', 0, localField.rearguard)"
+              >
+                <div
+                  v-if="localField.rearguard"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(localField.rearguard.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="localField.rearguard" side="local" />
+                </div>
+              </button>
+            </div>
+            <div class="d-col">
+              <button
+                type="button"
+                class="d-slot"
+                data-label="侧翼"
+                :class="{
+                  'is-drop': canAct && !!selectedHandCode && hasSummon && !localField.flankR,
+                }"
+                @click="onLocalFieldSlotClick('FLANK_RIGHT', 0, localField.flankR)"
+              >
+                <div
+                  v-if="localField.flankR"
+                  class="d-card"
+                  :class="{
+                    'is-selected': isFieldSelected(localField.flankR.instanceId),
+                  }"
+                >
+                  <BattleFieldCard :card="localField.flankR" side="local" />
+                </div>
+              </button>
             </div>
           </div>
 
-          <!-- 中列：菱形作战区(靠中线) + 基地区(底部外边缘) -->
-          <div class="col col-center">
-            <!-- 我方半场菱形：3列 (侧翼 | 中央双槽位 | 侧翼), 中间列垂直堆叠先锋+后卫
-     屏幕布局：
-     ┌─────┐ ┌─────────┐ ┌─────┐
-     │侧翼L│ │  先锋   │ │侧翼R│   ← 内缘(靠近中线)
-     ├─────┤ ├─────────┤ ├─────┤
-     │     │ │  后卫   │ │     │   ← 外缘(远离中线)
-     └─────┘ └─────────┘ └─────┘
-     实时属性已内嵌在卡面边缘 (等级/战力/攻距/结附)
--->
-            <div class="diamond local">
-              <!-- 第1列: 侧翼L -->
-              <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
-                  <div class="bc-slot" v-if="localField.flankL">
-                    <Card :is-face-down="true" back-type="character" side="local" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- 第2列: 中央槽位列 (先锋上+后卫下) -->
-              <div class="diamond-col col-center-vanguard">
-                <div class="battle-cell vanguard" data-zone="vanguard" data-zone-label="先锋">
-                  <div class="bc-slot has-card has-attack" v-if="localField.vanguard">
-                    <Card :is-face-down="false" theme="character" side="local"
-                      level="3" :power="8000" attack-range="1" />
-                  </div>
-                </div>
-                <div class="battle-cell rear" data-zone="rear" data-zone-label="后卫">
-                  <div class="bc-slot has-card" v-if="localField.rear">
-                    <Card :is-face-down="false" theme="character" side="local"
-                      level="4" :power="24000" attack-range="3" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- 第3列: 侧翼R -->
-              <div class="diamond-col col-flank">
-                <div class="battle-cell flank" data-zone="flank" data-zone-label="侧翼">
-                  <div class="bc-slot" v-if="localField.flankR">
-                    <Card :is-face-down="true" back-type="character" side="local" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="zone base local-base">
-              <span class="base-tag right-bottom">基地</span>
-              <div class="base-row">
-                <div class="base-slot" v-for="i in 6" :key="i" :data-slot="i"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 右列：裁剪区 → 撤退区 → 角色卡组（底部=最后一行=外边缘，和我方左列冲击卡组位置一致） -->
-          <div class="col col-right local">
-            <div class="zone stack-zone crop-stack">
-              <span class="zone-tag top-left">虚空·{{ localZones.crop }}</span>
-              <div class="stack-face" v-if="localZones.crop > 0">
-                <Card back-type="character" class="stacked" />
-              </div>
-            </div>
-            <div class="zone stack-zone retreat-stack">
-              <span class="zone-tag top-left">撤退·{{ localZones.retreat }}</span>
-              <div class="stack-face" v-if="localZones.retreat > 0">
-                <Card back-type="character" class="stacked" />
-              </div>
-            </div>
-            <div class="zone deck local-deck">
-              <span class="zone-tag top-left">角色·{{ localZones.characterDeck }}</span>
-              <div class="stack-face" v-if="localZones.characterDeck > 0">
-                <Card back-type="character" class="stacked" />
+          <div class="bench">
+            <span class="bench-tag">基地</span>
+            <div class="bench-row">
+              <div
+                v-for="(card, i) in localField.base"
+                :key="`lb-${i}`"
+                class="bench-slot"
+                :class="{
+                  'is-drop':
+                    canAct &&
+                    !!selectedHandCode &&
+                    !card &&
+                    (hasBaseDeploy || hasSummon),
+                  'is-selected': card && isFieldSelected(card.instanceId),
+                }"
+                :data-n="i + 1"
+                @click="onLocalBaseSlotClick(i)"
+              >
+                <BattleFieldCard
+                  v-if="card"
+                  :card="card"
+                  side="local"
+                  @click.stop="onLocalFieldSlotClick('BASE', i, card)"
+                />
               </div>
             </div>
           </div>
         </div>
+      </div>
 
+      <div v-if="store.isGameOver" class="finished-overlay">
+        <div class="finished-panel">
+          <p class="finished-title">{{ resultLabel }}</p>
+          <p class="finished-sub">
+            {{
+              store.gameState?.winner === 'DRAW'
+                ? '本局平局'
+                : store.isLocalPlayerWinner
+                  ? '你赢得了本局'
+                  : '对手赢得了本局'
+            }}
+          </p>
+          <button type="button" class="btn-home" @click="goHome">返回首页</button>
+        </div>
       </div>
     </main>
 
-    <!-- 底部 HUD: 扇形手牌 -->
-    <footer class="hud-bottom">
-      <div class="hand-fan">
-        <div
-          v-for="i in handCount"
-          :key="i"
-          class="hand-slot"
-          :style="fanCardStyle(i - 1, handCount)"
-        >
-          <div class="hand-card-inner">
-            <Card :is-face-down="true" back-type="character" side="local" />
+    <!-- 我方仪表条 -->
+    <section class="player-strip local">
+      <div class="timeline-meter" title="时间线（9 张冲击卡胜利）">
+        <div class="tl-head">
+          <span>时间线</span>
+          <strong>{{ localTimelineFilled }}/9</strong>
+        </div>
+        <div class="tl-track" aria-label="我方时间线进度">
+          <div
+            v-for="(card, i) in localTimeline"
+            :key="`lt-${i}`"
+            class="tl-cell"
+            :class="{ filled: !!card }"
+            :title="card?.cardCode || `空位 ${i + 1}`"
+          />
+        </div>
+      </div>
+
+      <div class="meters">
+        <div class="meter rush" title="冲击卡组">
+          <div class="meter-face">
+            <Card v-if="localZones.rushDeck > 0" back-type="rush" />
+          </div>
+          <div class="meter-meta">
+            <em>冲击</em>
+            <b>{{ localZones.rushDeck }}</b>
           </div>
         </div>
+        <div class="meter" title="虚空区">
+          <div class="meter-face dim">
+            <Card v-if="localZones.voidZone > 0" back-type="character" />
+          </div>
+          <div class="meter-meta">
+            <em>虚空</em>
+            <b>{{ localZones.voidZone }}</b>
+          </div>
+        </div>
+        <div class="meter" title="撤退区">
+          <div class="meter-face dim">
+            <Card v-if="localZones.retreat > 0" back-type="character" />
+          </div>
+          <div class="meter-meta">
+            <em>撤退</em>
+            <b>{{ localZones.retreat }}</b>
+          </div>
+        </div>
+        <div class="meter" title="角色卡组">
+          <div class="meter-face">
+            <Card v-if="localZones.characterDeck > 0" back-type="character" />
+          </div>
+          <div class="meter-meta">
+            <em>角色</em>
+            <b>{{ localZones.characterDeck }}</b>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 操作坞：提示 + 指令 + 手牌 -->
+    <footer class="command-dock">
+      <div class="dock-left">
+        <p class="hint" :class="{ error: !!actionError }">{{ hintText }}</p>
+        <div class="cmds">
+          <button
+            v-if="hasBaseDeploy"
+            type="button"
+            class="cmd"
+            :class="{ on: pendingMode === 'BASE_DEPLOY' }"
+            :disabled="!canAct"
+            @click="setPendingMode('BASE_DEPLOY')"
+          >
+            基地部署
+          </button>
+          <button
+            v-if="hasSummon"
+            type="button"
+            class="cmd"
+            :class="{ on: pendingMode === 'SUMMON' }"
+            :disabled="!canAct"
+            @click="setPendingMode('SUMMON')"
+          >
+            号召
+          </button>
+          <button
+            v-if="hasAttack"
+            type="button"
+            class="cmd"
+            :class="{ on: pendingMode === 'ATTACK' }"
+            :disabled="!canAct"
+            @click="setPendingMode('ATTACK')"
+          >
+            攻击
+          </button>
+          <button
+            v-if="hasEndPhase"
+            type="button"
+            class="cmd primary"
+            :disabled="!canAct"
+            @click="onEndPhase"
+          >
+            结束阶段
+          </button>
+          <button
+            v-if="hasSurrender"
+            type="button"
+            class="cmd danger"
+            :disabled="store.loading || store.isGameOver"
+            @click="onSurrender"
+          >
+            认输
+          </button>
+        </div>
+      </div>
+
+      <div class="hand-tray">
+        <div
+          v-for="(card, i) in localHand"
+          :key="card.instanceId"
+          class="hand-slot"
+          :class="{ 'is-selected': selectedHandId === card.instanceId }"
+          :style="fanCardStyle(i, handCount)"
+          @click="selectHand(card)"
+        >
+          <BattleFieldCard :card="card" side="local" force-face-up />
+        </div>
+      </div>
+
+      <div class="dock-right">
+        <span class="hand-count">手牌 {{ handCount }}</span>
       </div>
     </footer>
   </div>
 </template>
 
 <style scoped>
-/* ============================================
-   整体 - 5 段式：顶 HUD / 战区 / 中线 / 战区 / 底 HUD
-   ============================================ */
 .battle-pc {
-  display: flex;
-  flex-direction: column;
+  /* 卡面比例用小数，避免 calc(h * (747/1042)) 在部分浏览器里宽高塌成 0 */
+  --card-aspect: 0.717;
+  --card-h: clamp(64px, 9.5vh, 88px);
+  --card-w: calc(var(--card-h) * 0.717);
+  --hand-h: clamp(96px, 14vh, 128px);
+  --hand-w: calc(var(--hand-h) * 0.717);
+  --d-gap: clamp(4px, 0.7vw, 8px);
+  --slot-inset: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 5%, transparent),
+    inset 0 2px 6px rgba(0, 0, 0, 0.22);
+
+  display: grid;
+  grid-template-rows: 40px auto minmax(0, 1fr) auto auto;
   height: 100dvh;
-  background: var(--bg-base);
   overflow: hidden;
-  /* 卡牌真实比例：取自素材 assets/card/designs/*.png = 747×1042 */
-  --card-aspect: 747 / 1042;
-  --card-aspect-inv: 1042 / 747;  /* 横版比例(打横用) */
-  --card-gap: 3px;
-  --card-h: 92px;
-  --col-w: 110px;  /* 左右列宽度 */
-  --deck-meta-h: 20px;   /* 卡组顶/底条带高度: 放标签/统计/摘要 */
-  --base-meta-h: 18px;   /* 基地区标签条高度 */
-  --slot-inset: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
-    inset 0 2px 8px rgba(0, 0, 0, 0.28);
+  background: var(--bg-base);
+  color: var(--text-primary);
 }
 
-/* ============================================
-   顶部 HUD
-   ============================================ */
-.hud-top {
-  flex-shrink: 0;
-  height: 44px;
-  display: flex;
+.battle-pc.is-my-turn {
+  --owner-tint: var(--accent-soft);
+}
+
+.battle-pc.is-opp-turn {
+  --owner-tint: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+}
+
+/* ========== 顶栏 ========== */
+.chrome-top {
+  display: grid;
+  grid-template-columns: 32px 1fr auto 32px;
   align-items: center;
-  padding: 0 var(--space-md);
-  background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
+  gap: 10px;
+  padding: 0 12px;
+  background: var(--shell-topbar-bg, var(--bg-surface));
   border-bottom: 1px solid var(--border);
-  position: relative;
+  z-index: 8;
 }
 
-.btn-back {
+.icon-btn {
   width: 28px;
   height: 28px;
-  background: transparent;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
 }
 
-.btn-back:hover {
+.icon-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-/* 全屏按钮: margin-left:auto 推到最右 */
-.btn-fullscreen {
-  margin-left: auto;
-  width: 28px;
-  height: 28px;
+.phase-rail {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.phase-step {
+  position: relative;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-disabled);
+  border-radius: 999px;
+}
+
+.phase-step.done {
   color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0;
 }
 
-.btn-fullscreen:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.phase-step.current {
+  color: var(--accent-contrast);
+  background: var(--accent);
 }
 
-/* 对手信息: 绝对居中, 头像 + 名字 + 手牌数 */
-.opponent-info {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+.turn-block {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 14px 3px 4px;
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
+  white-space: nowrap;
 }
 
-.opponent-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--accent-blue);
-  border: 2px solid var(--bg-surface);
-  flex-shrink: 0;
+.turn-no {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.opponent-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  line-height: 1.2;
-}
-
-.opponent-name {
-  font-size: 13px;
+.turn-phase {
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.opponent-hand {
+.turn-clock {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.clock-ring {
+  position: absolute;
+  inset: 0;
+  width: 40px;
+  height: 40px;
+  transform: rotate(-90deg);
+}
+
+.ring-track,
+.ring-value {
+  fill: none;
+  stroke-width: 3.2;
+}
+
+.ring-track {
+  stroke: var(--border);
+}
+
+.ring-value {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  transition: stroke-dashoffset 0.2s linear, stroke 0.15s ease;
+}
+
+.turn-clock.mine .ring-value {
+  stroke: var(--accent);
+}
+
+.turn-clock.theirs .ring-value {
+  stroke: var(--accent-blue);
+}
+
+.turn-clock.warn .ring-value {
+  stroke: var(--accent-gold);
+}
+
+.turn-clock.danger .ring-value {
+  stroke: var(--accent-red);
+}
+
+.turn-clock.danger .clock-num {
+  color: var(--accent-red);
+  animation: clock-pulse 0.7s ease-in-out infinite;
+}
+
+.clock-num {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+@keyframes clock-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.turn-owner {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+
+.turn-owner.mine {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.turn-owner.theirs {
+  color: var(--text-secondary);
+  background: var(--bg-surface-2);
+}
+
+/* ========== 玩家仪表条 ========== */
+.player-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  min-height: 40px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 6;
+}
+
+.player-strip.local {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-surface) 88%, var(--owner-tint, transparent));
+}
+
+.player-strip.opp {
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  border: 2px solid var(--bg-surface-2);
+}
+
+.id-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  gap: 1px;
+}
+
+.id-text strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.id-text span {
   font-size: 11px;
   color: var(--text-secondary);
-  padding-left: 6px;
-  border-left: 1px solid var(--border);
 }
 
-/* ============================================
-   战区 - 6 段上下排列，每段高度固定 = 不重叠关键
-   ============================================ */
-.canvas-area {
-  flex: 1;
-  min-height: 0;
-  padding: var(--space-md);
-  overflow: auto;          /* 窗口过小时出现滚动条而非堆叠 */
+.meters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 3px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--edge-highlight, none);
+}
+
+.meter.rush {
+  border-color: color-mix(in srgb, var(--accent-gold) 45%, var(--border));
+}
+
+.meter-face {
   position: relative;
-  isolation: isolate;
+  width: 22px;
+  height: 30px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.canvas-area::before {
+.meter-face.dim {
+  opacity: 0.85;
+}
+
+/* Card 根节点是 absolute；宿主必须 relative，并关掉横置旋转以免撑破仪表 */
+.meter-face :deep(.card-face) {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none !important;
+  border-radius: 2px !important;
+  background-size: cover !important;
+}
+
+.meter-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.meter-meta em {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-disabled);
+}
+
+.meter-meta b {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 时间线 = 胜利进度条 */
+.timeline-meter {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 2px;
+}
+
+.tl-head span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-disabled);
+}
+
+.tl-head strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-track {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 3px;
+  height: 10px;
+}
+
+.tl-cell {
+  border-radius: 3px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+}
+
+.tl-cell.filled {
+  border-color: color-mix(in srgb, var(--accent-gold) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent-gold) 55%, var(--bg-surface-2));
+}
+
+/* ========== 中央舞台 ========== */
+.stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+}
+
+.stage::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: var(--shell-art) center 28% / cover no-repeat;
-  opacity: 0.22;
+  background: var(--shell-art) center 35% / cover no-repeat;
+  opacity: 0.14;
   filter: var(--shell-art-filter);
   pointer-events: none;
 }
 
-.canvas-area::after {
+.stage::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: color-mix(in srgb, var(--bg-base) 62%, transparent);
+  background:
+    radial-gradient(
+      ellipse 70% 55% at 50% 50%,
+      var(--owner-tint, transparent),
+      transparent 70%
+    ),
+    color-mix(in srgb, var(--bg-base) 72%, transparent);
   pointer-events: none;
 }
 
-.battlefield {
+.arena {
   position: relative;
   z-index: 1;
+  width: min(920px, 100%);
   height: 100%;
-  min-width: 600px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-/* 对战区域 - 5 段式：顶 HUD / 对手区 / 中线 / 我方区 / 底 HUD
- *
- * 对手区 & 我方区 统一三列布局 (grid):
- *   ┌──────────┬───────────────────┬──────────┐
- *   │ 左列     │  中列             │  右列     │
- *   │ 裁剪区  │  基地区(对手)     │  时间线   │
- *   │ 撤退区  │  菱形作战区       │  冲击卡组 │
- *   │ 角色卡组│  菱形作战区(我方) │  时间线   │
- *   │         │  基地区(我方)     │          │
- *   └──────────┴───────────────────┴──────────┘
- *   注意: 我方区顺序: 左列(裁剪/撤退/角色卡组) 中列(菱形+基地) 右列(时间线+冲击卡组)
- *        方位保持: 对战中间是中线, 对手区上方, 我方区下方, 区域内部元素方位不变
- *
- * 标签外置原则:
- * - 卡组块: 两段式: 一条信息带(标签+统计+摘要一行) + 卡背
- *     对手侧: 信息带上 + 卡背下 (信息带靠外边缘)
- *     我方侧: 卡背上 + 信息带下 (信息带靠外边缘)
- * - 基地区: 只放 6 个卡槽阵列, "基地"标签用绝对定位挂在容器外边缘角落, 不挤占卡槽高度
- *     对手基地: 左下角外侧; 我方基地: 右上角外侧
- */
-
-/* 对手区 & 我方区: 每区占可用区域 1 份, 用 grid 三列 左/中/右 */
-/* 中列给菱形足够空间(菱形宽 ~498px + 基地) */
-.row-area {
-  flex: 1 1 0;
-  min-height: 0;
-  min-width: 580px;
   display: grid;
-  grid-template-columns: var(--col-w) minmax(304px, 1fr) var(--col-w);
-  gap: var(--space-sm);
-  align-items: stretch;
-  justify-items: stretch;
-  padding: 4px var(--space-md);
+  grid-template-rows: 1fr auto 1fr;
+  gap: 4px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--bg-surface) 42%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--edge-highlight, none);
 }
 
-/* 通用列容器: 内部垂直堆叠 gap; 列内每块均分高度 (每块 flex:1) */
-.col {
+.side {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-sm);
-  min-width: 0;
-  min-height: 0;
-  width: 100%;
-}
-
-/* 左列整体对齐方向：
- *   对手左列 = flex-start => 角色卡组顶(第一行) → 撤退 → 裁剪(靠中线底)
- *   我方左列 = flex-end   => 时间线(靠中线顶) → 冲击卡组(最后一行=底部外边缘)
- */
-.col-left.opponent { justify-content: flex-start; }
-.col-left.local    { justify-content: flex-end; }
-
-/* 中列: 基地在外边缘、菱形在中线侧  => space-between */
-.col-center { justify-content: space-between; align-items: stretch; }
-
-/* 菱形在 col-center 内 水平居中 (align-self 在 flex 列容器里 = 水平方向) */
-.col-center > .diamond { align-self: center; margin: 0 auto; }
-
-/* 右列整体对齐方向：
- *   对手右列 = flex-start => 冲击卡组顶(第一行) → 时间线(靠中线底)
- *   我方右列 = flex-end   => 裁剪(靠中线顶) → 撤退 → 角色卡组(最后一行=底部外边缘)
- */
-.col-right.opponent { justify-content: flex-start; }
-.col-right.local    { justify-content: flex-end; }
-
-/* 中线: flex 两端对齐, 回合药丸居中, 操作组靠右 */
-.row-midline {
-  flex-shrink: 0;
-  height: 36px;
-  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 var(--space-lg);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  position: relative;
-}
-
-/* 回合信息药丸: 绝对居中, 蓝色圆角 */
-.turn-badge {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 18px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-radius: 14px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* 药丸内分隔点 */
-.badge-sep {
-  opacity: 0.5;
-  margin: 0 2px;
-}
-
-/* 药丸内计时: 等宽数字 */
-.badge-time {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-/* 右侧操作组: 纯按钮, 无信息 */
-.mid-actions {
-  position: absolute;
-  right: var(--space-lg);
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.btn-phase {
-  height: 26px;
-  padding: 0 12px;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+.opp-side {
+  justify-content: flex-start;
 }
 
-.btn-phase:hover {
+.local-side {
+  justify-content: flex-end;
+}
+
+.vs-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+}
+
+.vs-line span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--text-disabled);
+  padding: 0 10px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  line-height: 16px;
+}
+
+/* 基地长条 */
+.bench {
+  position: relative;
+  flex-shrink: 0;
+  height: var(--card-h);
+  width: calc(var(--card-w) * 6 + 3px * 5 + 8px);
+  max-width: 100%;
+  padding: 4px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--slot-inset);
+}
+
+.bench-tag {
+  position: absolute;
+  z-index: 2;
+  top: -9px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 6px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.local-side .bench-tag {
+  top: auto;
+  bottom: -9px;
+  left: auto;
+  right: 8px;
+}
+
+.bench-row {
+  display: flex;
+  gap: 3px;
+  height: 100%;
+}
+
+.bench-row.reverse {
+  flex-direction: row-reverse;
+}
+
+.bench-slot {
+  position: relative;
+  height: 100%;
+  aspect-ratio: var(--card-aspect);
+  flex-shrink: 0;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--slot-inset);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.bench-slot :deep(.card-face) {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.bench-slot.is-drop {
+  border-color: var(--accent);
+  cursor: pointer;
+}
+
+.bench-slot.is-selected {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.bench-slot::after {
+  content: attr(data-n);
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-disabled);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 菱形 */
+.diamond {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, calc(var(--card-w) + 6px));
+  gap: var(--d-gap);
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+}
+
+.diamond-ring {
+  position: absolute;
+  inset: 2%;
+  z-index: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-surface-2) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, var(--accent) 25%);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  opacity: 0.9;
+}
+
+.d-col {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--d-gap);
+}
+
+.d-slot {
+  position: relative;
+  width: calc(var(--card-w) + 6px);
+  height: calc(var(--card-h) + 6px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+.d-slot.is-drop,
+.d-slot.is-target {
+  cursor: pointer;
+}
+
+.d-slot:not(:has(.d-card))::before {
+  content: attr(data-label);
+  position: absolute;
+  inset: 3px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  box-shadow: var(--slot-inset);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-disabled);
+  pointer-events: none;
+}
+
+.d-slot.is-drop:not(:has(.d-card))::before {
+  border-style: solid;
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.btn-end-turn {
-  height: 26px;
+.d-slot.is-target:has(.d-card) {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+.d-card {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  overflow: hidden;
+  transition: transform 0.15s, border-color var(--transition-fast);
+}
+
+.d-card :deep(.card-face) {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.d-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.d-slot:hover .d-card {
+  transform: translateY(-2px);
+}
+
+/* ========== 操作坞 ========== */
+.command-dock {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto minmax(80px, 1fr);
+  align-items: end;
+  gap: 8px;
+  padding: 4px 12px 8px;
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  border-top: 1px solid var(--border);
+  z-index: 8;
+  min-height: calc(var(--hand-h) + 28px);
+  overflow: visible;
+}
+
+.dock-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-height: 14px;
+}
+
+.hint.error {
+  color: var(--accent-red);
+}
+
+.cmds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cmd {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast), border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.cmd:hover:not(:disabled),
+.cmd.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.cmd.primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+}
+
+.cmd.primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  color: var(--accent-contrast);
+}
+
+.cmd.danger {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.cmd.danger:hover:not(:disabled) {
+  background: var(--accent-red);
+  color: #fff;
+}
+
+.cmd:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 手牌托盘：flex 重叠扇形，宽高写死，不再依赖 absolute 塌缩 */
+.hand-tray {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: var(--hand-h);
+  max-width: min(640px, 58vw);
+  padding: 0 8px;
+  overflow: visible;
+}
+
+.hand-slot {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--hand-w);
+  height: var(--hand-h);
+  margin-left: calc(var(--hand-w) * -0.42);
+  transform-origin: bottom center;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-surface-2);
+  transition: transform 0.18s ease, border-color var(--transition-fast),
+    margin 0.18s ease;
+}
+
+.hand-slot:first-child {
+  margin-left: 0;
+}
+
+.hand-slot.is-selected {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+  z-index: 50 !important;
+  margin-bottom: 8px;
+}
+
+.hand-slot:hover {
+  z-index: 60 !important;
+  transform: translateY(-18px) scale(1.06) !important;
+}
+
+.dock-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding-bottom: 10px;
+}
+
+.hand-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========== 终局 ========== */
+.finished-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg-base) 58%, transparent);
+}
+
+.finished-panel {
+  min-width: 220px;
+  padding: 24px 28px;
+  text-align: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.finished-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.finished-sub {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.btn-home {
+  height: 28px;
   padding: 0 16px;
   background: var(--accent);
   color: var(--accent-contrast);
@@ -635,522 +1862,31 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color var(--transition-fast), filter var(--transition-fast);
 }
 
-.btn-end-turn:hover {
-  filter: brightness(1.06);
+.btn-home:hover {
+  filter: brightness(1.05);
 }
 
-/* 分隔线: 视觉隔离认输按钮, 防误触 */
-.action-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--border);
-  margin: 0 4px;
-}
+@media (max-width: 900px) {
+  .phase-rail {
+    display: none;
+  }
 
-.btn-surrender {
-  height: 26px;
-  padding: 0 12px;
-  background: transparent;
-  color: var(--accent-red, #ef4444);
-  border: 1px solid var(--accent-red, #ef4444);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
+  .chrome-top {
+    grid-template-columns: 32px 1fr 32px;
+  }
 
-.btn-surrender:hover {
-  background: var(--accent-red, #ef4444);
-  color: #fff;
-}
+  .turn-block {
+    justify-self: center;
+  }
 
-/* ============================================
-   通用区域（zone）
-   ============================================ */
-.zone {
-  position: relative;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  min-width: 0;
-  min-height: 0;
-}
+  .meters {
+    display: none;
+  }
 
-/* 虚空 / 撤退：刻入桌面的槽，不用斜纹私货色 */
-.zone.stack-zone {
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  max-width: 100%;
-  overflow: visible;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  box-shadow: var(--slot-inset);
-}
-
-/* 外置区域标签: 靛色系, 挂在卡槽外边缘
-   暗色主题: 浅紫蓝底 + 浅色文字
-   亮色主题: 靛蓝色底 + 白色文字 */
-.zone-tag {
-  position: absolute;
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  background: var(--bg-surface);
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  line-height: 1.4;
-  pointer-events: none;
-  z-index: 2;
-}
-.zone-tag.top-left     { top: -10px; left: 4px; }
-.zone-tag.top-right    { top: -10px; right: 4px; }
-.zone-tag.bottom-left  { bottom: -10px; left: 4px; }
-.zone-tag.bottom-right { bottom: -10px; right: 4px; }
-
-/* 时间线区域: 冲击卡组打横后占高变小, 时间线吃全部剩余高度 (flex:1)
- * 9 个卡槽打横堆叠: 每张横版卡只露顶部一小条, 后面叠在前面上面 */
-.zone.timeline-zone {
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 4px;
-  background: var(--bg-surface-2);
-  border-color: var(--border);
-  box-shadow: var(--slot-inset);
-}
-
-/* 堆叠容器: relative + 子元素 absolute 按 --idx 偏移 */
-.timeline-stack {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-/* 时间线 9 槽: 打横 + 堆叠, 平分占满整个高度
- * --idx: 0~8, 每张偏移 = (容器高度 - 卡高) / 8, 第0张顶、第8张底
- * 横版卡比例 w:h = 1042:747; 列宽110px-内边距8px=102px => 卡高≈73px */
-.timeline-slot {
-  --tl-card-h: calc(102px * 747 / 1042);
-  position: absolute;
-  top: calc(var(--idx) * (100% - var(--tl-card-h)) / 8);
-  left: 0;
-  right: 0;
-  margin: 0 auto;
-  width: 100%;
-  aspect-ratio: var(--card-aspect-inv);
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--slot-inset);
-}
-.timeline-slot::after {
-  content: attr(data-slot);
-  position: absolute;
-  bottom: 1px;
-  right: 2px;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  color: var(--text-disabled);
-  font-weight: 700;
-  pointer-events: none;
-}
-
-/* 对方时间线: 序号在左上, 和我方右下相对 */
-.timeline-zone:not(.local-timeline) .timeline-slot::after {
-  bottom: auto;
-  right: auto;
-  top: 1px;
-  left: 2px;
-}
-
-/* 我方时间线: 堆叠朝向反转 (第0张底部 -> 第8张顶部), 和对方相对 */
-.local-timeline .timeline-slot {
-  top: auto;
-  bottom: calc(var(--idx) * (100% - var(--tl-card-h)) / 8);
-}
-
-/* 堆叠区域内部的卡面视觉 (card-face.s1 居中堆叠) */
-.stack-face {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-}
-
-/* 外置堆叠区/时间线区标签: 默认左上方, top-right 变体右上方 */
-.stack-label-out {
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  letter-spacing: 0.04em;
-  font-weight: 700;
-  white-space: nowrap;
-  background: var(--bg-surface);
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  line-height: 1.4;
-  pointer-events: none;
-  z-index: 3;
-}
-
-.stack-label-out.top-right {
-  left: auto;
-  right: 4px;
-}
-
-.stack-label-out.bottom-left {
-  top: auto;
-  bottom: 2px;
-  left: 4px;
-}
-
-.zone.base {
-  border-color: var(--border);
-  background: var(--bg-surface-2);
-  height: var(--card-h);
-  width: calc((var(--card-h) * var(--card-aspect)) * 6 + var(--card-gap) * 5 + 8px);
-  flex-shrink: 0;
-  padding: 4px;
-  justify-content: center;
-  align-items: stretch;
-  align-self: center;
-  position: relative;
-  overflow: visible;
-  box-shadow: var(--slot-inset);
-  border-radius: var(--radius-md);
-}
-
-/* 基地角落标签: 对手侧左下角外、我方侧右上角外, 不挤卡槽空间
- * 文字简化为 "基地"
- */
-.base-tag {
-  position: absolute;
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  background: var(--bg-surface);
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  line-height: 1.4;
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* 4 个角落定位：基地标签放在“卡槽没填充的空侧”更自然
- * 我方基地: 卡槽左→右 1..6 填充 -> 空侧=右 -> 右下 right-bottom
- * 对方基地: 卡槽右→左 6..1 填充 -> 空侧=左 -> 左上 left-top
- * (旧定位 left-bottom / right-top 保留作复用)
- */
-.base-tag.left-bottom {
-  left: 4px;
-  bottom: -10px;
-  border-top-left-radius: 2px;
-}
-.base-tag.right-top {
-  right: 4px;
-  top: -10px;
-  border-bottom-right-radius: 2px;
-}
-.base-tag.left-top {
-  left: 4px;
-  top: -10px;
-  border-bottom-left-radius: 2px;
-}
-.base-tag.right-bottom {
-  right: 4px;
-  bottom: -10px;
-  border-top-right-radius: 2px;
-}
-
-/* 卡组块: 两段式 (信息带 + 卡背), 信息带一行放 标签+剩余数+摘要, 完全不压卡面
- * 对手侧: 信息带上 / 卡背下
- * 我方侧: 卡背上 / 信息带下
- */
-/* ============================================
-   卡组块: 蓝灰色系卡槽 (和虚空/撤退区统一, 和基地绿色区分)
-   ============================================ */
-.zone.deck {
-  position: relative;
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  max-width: 100%;
-  overflow: visible;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg-surface-2);
-  box-shadow: var(--slot-inset);
-}
-
-/* 冲击卡组：金边区分，仍走 token */
-.zone.deck.rush-deck {
-  flex: 0 0 auto;
-  height: auto;
-  aspect-ratio: var(--card-aspect-inv);
-  border-color: color-mix(in srgb, var(--accent-gold) 55%, var(--border));
-  background: var(--bg-surface-2);
-  box-shadow: var(--slot-inset);
-}
-
-/* 堆叠区卡面: Card 组件需要居中绝对定位 */
-.stack-face :deep(.card-face.stacked) {
-  position: absolute;
-  inset: 4px;
-  border-radius: var(--radius-sm);
-  border: 2px solid var(--border);
-}
-
-/* 基地区：6 个卡槽位，高度 = 1 卡高，宽度 = 6 卡宽 + 5 gap */
-.base-row {
-  display: flex;
-  gap: var(--card-gap);
-  height: 100%;
-  flex-shrink: 0;
-  align-items: stretch;
-}
-
-/* 对方卡槽：右对齐镜像 (slot 顺序 6→1) */
-.base-row.row-reverse {
-  flex-direction: row-reverse;
-}
-
-.base-slot {
-  height: 100%;
-  aspect-ratio: var(--card-aspect);
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  position: relative;
-  box-shadow: var(--slot-inset);
-  transition: border-color var(--transition-fast);
-}
-
-.base-slot::before {
-  content: attr(data-slot);
-  position: absolute;
-  bottom: 2px;
-  right: 4px;
-  font-size: 10px;
-  color: var(--text-disabled);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-}
-
-/* ============================================
-   菱形战区 - 3列布局
-   - 第1列: 侧翼
-   - 第2列: 中央 (垂直堆叠 2 槽位: 先锋 + 后卫)
-   - 第3列: 侧翼
-   列宽: 单个 battle-cell = 卡宽76 + padding8 = 84px
-   3列总宽 84*3+24=276px
-   ============================================ */
-.diamond {
-  display: grid;
-  grid-template-columns: 84px 84px 84px;
-  gap: 14px;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  min-width: 304px;
-  flex: 0 0 auto;
-  padding: 6px 8px;
-  margin: 0 auto;
-  position: relative;
-}
-
-/* 第2列(中央): 垂直堆叠 双槽位 */
-.diamond-col.col-center-vanguard {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  min-width: 0;
-  min-height: 0;
-}
-
-/* 第1/3列(侧翼): 单槽位 居中 */
-.diamond-col.col-flank {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  min-height: 0;
-}
-
-/* ============================================
-   战斗单元: 仅包含卡牌, 居中对齐
-   ============================================ */
-.battle-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 84px;
-  height: 108px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-/* 空槽位: 虚线占位 + 位置名称 */
-.battle-cell:not(:has(.bc-slot))::before {
-  content: attr(data-zone-label);
-  position: absolute;
-  inset: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface-2);
-  box-shadow: var(--slot-inset);
-  font-size: 11px;
-  color: var(--text-disabled);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-}
-
-.battle-cell .bc-slot:not(.has-card)::before {
-  content: attr(data-zone-label);
-  position: absolute;
-  inset: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  color: var(--text-disabled);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-}
-
-.battle-cell .bc-slot {
-  border-radius: 5px;
-  flex-shrink: 0;
-}
-
-/* ============================================
-   卡槽容器
-   ============================================ */
-.bc-slot {
-  position: relative;
-  width: 76px;
-  height: 108px;     /* 747:1042 ≈ 0.717 → 76x106 ≈ 实际显示 */
-  border-radius: 5px;
-  flex-shrink: 0;
-  transition: transform 0.15s, filter 0.15s;
-}
-
-/* Card 组件绝对定位在 bc-slot 内 */
-.bc-slot :deep(.card-face) {
-  border-radius: 5px;
-}
-
-/* 整槽 hover 抬起 */
-.battle-cell:hover .bc-slot {
-  transform: translateY(-3px);
-}
-
-.bc-slot.has-attack::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 7px;
-  border: 2px solid var(--accent-red);
-  box-shadow: var(--shadow-glow);
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* 实时属性徽章已移至 Card.vue 组件内, 通过 level/power/attackRange/attachCount 属性渲染 */
-
-
-/* ============================================
-   底部 HUD: 扇形手牌
-   ============================================ */
-.hud-bottom {
-  flex-shrink: 0;
-  height: 118px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 0 10px;
-  background: transparent;
-  overflow: visible;
-}
-
-/* 手牌扇形容器 */
-.hand-fan {
-  position: relative;
-  width: 280px;
-  height: 100px;
-}
-
-.hand-slot {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 72px;
-  height: 100px;
-  margin-left: -36px;
-  transform-origin: bottom center;
-  transition: transform 0.25s ease;
-}
-
-/* 内层: hover 时上浮 + 放大, 与外层 transform 分离 */
-.hand-card-inner {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  transition: transform 0.25s cubic-bezier(0.2, 0, 0.2, 1.2), filter 0.25s ease;
-}
-
-.hand-slot:hover {
-  z-index: 999 !important;
-}
-
-.hand-slot:hover .hand-card-inner {
-  transform: translateY(-28px) scale(1.22);
-}
-
-.hand-card-inner :deep(.card-face) {
-  border-radius: 4px;
-}
-
-.zone-tag.rush {
-  color: var(--accent-gold);
-  border-color: color-mix(in srgb, var(--accent-gold) 45%, var(--border));
+  .player-strip.opp .identity {
+    min-width: auto;
+  }
 }
 </style>
