@@ -37,7 +37,7 @@ public class GameDO {
     /** 对局模式：CASUAL / RANKED / AI */
     private String gameMode;
 
-    /** 对局状态：IN_PROGRESS / FINISHED */
+    /** 对局状态：WAITING / IN_PROGRESS / FINISHED */
     private String status;
 
     /** 最近一次回合结束的完整状态快照（JSONB，以 String 读写） */

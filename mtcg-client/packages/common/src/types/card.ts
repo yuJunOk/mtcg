@@ -29,6 +29,12 @@ export interface CardQueryDTO {
   color?: string
   rarity?: string
   productCode?: string
+  /** 等级精确匹配 */
+  level?: number
+  /** 攻击距离精确匹配 */
+  attackRange?: number
+  /** 特征关键词（模糊匹配 traits） */
+  trait?: string
   pageNum?: number
   pageSize?: number
 }

@@ -4,8 +4,10 @@ import com.aris.mtcg.common.constant.SecurityConstant;
 import com.aris.mtcg.common.result.Result;
 import com.aris.mtcg.domain.dto.ActionRequestDTO;
 import com.aris.mtcg.domain.dto.GameCreateDTO;
+import com.aris.mtcg.domain.dto.GameJoinDTO;
 import com.aris.mtcg.domain.vo.ActionResultVO;
 import com.aris.mtcg.domain.vo.GameHistoryVO;
+import com.aris.mtcg.domain.vo.GameMatchVO;
 import com.aris.mtcg.domain.vo.GameStateVO;
 import com.aris.mtcg.domain.vo.GameStatsVO;
 import com.aris.mtcg.domain.vo.PageVO;
@@ -52,12 +54,37 @@ public class GameController {
         return Result.success(gameService.getStats(userId));
     }
 
-    /** 创建对局（FR4.1），返回 gameId */
+    /** 在线匹配：有空房则加入开局 */
+    @PostMapping("/match")
+    public Result<GameMatchVO> matchGame(
+            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
+            @Valid @RequestBody GameJoinDTO dto) {
+        return Result.success(gameService.matchGame(userId, dto));
+    }
+
+    /** 创建对局或等待房间（FR4.1），返回 gameId */
     @PostMapping
     public Result<Long> createGame(
             @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
             @Valid @RequestBody GameCreateDTO dto) {
         return Result.success(gameService.createGame(userId, dto));
+    }
+
+    /** 加入等待中的房间 */
+    @PostMapping("/{id}/join")
+    public Result<Long> joinGame(
+            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
+            @PathVariable Long id,
+            @Valid @RequestBody GameJoinDTO dto) {
+        return Result.success(gameService.joinGame(userId, id, dto));
+    }
+
+    /** 取消本人发起的等待房间 */
+    @PostMapping("/{id}/cancel")
+    public Result<Void> cancelWaiting(
+            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable Long id) {
+        gameService.cancelWaiting(userId, id);
+        return Result.success();
     }
 
     /** 查询对局状态（FR4.2） */

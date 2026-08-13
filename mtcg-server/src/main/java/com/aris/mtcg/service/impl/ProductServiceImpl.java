@@ -13,6 +13,7 @@ import com.aris.mtcg.domain.vo.CardVO;
 import com.aris.mtcg.domain.vo.PageVO;
 import com.aris.mtcg.domain.vo.ProductVO;
 import com.aris.mtcg.service.AuditService;
+import com.aris.mtcg.service.FileStorageService;
 import com.aris.mtcg.service.ProductService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 产品服务实现
@@ -35,6 +37,8 @@ public class ProductServiceImpl implements ProductService {
     @Resource private CardMapper cardMapper;
 
     @Resource private AuditService auditService;
+
+    @Resource private FileStorageService fileStorageService;
 
     @Override
     public PageVO<ProductVO> listProducts(ProductQueryDTO query) {
@@ -101,8 +105,27 @@ public class ProductServiceImpl implements ProductService {
         ProductDO product = loadOrThrow(id);
         // 不做外键校验；存在卡牌引用产品时由应用层（迭代二）做检查，当前允许删
         productMapper.deleteById(id);
+        if (product.getImagePath() != null) {
+            fileStorageService.deleteImage(product.getImagePath());
+        }
         auditService.record(
                 "DELETE", "PRODUCT", String.valueOf(id), "删除产品 " + product.getProductCode());
+    }
+
+    @Override
+    public String uploadProductImage(Long productId, MultipartFile file) {
+        ProductDO product = loadOrThrow(productId);
+        String newPath = fileStorageService.storeProductImage(product.getProductCode(), file);
+        String oldPath = product.getImagePath();
+        ProductDO update = new ProductDO();
+        update.setId(productId);
+        update.setImagePath(newPath);
+        productMapper.update(update);
+        if (oldPath != null && !oldPath.isEmpty() && !oldPath.equals(newPath)) {
+            fileStorageService.deleteImage(oldPath);
+        }
+        auditService.record("UPDATE", "PRODUCT", String.valueOf(productId), "上传产品图片");
+        return newPath;
     }
 
     @Override

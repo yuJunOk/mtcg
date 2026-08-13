@@ -20,15 +20,33 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
-    name: 'home',
-    component: () => import('@/views/HomeView.vue'),
-    meta: { title: '首页' },
-  },
-  {
-    path: '/decks',
-    name: 'deck-list',
-    component: () => import('@/views/DeckListView.vue'),
-    meta: { title: '我的卡组' },
+    component: () => import('@/layouts/GameLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'home',
+        component: () => import('@/views/HomeView.vue'),
+        meta: { title: '首页' },
+      },
+      {
+        path: 'decks',
+        name: 'deck-list',
+        component: () => import('@/views/DeckListView.vue'),
+        meta: { title: '我的卡组' },
+      },
+      {
+        path: 'match',
+        name: 'match',
+        component: () => import('@/views/MatchLobbyView.vue'),
+        meta: { title: '备战室' },
+      },
+      {
+        path: 'coming-soon',
+        name: 'coming-soon',
+        component: () => import('@/views/PlaceholderView.vue'),
+        meta: { title: '即将推出' },
+      },
+    ],
   },
   {
     path: '/decks/new',
@@ -43,22 +61,10 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '卡组构筑' },
   },
   {
-    path: '/match',
-    name: 'match',
-    component: () => import('@/views/PlaceholderView.vue'),
-    meta: { title: '对战大厅' },
-  },
-  {
     path: '/battle/:gameId?',
     name: 'battle',
     component: () => import('@/views/BattleView.vue'),
     meta: { title: '对战' },
-  },
-  {
-    path: '/coming-soon',
-    name: 'coming-soon',
-    component: () => import('@/views/PlaceholderView.vue'),
-    meta: { title: '即将推出' },
   },
 ]
 

@@ -6,6 +6,7 @@ import com.aris.mtcg.domain.dto.ProductUpdateDTO;
 import com.aris.mtcg.domain.vo.CardVO;
 import com.aris.mtcg.domain.vo.PageVO;
 import com.aris.mtcg.domain.vo.ProductVO;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 产品（卡包/商品系列）服务
@@ -28,6 +29,13 @@ public interface ProductService {
 
     /** 删除产品 */
     void deleteProduct(Long id);
+
+    /**
+     * 上传产品图片（存储文件并更新 imagePath）
+     *
+     * @return 相对存储路径
+     */
+    String uploadProductImage(Long productId, MultipartFile file);
 
     /** 按产品编号查询卡牌列表（分页） */
     PageVO<CardVO> listCardsByProduct(String productCode, Integer pageNum, Integer pageSize);

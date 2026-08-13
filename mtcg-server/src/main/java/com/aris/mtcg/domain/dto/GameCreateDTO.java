@@ -19,8 +19,7 @@ public class GameCreateDTO {
     @NotNull(message = "发起方卡组不能为空")
     private Long deck1Id;
 
-    /** 对手方卡组 ID */
-    @NotNull(message = "对手方卡组不能为空")
+    /** 对手方卡组 ID；创建房间时不填，加入时由对手提交 */
     private Long deck2Id;
 
     /** 对手方用户 ID（可空：AI 对局或自由匹配时由系统填） */

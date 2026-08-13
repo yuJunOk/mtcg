@@ -47,6 +47,49 @@ export const CARD_RARITY_OPTIONS: Array<{ code: CardRarity; desc: string }> = [
   { code: 'TR', desc: '宝藏稀有' },
 ]
 
+/** 官网卡表式筛选：罕度芯片（与官网顺序一致） */
+export const CARD_RARITY_FILTER_CODES: CardRarity[] = [
+  'C',
+  'R',
+  'SR',
+  'GR',
+  'UR',
+  'MR',
+  'SEC',
+  'PR',
+  'ER',
+  'TR',
+]
+
+/** 官网卡表式筛选：等级 1–6 */
+export const CARD_LEVEL_FILTER_OPTIONS: number[] = [1, 2, 3, 4, 5, 6]
+
+/** 官网卡表式筛选：攻击距离 0–5 */
+export const CARD_ATTACK_RANGE_FILTER_OPTIONS: number[] = [0, 1, 2, 3, 4, 5]
+
+/**
+ * 常见特征筛选（对应卡牌 traits 字段，斜杠分隔）。
+ * 与官网/卡表数据对齐，可按批次扩充。
+ */
+export const CARD_TRAIT_FILTER_OPTIONS: string[] = [
+  '人类',
+  '复仇者联盟',
+  '机械',
+  '阿斯加德',
+  '瓦坎达',
+  '神奇四侠',
+  '捍卫者联盟',
+  '变种人',
+  '银河护卫队',
+  '时间犯',
+  '神盾局',
+  '九头蛇',
+  '赞恩拉',
+  '亚特兰蒂斯',
+  '卡玛泰姬',
+  '斗界',
+]
+
 /** 辅助：code -> desc */
 export function codeToDesc<T extends string>(
   options: Array<{ code: T; desc: string }>,

@@ -37,18 +37,26 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String storeCardImage(String cardCode, MultipartFile file) {
+        return storeNamedImage("cards", cardCode, file, "卡牌编号不能为空");
+    }
+
+    @Override
+    public String storeProductImage(String productCode, MultipartFile file) {
+        return storeNamedImage("products", productCode, file, "产品编号不能为空");
+    }
+
+    private String storeNamedImage(String folder, String key, MultipartFile file, String blankMsg) {
         validateFile(file);
-        if (cardCode == null || cardCode.isBlank()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "卡牌编号不能为空");
+        if (key == null || key.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, blankMsg);
         }
 
         String originalFilename = Objects.requireNonNull(file.getOriginalFilename());
         String suffix = getSuffix(originalFilename);
         String newFilename =
-                String.format(
-                        "%s_%s%s", cardCode, UUID.randomUUID().toString().substring(0, 8), suffix);
+                String.format("%s_%s%s", key, UUID.randomUUID().toString().substring(0, 8), suffix);
 
-        String relativePath = String.format("cards/%s/%s", cardCode, newFilename);
+        String relativePath = String.format("%s/%s/%s", folder, key, newFilename);
         Path targetPath = Paths.get(basePath, relativePath);
 
         try {

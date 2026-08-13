@@ -20,6 +20,7 @@ import com.aris.mtcg.dao.GameMapper;
 import com.aris.mtcg.dao.UserMapper;
 import com.aris.mtcg.domain.dto.ActionRequestDTO;
 import com.aris.mtcg.domain.dto.GameCreateDTO;
+import com.aris.mtcg.domain.dto.GameJoinDTO;
 import com.aris.mtcg.domain.entity.CardDO;
 import com.aris.mtcg.domain.entity.DeckDO;
 import com.aris.mtcg.domain.entity.GameDO;
@@ -27,6 +28,7 @@ import com.aris.mtcg.domain.entity.UserDO;
 import com.aris.mtcg.domain.vo.ActionResultVO;
 import com.aris.mtcg.domain.vo.CardInstanceVO;
 import com.aris.mtcg.domain.vo.GameHistoryVO;
+import com.aris.mtcg.domain.vo.GameMatchVO;
 import com.aris.mtcg.domain.vo.GameStateVO;
 import com.aris.mtcg.domain.vo.GameStatsVO;
 import com.aris.mtcg.domain.vo.PageVO;
@@ -133,6 +135,87 @@ class GameServiceImplTest {
         BusinessException ex =
                 assertThrows(BusinessException.class, () -> gameService.createGame(USER1, dto));
         assertEquals(ErrorCode.DECK_INVALID, ex.getErrorCode());
+    }
+
+    @Test
+    void createGame_withoutOpponent_shouldCreateWaitingRoom() {
+        when(deckMapper.selectOneById(DECK1)).thenReturn(validDeck(DECK1, USER1));
+        when(gameMapper.insert(any(GameDO.class)))
+                .thenAnswer(
+                        inv -> {
+                            GameDO g = inv.getArgument(0);
+                            g.setId(GAME_ID);
+                            return 1;
+                        });
+
+        GameCreateDTO dto = new GameCreateDTO();
+        dto.setDeck1Id(DECK1);
+        dto.setGameMode("CASUAL");
+
+        Long id = gameService.createGame(USER1, dto);
+        assertEquals(GAME_ID, id);
+        assertFalse(gameManager.contains(String.valueOf(GAME_ID)));
+        ArgumentCaptor<GameDO> captor = ArgumentCaptor.forClass(GameDO.class);
+        verify(gameMapper).insert(captor.capture());
+        assertEquals("WAITING", captor.getValue().getStatus());
+        assertNull(captor.getValue().getPlayer2Id());
+    }
+
+    @Test
+    void createGame_aiMode_shouldReject() {
+        GameCreateDTO dto = new GameCreateDTO();
+        dto.setDeck1Id(DECK1);
+        dto.setGameMode("AI");
+        BusinessException ex =
+                assertThrows(BusinessException.class, () -> gameService.createGame(USER1, dto));
+        assertEquals(ErrorCode.AI_NOT_AVAILABLE, ex.getErrorCode());
+    }
+
+    @Test
+    void getGameState_waiting_shouldReturnWaitingVo() {
+        GameDO waiting = new GameDO();
+        waiting.setId(GAME_ID);
+        waiting.setPlayer1Id(USER1);
+        waiting.setDeck1Id(DECK1);
+        waiting.setGameMode("CASUAL");
+        waiting.setStatus("WAITING");
+        when(gameMapper.selectOneById(GAME_ID)).thenReturn(waiting);
+
+        GameStateVO vo = gameService.getGameState(USER1, GAME_ID);
+        assertEquals("WAITING", vo.getStatus());
+        assertNull(vo.getPlayer2());
+        assertFalse(gameManager.contains(String.valueOf(GAME_ID)));
+    }
+
+    @Test
+    void joinGame_waitingRoom_shouldStartDuel() {
+        stubValidDecksAndCards();
+        GameDO waiting = new GameDO();
+        waiting.setId(GAME_ID);
+        waiting.setPlayer1Id(USER1);
+        waiting.setDeck1Id(DECK1);
+        waiting.setGameMode("CASUAL");
+        waiting.setStatus("WAITING");
+        waiting.setActionLog("[]");
+        when(gameMapper.selectOneById(GAME_ID)).thenReturn(waiting);
+
+        GameJoinDTO dto = new GameJoinDTO();
+        dto.setDeckId(DECK2);
+        Long id = gameService.joinGame(USER2, GAME_ID, dto);
+        assertEquals(GAME_ID, id);
+        assertTrue(gameManager.contains(String.valueOf(GAME_ID)));
+        verify(gameMapper, atLeastOnce()).update(any(GameDO.class));
+    }
+
+    @Test
+    void matchGame_noOpenRoom_shouldMiss() {
+        when(deckMapper.selectOneById(DECK1)).thenReturn(validDeck(DECK1, USER1));
+        when(gameMapper.selectOpenWaiting(USER1)).thenReturn(null);
+        GameJoinDTO dto = new GameJoinDTO();
+        dto.setDeckId(DECK1);
+        GameMatchVO vo = gameService.matchGame(USER1, dto);
+        assertFalse(vo.isMatched());
+        assertNull(vo.getGameId());
     }
 
     @Test

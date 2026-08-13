@@ -1,701 +1,426 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useThemeStore, useUserStore } from '@mtcg/common/stores'
-
-interface ExploreModule {
-  key: string
-  icon: string
-  title: string
-  desc: string
-  cta: string
-}
-
-interface PopularDeck {
-  rank: number
-  name: string
-  format: string
-  wins: number
-}
-
-interface StatItem {
-  value: string
-  label: string
-  cssVar: string
-}
+import { deckApi, productApi, resolveCardImageUrl } from '@mtcg/common'
+import type { DeckVO, ProductVO } from '@mtcg/common'
+import { HERO_TRIO_PATHS } from '@/constants/heroArt'
+import CardRail from '@/components/CardRail.vue'
+import DeckCover from '@/components/DeckCover.vue'
 
 const router = useRouter()
-const theme = useThemeStore()
-const userStore = useUserStore()
-const loggingOut = ref(false)
+const decks = ref<DeckVO[]>([])
+const series = ref<ProductVO[]>([])
 
-const displayName = computed(() => {
-  const info = userStore.userInfo
-  if (!info) return '加载中…'
-  return info.username?.trim() || info.usercode || '玩家'
+const previewDecks = computed(() => decks.value.slice(0, 8))
+const deckCount = computed(() => decks.value.length)
+const validCount = computed(() => decks.value.filter((d) => d.isValid === true).length)
+
+/** 英雄区固定复联三巨头真卡面，不用卡背/先后手草稿 */
+const heroCards = HERO_TRIO_PATHS.map((path) => resolveCardImageUrl(path))
+
+const rosterHint = computed(() => {
+  if (deckCount.value === 0) return '还没有卡组，先去构筑一套'
+  if (validCount.value === 0) return `${deckCount.value} 套卡组 · 尚未有合法出战套`
+  return `${validCount.value} 套可出战 · 共 ${deckCount.value} 套`
 })
 
-const displayUsercode = computed(() => userStore.userInfo?.usercode ?? '')
-
-const avatarLetter = computed(() => {
-  const name = displayName.value
-  if (!name || name === '加载中…') return '?'
-  return name.charAt(0).toUpperCase()
-})
+function onImgError(e: Event): void {
+  const el = e.target as HTMLImageElement
+  el.style.visibility = 'hidden'
+}
 
 onMounted(async () => {
-  if (!userStore.userInfo) {
-    try {
-      await userStore.fetchUserInfo()
-    } catch {
-      // 守卫通常已拉取；失败时保持占位，后续请求会触发 401 跳转
-    }
+  try {
+    decks.value = await deckApi.list()
+  } catch {
+    decks.value = []
+  }
+  try {
+    const page = await productApi.list({ pageNum: 1, pageSize: 8 })
+    series.value = page.records ?? []
+  } catch {
+    series.value = []
   }
 })
-
-function goBattle(): void {
-  router.push('/match')
-}
-
-function goDecks(): void {
-  router.push('/decks')
-}
-
-function goComingSoon(): void {
-  router.push('/coming-soon')
-}
-
-function onExploreClick(key: string): void {
-  if (key === 'deck-builder' || key === 'my-decks') {
-    goDecks()
-    return
-  }
-  if (key === 'cards' || key === 'collection' || key === 'leaderboard' || key === 'career') {
-    goComingSoon()
-  }
-}
-
-async function handleLogout(): Promise<void> {
-  if (loggingOut.value) return
-  if (!window.confirm('确定退出登录？')) {
-    return
-  }
-  loggingOut.value = true
-  try {
-    await userStore.logout()
-    await router.replace('/login')
-  } finally {
-    loggingOut.value = false
-  }
-}
-
-const exploreModules: ExploreModule[] = [
-  {
-    key: 'cards',
-    icon: '📇',
-    title: '卡牌图鉴',
-    desc: '浏览全部卡牌，支持按类型、颜色、稀有度筛选',
-    cta: '浏览图鉴',
-  },
-  {
-    key: 'deck-builder',
-    icon: '🃏',
-    title: '卡组构筑',
-    desc: '可视化卡组编辑器，支持格式校验与导入导出',
-    cta: '构筑卡组',
-  },
-  {
-    key: 'my-decks',
-    icon: '📦',
-    title: '我的卡组',
-    desc: '管理已保存的卡组，分享或设为私密',
-    cta: '查看卡组',
-  },
-  {
-    key: 'collection',
-    icon: '📚',
-    title: '我的收藏',
-    desc: '登记拥有的卡牌，追踪收集进度',
-    cta: '查看收藏',
-  },
-  {
-    key: 'leaderboard',
-    icon: '🏆',
-    title: '排行榜',
-    desc: '全服排位、赛季战绩、胜率统计',
-    cta: '查看排行',
-  },
-  {
-    key: 'career',
-    icon: '📈',
-    title: '生涯记录',
-    desc: '对局历史、成就徽章、打牌习惯分析',
-    cta: '查看生涯',
-  },
-]
-
-const popularDecks: PopularDeck[] = [
-  { rank: 1, name: '复仇者突击', format: '标准', wins: 2456 },
-  { rank: 2, name: '银河护卫队', format: '标准', wins: 1892 },
-  { rank: 3, name: 'X战警控制', format: '标准', wins: 1567 },
-  { rank: 4, name: '灭霸快攻', format: '扩展', wins: 1342 },
-  { rank: 5, name: '蜘蛛侠联动', format: '标准', wins: 1108 },
-]
-
-/** 演示数据，正式生涯统计待对战后端接通 */
-const stats: StatItem[] = [
-  { value: '—', label: '收集卡牌（演示）', cssVar: '--accent-red' },
-  { value: '—', label: '卡组（演示）', cssVar: '--accent' },
-  { value: '—', label: '胜场（演示）', cssVar: '--accent-blue' },
-  { value: '—', label: '胜率（演示）', cssVar: '--accent-green' },
-]
 </script>
 
 <template>
-  <div class="home-pc">
-    <!-- 左侧导航 -->
-    <aside class="sidebar">
-      <div class="logo">
-        <span class="logo-text">MTCG</span>
-        <span class="logo-sub">超英集换式卡牌</span>
-      </div>
-      <nav class="nav-menu">
-        <a class="nav-item active">
-          <span class="nav-icon">🏠</span>
-          <span>首页</span>
-        </a>
-        <a class="nav-item" @click="goBattle">
-          <span class="nav-icon">⚔️</span>
-          <span>对战</span>
-        </a>
-        <a class="nav-item" @click="goComingSoon">
-          <span class="nav-icon">📇</span>
-          <span>图鉴</span>
-        </a>
-        <a class="nav-item" @click="goDecks">
-          <span class="nav-icon">🃏</span>
-          <span>卡组</span>
-        </a>
-        <a class="nav-item" @click="goComingSoon">
-          <span class="nav-icon">📚</span>
-          <span>收藏</span>
-        </a>
-        <a class="nav-item" @click="goComingSoon">
-          <span class="nav-icon">🏆</span>
-          <span>排行</span>
-        </a>
-      </nav>
-      <div class="user-info">
-        <div class="avatar">{{ avatarLetter }}</div>
-        <div class="user-detail">
-          <div class="username">{{ displayName }}</div>
-          <div class="usercode">{{ displayUsercode || '—' }}</div>
-        </div>
-        <button
-          type="button"
-          class="btn-logout"
-          :disabled="loggingOut"
-          title="退出登录"
-          @click="handleLogout"
-        >
-          {{ loggingOut ? '…' : '退出' }}
-        </button>
-      </div>
-      <div class="theme-toggle" @click="theme.toggle()">
-        {{ theme.theme === 'dark' ? '☀️ 亮色' : '🌙 暗色' }}
-      </div>
-    </aside>
-
-    <!-- 主内容区 -->
-    <main class="main-content">
-      <!-- Hero Banner -->
-      <section class="hero">
-        <div class="hero-content">
-          <h1 class="hero-title">MTCG 超英集换式卡牌</h1>
-          <p class="hero-desc">全自动规则引擎 · 漫威英雄集结 · 策略对战</p>
-          <div class="hero-stats">
-            <span class="hero-stat"><strong>248</strong> 张卡牌</span>
-            <span class="hero-stat"><strong>12</strong> 个扩展</span>
-            <span class="hero-stat"><strong>4</strong> 种赛制</span>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-art" aria-hidden="true" />
+      <div class="hero-veil" aria-hidden="true" />
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="kicker">漫威对战卡牌</p>
+          <h1>超英击战</h1>
+          <p class="lead">构筑超英卡组，进入大厅匹配。卡面是主角，规则写在卡上。</p>
+          <div class="hero-actions">
+            <button type="button" class="primary" @click="router.push('/match')">开始对战</button>
+            <button type="button" class="ghost" @click="router.push('/decks')">管理卡组</button>
           </div>
-          <button class="hero-cta" @click="goBattle">开始对战</button>
         </div>
+        <div class="hero-stack" aria-hidden="true">
+          <span v-for="src in heroCards" :key="src" class="hero-card">
+            <img :src="src" alt="" @error="onImgError" />
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <div class="well">
+      <section class="block roster">
+        <p class="roster-hint">{{ rosterHint }}</p>
+        <p class="later">
+          <button type="button" class="link muted" @click="router.push('/coming-soon')">图鉴</button>
+          ·
+          <button type="button" class="link muted" @click="router.push('/coming-soon')">排行</button>
+          后续开放
+        </p>
       </section>
 
-      <!-- 个人统计（演示占位） -->
-      <section class="stats-bar">
-        <div v-for="s in stats" :key="s.label" class="stat-item">
-          <span class="stat-value" :style="{ color: `var(${s.cssVar})` }">{{ s.value }}</span>
-          <span class="stat-label">{{ s.label }}</span>
+      <section class="block">
+        <header class="sec">
+          <h2>我的卡组</h2>
+          <button type="button" class="more" @click="router.push('/decks')">全部 →</button>
+        </header>
+        <div v-if="previewDecks.length === 0" class="empty">
+          还没有卡组。
+          <button type="button" class="link" @click="router.push('/decks/new')">去构筑</button>
         </div>
-      </section>
-
-      <!-- 功能模块 Explore Grid -->
-      <section class="section">
-        <h2 class="section-title">探索</h2>
-        <div class="explore-grid">
-          <div
-            v-for="m in exploreModules"
-            :key="m.key"
-            class="explore-card"
-            @click="onExploreClick(m.key)"
+        <CardRail v-else :item-count="previewDecks.length">
+          <button
+            v-for="deck in previewDecks"
+            :key="deck.id"
+            type="button"
+            class="strip-card"
+            @click="router.push(`/decks/${deck.id}`)"
           >
-            <span class="explore-icon">{{ m.icon }}</span>
-            <div class="explore-info">
-              <h3 class="explore-title">{{ m.title }}</h3>
-              <p class="explore-desc">{{ m.desc }}</p>
-            </div>
-            <span class="explore-cta">{{ m.cta }} →</span>
-          </div>
-        </div>
+            <span class="strip-art">
+              <DeckCover :image-path="deck.coverImagePath" placeholder="🃏" />
+            </span>
+            <span class="strip-name">{{ deck.deckName }}</span>
+            <span class="strip-meta" :class="{ on: deck.isValid }">
+              {{ deck.isValid ? '合法' : '未完成' }}
+              · {{ deck.mainDeckSize ?? 0 }}/50
+            </span>
+          </button>
+        </CardRail>
       </section>
 
-      <!-- 热门卡组 + 社区 -->
-      <div class="bottom-row">
-        <section class="section popular-section">
-          <h2 class="section-title">热门卡组</h2>
-          <div class="popular-list">
-            <div v-for="d in popularDecks" :key="d.rank" class="popular-item">
-              <span class="popular-rank">#{{ d.rank }}</span>
-              <div class="popular-info">
-                <span class="popular-name">{{ d.name }}</span>
-                <span class="popular-meta">{{ d.format }} · {{ d.wins }} 胜</span>
-              </div>
-            </div>
+      <section class="block">
+        <header class="sec">
+          <h2>商品系列</h2>
+        </header>
+        <div v-if="series.length === 0" class="empty">暂无系列数据</div>
+        <CardRail v-else :item-count="series.length">
+          <div v-for="product in series" :key="product.id" class="strip-card static">
+            <span class="strip-art">
+              <DeckCover :image-path="product.imagePath" placeholder="📦" />
+            </span>
+            <span class="strip-name">{{ product.productName || product.productCode }}</span>
+            <span class="strip-meta">{{ product.productCode }}</span>
           </div>
-        </section>
-
-        <section class="section community-section">
-          <h2 class="section-title">加入社区</h2>          <p class="community-desc">与数千名玩家一起对战、交流、构筑卡组。</p>
-          <div class="community-links">
-            <a class="community-link">💬 Discord</a>
-            <a class="community-link">📋 论坛</a>
-            <a class="community-link">📖 规则书</a>
-          </div>
-        </section>
-      </div>
-    </main>
+        </CardRail>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.home-pc {
-  display: flex;
-  height: 100vh;
+.page {
+  min-height: 100%;
   background: var(--bg-base);
 }
 
-/* ===== 侧边栏 ===== */
-.sidebar {
-  width: 220px;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border);
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: min(72vh, 620px);
   display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
+  align-items: flex-end;
+  overflow: hidden;
 }
 
-.logo {
-  padding: var(--space-lg) var(--space-md);
+.hero-art {
+  position: absolute;
+  inset: 0;
+  background: var(--shell-art) center / cover no-repeat;
+  opacity: var(--shell-art-opacity);
+  filter: var(--shell-art-filter);
+}
+
+.hero-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--shell-scrim);
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  width: min(var(--shell-max), 100%);
+  margin: 0 auto;
+  padding: 56px var(--space-lg) 48px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.hero-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.hero-stack {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  padding: 8px 12px 0 0;
+}
+
+.hero-card {
+  display: block;
+  width: 240px;
+  height: calc(240px * 2080 / 1488);
+  flex: none;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--transition-fast);
+}
+
+.hero-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center top;
+}
+
+.hero-card:nth-child(1) {
+  transform: rotate(-9deg) translateY(18px);
+  z-index: 1;
+}
+
+.hero-card:nth-child(2) {
+  margin-left: -64px;
+  transform: rotate(2deg) translateY(-6px);
+  z-index: 2;
+}
+
+.hero-card:nth-child(3) {
+  margin-left: -64px;
+  transform: rotate(11deg) translateY(20px);
+  z-index: 1;
+}
+
+.hero-card:hover {
+  z-index: 3;
+  transform: translateY(-8px) rotate(0deg);
+}
+
+.kicker {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.hero-inner h1 {
+  margin: 14px 0 0;
+  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  max-width: 12em;
+  line-height: 1.12;
+}
+
+.lead {
+  margin: 16px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  max-width: 28em;
+  line-height: 1.7;
+}
+
+.hero-actions {
+  margin-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.well {
+  width: min(var(--shell-max), 100%);
+  margin: 0 auto;
+  padding: 28px var(--space-lg) 72px;
+}
+
+.block + .block {
+  margin-top: 36px;
+}
+
+.sec {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
 
-.logo-text {
-  font-size: var(--font-size-xl);
+.sec h2 {
+  margin: 0;
+  font-size: 18px;
   font-weight: 700;
+}
+
+.more,
+.link {
+  border: none;
+  background: transparent;
   color: var(--accent);
-  display: block;
-  letter-spacing: 2px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.logo-sub {
-  font-size: var(--font-size-xs);
+.link.muted {
   color: var(--text-secondary);
-  margin-top: 2px;
+  font-weight: 500;
 }
 
-.nav-menu {
-  flex: 1;
-  padding: var(--space-sm);
+.roster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.roster-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.roster .later {
+  margin: 0;
+}
+
+.strip-card {
+  flex: 0 0 var(--card-face-w);
+  width: var(--card-face-w);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: 10px var(--space-md);
+  padding: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
+  overflow: hidden;
+  background: var(--bg-surface);
+  color: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  text-decoration: none;
+  text-align: left;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
 }
 
-.nav-item:hover {
+.strip-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.strip-art {
+  display: block;
+  width: var(--card-face-w);
+  height: var(--card-face-h);
+  flex: none;
   background: var(--bg-surface-2);
-  color: var(--text-primary);
 }
 
-.nav-item.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-.nav-icon {
-  font-size: 18px;
-  width: 24px;
-  text-align: center;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border-top: 1px solid var(--border);
-}
-
-.avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.strip-name {
+  padding: 8px 8px 0;
+  font-size: 12px;
   font-weight: 600;
-  font-size: var(--font-size-md);
-}
-
-.user-detail {
-  flex: 1;
-  min-width: 0;
-}
-
-.username {
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.usercode {
-  font-size: var(--font-size-xs);
+.strip-meta {
+  padding: 2px 8px 8px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
-.btn-logout {
-  flex-shrink: 0;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.btn-logout:hover:not(:disabled) {
+.strip-meta.on {
   color: var(--accent);
-  border-color: var(--accent);
 }
 
-.btn-logout:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.strip-card.static {
+  cursor: default;
 }
 
-.theme-toggle {
-  padding: 8px var(--space-md);
-  border-top: 1px solid var(--border);
-  font-size: var(--font-size-xs);
+.strip-card.static:hover {
+  transform: none;
+  border-color: var(--border);
+}
+
+.empty {
+  padding: 20px 0;
   color: var(--text-secondary);
-  cursor: pointer;
-  text-align: center;
-  transition: all var(--transition-fast);
-  user-select: none;
-}
-
-.theme-toggle:hover {
-  color: var(--accent);
-  background: var(--bg-surface-2);
-}
-
-/* ===== 主内容区 ===== */
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-/* ===== Hero Banner ===== */
-.hero {
-  background-image:
-    linear-gradient(rgba(27, 30, 43, 0.55), rgba(27, 30, 43, 0.72)),
-    url('/background.png');
-  background-size: cover;
-  background-position: center;
-  border-bottom: 1px solid var(--border);
-  padding: 64px var(--space-xl) 56px;
-}
-
-/* 亮色主题: 背景图更亮，遮罩更透 */
-[data-theme="light"] .hero {
-  background-image:
-    linear-gradient(rgba(30, 30, 48, 0.35), rgba(30, 30, 48, 0.50)),
-    url('/background.png');
-}
-
-.hero-content {
-  max-width: 800px;
-}
-
-.hero-title {
-  font-size: 32px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: var(--space-sm);
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.85);
-}
-
-.hero-desc {
-  font-size: var(--font-size-md);
-  color: rgba(255, 255, 255, 0.88);
-  margin-bottom: var(--space-md);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
-}
-
-.hero-stats {
-  display: flex;
-  gap: var(--space-lg);
-  margin-bottom: var(--space-lg);
-}
-
-.hero-stat {
   font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
 }
 
-.hero-stat strong {
-  color: var(--accent);
-  font-size: var(--font-size-lg);
-  margin-right: 4px;
-  text-shadow: 0 0 14px rgba(0, 212, 170, 0.7);
+.later {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--text-disabled);
 }
 
-.hero-cta {
-  display: inline-block;
-  padding: 12px 32px;
-  background: var(--accent);
-  color: #fff;
+.primary,
+.ghost {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
   border: none;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
-.hero-cta:hover {
-  filter: brightness(1.1);
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
-}
-
-/* ===== 统计条 ===== */
-.stats-bar {
-  display: flex;
-  gap: var(--space-md);
-  padding: 0 var(--space-xl);
-}
-
-.stat-item {
-  flex: 1;
-  background: var(--bg-surface);
+.ghost {
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-md);
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat-value {
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-}
-
-.stat-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-/* ===== 区块 ===== */
-.section {
-  padding: 0 var(--space-xl);
-}
-
-.section-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+  background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
   color: var(--text-primary);
-  margin-bottom: var(--space-md);
 }
 
-/* ===== Explore 网格 ===== */
-.explore-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
-}
+@media (max-width: 960px) {
+  .hero-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-.explore-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
+  .hero-stack {
+    align-self: center;
+    padding-right: 0;
+  }
 
-.explore-card:hover {
-  background: var(--bg-surface-2);
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
+  .hero-card {
+    width: 168px;
+    height: calc(168px * 2080 / 1488);
+  }
 
-.explore-icon {
-  font-size: 32px;
-}
-
-.explore-title {
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.explore-desc {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  line-height: 1.5;
-  margin: 0;
-  flex: 1;
-}
-
-.explore-cta {
-  font-size: var(--font-size-sm);
-  color: var(--accent);
-  font-weight: 500;
-}
-
-/* ===== 底部双栏 ===== */
-.bottom-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-  padding: 0 var(--space-xl) var(--space-xl);
-}
-
-.popular-section {
-  padding: 0;
-}
-
-.popular-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.popular-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: 10px var(--space-md);
-  background: var(--bg-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  transition: background var(--transition-fast);
-  cursor: pointer;
-}
-
-.popular-item:hover {
-  background: var(--bg-surface-2);
-}
-
-.popular-rank {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  width: 40px;
-  flex-shrink: 0;
-  color: var(--accent);
-}
-
-.popular-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.popular-name {
-  font-size: var(--font-size-base);
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.popular-meta {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-/* ===== 社区 ===== */
-.community-section {
-  padding: 0;
-}
-
-.community-desc {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-bottom: var(--space-md);
-  line-height: 1.6;
-}
-
-.community-links {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.community-link {
-  padding: 8px 16px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  text-decoration: none;
-  transition: all var(--transition-fast);
-}
-
-.community-link:hover {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-  background: var(--bg-surface-2);
+  .hero-card:nth-child(2),
+  .hero-card:nth-child(3) {
+    margin-left: -40px;
+  }
 }
 </style>

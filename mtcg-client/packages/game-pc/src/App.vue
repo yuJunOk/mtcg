@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { setHttpErrorNotifier } from '@mtcg/common'
+import { useThemeStore } from '@mtcg/common/stores'
+
+useThemeStore()
 
 const toastMessage = ref('')
 let hideTimer: ReturnType<typeof setTimeout> | undefined
@@ -37,7 +40,7 @@ body,
   transform: translateX(-50%);
   max-width: min(480px, calc(100vw - 32px));
   padding: 12px 18px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface-3);
   border: 1px solid var(--border-light);
   color: var(--text-primary);

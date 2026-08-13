@@ -61,13 +61,13 @@
 -- 对局记录表（操作流水 + 回合快照混合持久化，D2 决策）
 CREATE TABLE mtcg_game_record (
     id                  BIGSERIAL       PRIMARY KEY,
-    player1_id          BIGINT          NOT NULL,                  -- 先攻/发起方用户 ID（应用层校验，无外键）
-    player2_id          BIGINT          NOT NULL,                  -- 后攻/对手方用户 ID
+    player1_id          BIGINT          NOT NULL,                  -- 发起方用户 ID（应用层校验，无外键）
+    player2_id          BIGINT,                                    -- 对手方；等待房间为 NULL
     deck1_id            BIGINT          NOT NULL,                  -- player1 使用的卡组 ID
-    deck2_id            BIGINT          NOT NULL,                  -- player2 使用的卡组 ID
+    deck2_id            BIGINT,                                    -- player2 卡组；等待房间为 NULL
     winner              VARCHAR(16),                               -- 胜方：PLAYER1 / PLAYER2 / DRAW；进行中为 NULL
     game_mode           VARCHAR(16)     NOT NULL,                  -- 对局模式：CASUAL / RANKED / AI
-    status              VARCHAR(16)     NOT NULL,                  -- 对局状态：IN_PROGRESS / FINISHED
+    status              VARCHAR(16)     NOT NULL,                  -- WAITING / IN_PROGRESS / FINISHED
     turn_snapshot       JSONB,                                     -- 最近一次回合结束的完整状态快照（含 snapshotActionSeq）
     action_log          TEXT            NOT NULL DEFAULT '[]',     -- 操作流水 JSON 数组，每次操作追加一条
     create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
@@ -75,7 +75,7 @@ CREATE TABLE mtcg_game_record (
     -- 枚举字段 CHECK 约束
     CONSTRAINT ck_game_winner   CHECK (winner IS NULL OR winner IN ('PLAYER1','PLAYER2','DRAW')),
     CONSTRAINT ck_game_mode     CHECK (game_mode IN ('CASUAL','RANKED','AI')),
-    CONSTRAINT ck_game_status   CHECK (status IN ('IN_PROGRESS','FINISHED'))
+    CONSTRAINT ck_game_status   CHECK (status IN ('WAITING','IN_PROGRESS','FINISHED'))
 );
 
 -- 历史查询索引（FR5.4 个人对局历史）
@@ -155,15 +155,22 @@ CREATE TRIGGER trigger_game_record_update_time
 
 字段：
 - Long deck1Id                       // @NotNull 发起方卡组 ID
-- Long deck2Id                       // @NotNull 对手方卡组 ID
-- Long player2Id                     // 对手方用户 ID（可空：AI 对局或自由匹配时由系统填）
+- Long deck2Id                       // 可空：创建等待房间时不填
+- Long player2Id                     // 可空：不填则创建 WAITING 房间，等对手加入
 - String gameMode                    // @NotNull CASUAL / RANKED / AI
 - String firstPlayer                 // 可空：PLAYER1 / PLAYER2；空则随机决定先攻
 - List<Integer> mulligan1Indices     // 可空：player1 调度手牌索引；空表示不调度
 - List<Integer> mulligan2Indices     // 可空：player2 调度手牌索引
 ```
 
-> 发起方 `player1Id` 从安全上下文获取，不暴露在 DTO 中。调度（Mulligan）在创建时一次性提交，简化交互；双方各自独立调度，遵循「先攻先决定，后攻后决定」（303.1）。
+> 发起方 `player1Id` 从安全上下文获取，不暴露在 DTO 中。`player2Id` 为空时只落 WAITING 房间，不启动引擎。调度（Mulligan）在双方到齐开局时一次性提交；双方各自独立调度，遵循「先攻先决定，后攻后决定」（303.1）。
+
+### 3.2a GameJoinDTO / GameMatchVO
+
+```
+GameJoinDTO：Long deckId  // @NotNull 本人出战卡组
+GameMatchVO：boolean matched; Long gameId  // 未匹配到时 matched=false、gameId=null
+```
 
 ### 3.3 ActionRequestDTO（执行操作）
 
@@ -556,8 +563,13 @@ public class GameStateSerializer {
 包：com.aris.mtcg.service
 
 方法：
-// 创建对局（FR4.1）
+// 创建对局或等待房间（FR4.1）
 - Long createGame(Long userId, GameCreateDTO dto)
+
+// 加入等待房间 / 在线匹配 / 取消房间
+- Long joinGame(Long userId, Long gameId, GameJoinDTO dto)
+- GameMatchVO matchGame(Long userId, GameJoinDTO dto)
+- void cancelWaiting(Long userId, Long gameId)
 
 // 查询对局状态（FR4.2）
 - GameStateVO getGameState(Long userId, Long gameId)
@@ -582,6 +594,8 @@ public class GameStateSerializer {
 
 #### 6.2.1 createGame（创建对局）
 
+`gameMode=AI` 本迭代直接拒绝（`AI_NOT_AVAILABLE`）。`player2Id` 为空：校验本人卡组后插入 `status=WAITING` 的房间并返回 gameId，不初始化引擎。`player2Id` 有值：走下方完整开局。
+
 | 步骤 | 逻辑 |
 | --- | --- |
 | 1. 加载卡组 | `deckMapper.selectOneById(deck1Id)` / `selectOneById(deck2Id)`；校验 deck1 归属当前用户、deck2 归属 player2Id（若提供）；校验双方 `is_valid=true` |
@@ -594,14 +608,23 @@ public class GameStateSerializer {
 | 8. 缓存 | 创建 `GameContext`，`gameManager.put(gameId, context)` |
 | 9. 返回 | 返回 gameId（Long） |
 
+#### 6.2.1a joinGame / matchGame / cancelWaiting
+
+| 方法 | 逻辑 |
+| --- | --- |
+| joinGame | 房间须 `WAITING` 且 `player2Id` 为空；加入方不能是房主；校验加入方卡组后写入 player2/deck2，走与 createGame 相同的开局（随机先攻） |
+| matchGame | 取最早一条他人 CASUAL WAITING 房间并 join；没有则 `matched=false`（前端建议创建房间或 AI） |
+| cancelWaiting | 仅房主可删 WAITING 记录 |
+
 #### 6.2.2 getGameState（查询对局状态）
 
 | 步骤 | 逻辑 |
 | --- | --- |
-| 1. 取缓存 | `gameManager.get(gameId)`；为空则 `recoverGame(gameId)` 重建 |
-| 2. 校验参与方 | 当前用户须为 player1 或 player2，否则抛 `BusinessException(NOT_FOUND, "对局不存在或无权查看")` |
-| 3. 组装 VO | 从 `engine.getState()` 组装 `GameStateVO`，按请求方归属裁剪隐私信息（手牌/盖卡/计数器） |
-| 4. 计算可执行操作 | 根据当前 phase + 回合玩家 + 引擎校验逻辑，列出当前用户可执行的 `ActionType`（如 ACTION 阶段本人可 BASE_DEPLOY/SUMMON/.../END_PHASE；对手仅 SURRENDER） |
+| 1. 取缓存 | `gameManager.get(gameId)` 命中则校验参与方后直接组装 VO |
+| 2. WAITING | 缓存未命中则查库；`status=WAITING` 返回精简 VO，不加载引擎 |
+| 3. 恢复 | 否则 `recoverGame(gameId)` 重建 |
+| 4. 组装 VO | 从 `engine.getState()` 组装 `GameStateVO`，按请求方归属裁剪隐私信息（手牌/盖卡/计数器） |
+| 5. 可执行操作 | 根据当前 phase + 回合玩家列出当前用户可执行的 `ActionType` |
 
 #### 6.2.3 executeAction（执行操作）
 
@@ -665,6 +688,8 @@ NOT_GAME_PARTICIPANT(1004, "非对局参与方"),
 GAME_ALREADY_FINISHED(1005, "对局已结束"),
 NOT_YOUR_TURN(1006, "当前不是你的操作回合"),
 DECK_INVALID(1007, "卡组未通过合法性校验"),
+AI_NOT_AVAILABLE(5106, "AI 对战尚未开放"),
+GAME_NOT_JOINABLE(5107, "对局无法加入"),
 ```
 
 > 引擎层 `EngineException`（迭代五 §2.5）在 Service 层捕获并转换为 `BusinessException(ILLEGAL_GAME_ACTION, message)`，保留规则条款编号信息。
@@ -682,15 +707,18 @@ DECK_INVALID(1007, "卡组未通过合法性校验"),
 
 | 方法 | HTTP | 路径 | 入参 | 出参 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| createGame | POST | `/games` | @RequestBody GameCreateDTO | `Result<Long>` | 创建对局，返回 gameId（FR4.1） |
-| getGameState | GET | `/games/{id}` | Long id | `Result<GameStateVO>` | 查询对局状态（FR4.2） |
+| createGame | POST | `/games` | @RequestBody GameCreateDTO | `Result<Long>` | 创建对局或等待房间，返回 gameId（FR4.1） |
+| matchGame | POST | `/games/match` | @RequestBody GameJoinDTO | `Result<GameMatchVO>` | 加入最早空闲 WAITING 房间；没有则 matched=false |
+| joinGame | POST | `/games/{id}/join` | Long id, GameJoinDTO | `Result<Long>` | 加入指定等待房间并开局 |
+| cancelWaiting | POST | `/games/{id}/cancel` | Long id | `Result<Void>` | 房主取消 WAITING 房间 |
+| getGameState | GET | `/games/{id}` | Long id | `Result<GameStateVO>` | 查询对局状态（FR4.2）；WAITING 不加载引擎 |
 | executeAction | POST | `/games/{id}/actions` | Long id, @RequestBody ActionRequestDTO | `Result<ActionResultVO>` | 执行操作（FR4.3） |
 | surrender | POST | `/games/{id}/surrender` | Long id | `Result<Void>` | 认输（FR4.4） |
 | getReplay | GET | `/games/{id}/replay` | Long id | `Result<ReplayVO>` | 复盘数据（FR4.5） |
 | listHistory | GET | `/games/history` | int page, int size | `Result<PageVO<GameHistoryVO>>` | 个人对局历史（FR5.4） |
 | getStats | GET | `/games/stats` | - | `Result<GameStatsVO>` | 胜败统计（FR5.4） |
 
-> 所有接口从安全上下文（迭代二）获取当前登录 `userId`，传入 Service 做归属与参与方校验。统一响应体 `Result<T>` 与全局异常处理（`GlobalExceptionHandler`）复用已有实现。
+> 所有接口从安全上下文（迭代二）获取当前登录 `userId`，传入 Service 做归属与参与方校验。统一响应体 `Result<T>` 与全局异常处理（`GlobalExceptionHandler`）复用已有实现。`/games/match`、`/games/history`、`/games/stats` 须写在 `/{id}` 之前。
 
 ### 7.2 当前用户获取
 
@@ -963,8 +991,10 @@ sequenceDiagram
 | `GameDO.java` | `domain.entity` | 对局记录数据库实体 |
 | `GameMapper.java` | `dao` | 对局 Mapper（含历史/统计自定义 SQL） |
 | `GameCreateDTO.java` | `domain.dto` | 创建对局 DTO |
+| `GameJoinDTO.java` | `domain.dto` | 加入房间 / 在线匹配 DTO |
 | `ActionRequestDTO.java` | `domain.dto` | 执行操作 DTO |
 | `GameStateVO.java` | `domain.vo` | 对局状态视图 |
+| `GameMatchVO.java` | `domain.vo` | 在线匹配结果 |
 | `PlayerStateVO.java` | `domain.vo` | 玩家状态视图（含隐私裁剪字段） |
 | `FieldZoneVO.java` | `domain.vo` | 场上区域视图 |
 | `CardInstanceVO.java` | `domain.vo` | 卡牌实例视图 |
@@ -976,7 +1006,7 @@ sequenceDiagram
 | `GameManager.java` | `manager` | 对局缓存管理（内存维护进行中对局） |
 | `GameStateSerializer.java` | `manager` | GameState ↔ JSON 序列化器 |
 | `GameService.java` | `service` | 对局服务接口 |
-| `GameServiceImpl.java` | `service.impl` | 对局服务实现（创建/查询/操作/认输/复盘/历史/统计/崩溃恢复） |
+| `GameServiceImpl.java` | `service.impl` | 对局服务实现（房间/匹配/创建/查询/操作/认输/复盘/历史/统计/崩溃恢复） |
 | `GameController.java` | `controller` | 对战 REST API |
 | `ErrorCode.java`（追加常量） | `common.result` | 新增 GAME_NOT_FOUND / NOT_GAME_PARTICIPANT 等 |
 

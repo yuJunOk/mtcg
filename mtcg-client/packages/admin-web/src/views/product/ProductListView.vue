@@ -3,6 +3,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { productApi, adminProductApi } from '@mtcg/common/api'
+import { resolveCardImageUrl } from '@mtcg/common'
 import { ProductFormDialog } from '@/components'
 import type { ProductFormMode } from '@/components/ProductFormDialog.vue'
 import type { ProductVO } from '@mtcg/common/types'
@@ -91,6 +92,19 @@ onMounted(() => {
     <el-card class="table-card">
       <el-table :data="tableData" v-loading="loading" stripe height="100%">
         <el-table-column prop="productCode" label="产品编号" width="140" />
+        <el-table-column label="产品图" width="88">
+          <template #default="{ row }">
+            <el-image
+              v-if="row.imagePath"
+              :src="resolveCardImageUrl(row.imagePath)"
+              fit="contain"
+              class="thumb"
+              :preview-src-list="[resolveCardImageUrl(row.imagePath)]"
+              preview-teleported
+            />
+            <span v-else class="no-img">无</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="productName" label="产品名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="releaseDate" label="发售日期" width="130" />
         <el-table-column prop="description" label="描述" min-width="260" show-overflow-tooltip />
@@ -165,4 +179,14 @@ onMounted(() => {
   flex: 1;
 }
 .pagination { display: flex; justify-content: flex-end; }
+.thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: #f5f7fa;
+}
+.no-img {
+  color: #c0c4cc;
+  font-size: 12px;
+}
 </style>

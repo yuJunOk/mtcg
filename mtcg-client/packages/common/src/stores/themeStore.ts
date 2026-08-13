@@ -8,7 +8,7 @@ const STORAGE_KEY = 'mtcg-theme'
 function getInitialTheme(): ThemeMode {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return 'dark'
+  return 'light'
 }
 
 function applyTheme(theme: ThemeMode) {

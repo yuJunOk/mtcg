@@ -25,4 +25,8 @@ public class DeckUpdateDTO {
     /** 非 null 时覆盖（空串表示清空标签） */
     @Size(max = 256, message = "标签长度不能超过 256")
     private String tags;
+
+    /** 非 null 时覆盖（空串表示清空，回退为第一张） */
+    @Size(max = 32, message = "封面卡编号长度不能超过 32")
+    private String coverCardCode;
 }

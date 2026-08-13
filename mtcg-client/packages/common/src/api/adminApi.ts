@@ -56,6 +56,9 @@ export const adminProductApi = {
 
   delete: (id: number, loadingRef?: Ref<boolean>) =>
     http.post<void>('/admin/products/' + id + '/delete', undefined, loadingRef),
+
+  uploadImage: (productId: number, formData: FormData, loadingRef?: Ref<boolean>) =>
+    http.postWithConfig<string>('/admin/products/' + productId + '/image', formData, {}, loadingRef),
 }
 
 // ========================================================

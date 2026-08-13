@@ -11,6 +11,7 @@ import com.aris.mtcg.dao.UserMapper;
 import com.aris.mtcg.domain.dto.ActionRequestDTO;
 import com.aris.mtcg.domain.dto.DeckCardEntry;
 import com.aris.mtcg.domain.dto.GameCreateDTO;
+import com.aris.mtcg.domain.dto.GameJoinDTO;
 import com.aris.mtcg.domain.entity.CardDO;
 import com.aris.mtcg.domain.entity.DeckDO;
 import com.aris.mtcg.domain.entity.GameDO;
@@ -20,6 +21,7 @@ import com.aris.mtcg.domain.vo.ActionResultVO;
 import com.aris.mtcg.domain.vo.CardInstanceVO;
 import com.aris.mtcg.domain.vo.FieldZoneVO;
 import com.aris.mtcg.domain.vo.GameHistoryVO;
+import com.aris.mtcg.domain.vo.GameMatchVO;
 import com.aris.mtcg.domain.vo.GameStateVO;
 import com.aris.mtcg.domain.vo.GameStatsVO;
 import com.aris.mtcg.domain.vo.PageVO;
@@ -72,8 +74,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class GameServiceImpl implements GameService {
 
+    private static final String STATUS_WAITING = "WAITING";
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String STATUS_FINISHED = "FINISHED";
+    private static final String MODE_AI = "AI";
     private static final String SIDE_PLAYER1 = "PLAYER1";
     private static final String SIDE_PLAYER2 = "PLAYER2";
     private static final String RESULT_WIN = "WIN";
@@ -96,21 +100,20 @@ public class GameServiceImpl implements GameService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createGame(Long userId, GameCreateDTO dto) {
+        if (MODE_AI.equals(dto.getGameMode())) {
+            throw new BusinessException(ErrorCode.AI_NOT_AVAILABLE);
+        }
+        DeckDO deck1 = requireValidDeck(dto.getDeck1Id(), userId);
         if (dto.getPlayer2Id() == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "对手用户不能为空");
+            return createWaitingRoom(userId, deck1, dto.getGameMode());
         }
         if (Objects.equals(dto.getPlayer2Id(), userId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "不能与自己对战");
         }
-
-        DeckDO deck1 = requireValidDeck(dto.getDeck1Id(), userId);
+        if (dto.getDeck2Id() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "对手卡组不能为空");
+        }
         DeckDO deck2 = requireValidDeck(dto.getDeck2Id(), dto.getPlayer2Id());
-
-        Map<String, CardSnapshot> snapshotMap = loadSnapshots(deck1, deck2);
-        List<CardSnapshot> p1Main = expandDeck(deck1.getMainDeckCodes(), snapshotMap);
-        List<CardSnapshot> p1Rush = expandDeck(deck1.getRushDeckCodes(), snapshotMap);
-        List<CardSnapshot> p2Main = expandDeck(deck2.getMainDeckCodes(), snapshotMap);
-        List<CardSnapshot> p2Rush = expandDeck(deck2.getRushDeckCodes(), snapshotMap);
 
         GameDO record = new GameDO();
         record.setPlayer1Id(userId);
@@ -122,12 +125,106 @@ public class GameServiceImpl implements GameService {
         record.setActionLog("[]");
         gameMapper.insert(record);
 
+        startDuel(
+                record,
+                deck1,
+                deck2,
+                dto.getFirstPlayer(),
+                dto.getMulligan1Indices(),
+                dto.getMulligan2Indices());
+        return record.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long joinGame(Long userId, Long gameId, GameJoinDTO dto) {
+        GameDO record = requireGame(gameId);
+        if (!STATUS_WAITING.equals(record.getStatus()) || record.getPlayer2Id() != null) {
+            throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE);
+        }
+        if (Objects.equals(userId, record.getPlayer1Id())) {
+            throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE, "不能加入自己的房间");
+        }
+        DeckDO deck1 = requireValidDeck(record.getDeck1Id(), record.getPlayer1Id());
+        DeckDO deck2 = requireValidDeck(dto.getDeckId(), userId);
+        record.setPlayer2Id(userId);
+        record.setDeck2Id(dto.getDeckId());
+        record.setStatus(STATUS_IN_PROGRESS);
+        startDuel(record, deck1, deck2, null, null, null);
+        return record.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public GameMatchVO matchGame(Long userId, GameJoinDTO dto) {
+        requireValidDeck(dto.getDeckId(), userId);
+        GameDO open = gameMapper.selectOpenWaiting(userId);
+        if (open == null) {
+            return GameMatchVO.miss();
+        }
+        Long gameId = joinGame(userId, open.getId(), dto);
+        return GameMatchVO.hit(gameId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelWaiting(Long userId, Long gameId) {
+        GameDO record = requireGame(gameId);
+        if (!STATUS_WAITING.equals(record.getStatus())) {
+            throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE, "只能取消等待中的房间");
+        }
+        if (!Objects.equals(userId, record.getPlayer1Id())) {
+            throw new BusinessException(ErrorCode.NOT_GAME_PARTICIPANT);
+        }
+        gameMapper.deleteById(gameId);
+    }
+
+    @Override
+    public GameStateVO getGameState(Long userId, Long gameId) {
+        GameContext cached = gameManager.get(String.valueOf(gameId));
+        if (cached != null) {
+            assertParticipant(userId, cached.getRecord());
+            return toGameStateVO(cached, userId);
+        }
+        GameDO record = requireGame(gameId);
+        assertParticipant(userId, record);
+        if (STATUS_WAITING.equals(record.getStatus())) {
+            return toWaitingStateVO(record);
+        }
+        GameContext context = getOrLoadContext(gameId);
+        return toGameStateVO(context, userId);
+    }
+
+    private Long createWaitingRoom(Long userId, DeckDO deck1, String gameMode) {
+        GameDO record = new GameDO();
+        record.setPlayer1Id(userId);
+        record.setDeck1Id(deck1.getId());
+        record.setGameMode(gameMode);
+        record.setStatus(STATUS_WAITING);
+        record.setActionLog("[]");
+        gameMapper.insert(record);
+        return record.getId();
+    }
+
+    private void startDuel(
+            GameDO record,
+            DeckDO deck1,
+            DeckDO deck2,
+            String firstPlayer,
+            List<Integer> mulligan1,
+            List<Integer> mulligan2) {
+        Map<String, CardSnapshot> snapshotMap = loadSnapshots(deck1, deck2);
+        List<CardSnapshot> p1Main = expandDeck(deck1.getMainDeckCodes(), snapshotMap);
+        List<CardSnapshot> p1Rush = expandDeck(deck1.getRushDeckCodes(), snapshotMap);
+        List<CardSnapshot> p2Main = expandDeck(deck2.getMainDeckCodes(), snapshotMap);
+        List<CardSnapshot> p2Rush = expandDeck(deck2.getRushDeckCodes(), snapshotMap);
+
         Long gameId = record.getId();
         String gameIdStr = String.valueOf(gameId);
-        String player1Id = String.valueOf(userId);
-        String player2Id = String.valueOf(dto.getPlayer2Id());
+        String player1Id = String.valueOf(record.getPlayer1Id());
+        String player2Id = String.valueOf(record.getPlayer2Id());
 
-        boolean player1First = resolvePlayer1First(dto.getFirstPlayer());
+        boolean player1First = resolvePlayer1First(firstPlayer);
         String firstId = player1First ? player1Id : player2Id;
         String secondId = player1First ? player2Id : player1Id;
         List<CardSnapshot> firstMain = player1First ? p1Main : p2Main;
@@ -140,10 +237,8 @@ public class GameServiceImpl implements GameService {
                 initializer.initialize(
                         gameIdStr, firstId, secondId, firstMain, firstRush, secondMain, secondRush);
 
-        List<Integer> firstMulligan =
-                player1First ? dto.getMulligan1Indices() : dto.getMulligan2Indices();
-        List<Integer> secondMulligan =
-                player1First ? dto.getMulligan2Indices() : dto.getMulligan1Indices();
+        List<Integer> firstMulligan = player1First ? mulligan1 : mulligan2;
+        List<Integer> secondMulligan = player1First ? mulligan2 : mulligan1;
         if (firstMulligan != null && !firstMulligan.isEmpty()) {
             initializer.mulligan(state, firstId, firstMulligan);
         }
@@ -154,19 +249,25 @@ public class GameServiceImpl implements GameService {
         GameEngine engine = new GameEngine(state, initializer);
         engine.startGame();
 
+        record.setStatus(STATUS_IN_PROGRESS);
         record.setTurnSnapshot(gameStateSerializer.serializeSnapshot(state, 0L));
         gameMapper.update(record);
 
         GameContext context = new GameContext(gameIdStr, engine, record);
         gameManager.put(gameIdStr, context);
-        return gameId;
     }
 
-    @Override
-    public GameStateVO getGameState(Long userId, Long gameId) {
-        GameContext context = getOrLoadContext(gameId);
-        assertParticipant(userId, context.getRecord());
-        return toGameStateVO(context, userId);
+    private GameStateVO toWaitingStateVO(GameDO record) {
+        GameStateVO vo = new GameStateVO();
+        vo.setGameId(String.valueOf(record.getId()));
+        vo.setStatus(STATUS_WAITING);
+        vo.setTurnCount(0);
+        PlayerStateVO p1 = new PlayerStateVO();
+        p1.setPlayerId(String.valueOf(record.getPlayer1Id()));
+        vo.setPlayer1(p1);
+        vo.setPlayer2(null);
+        vo.setAvailableActions(Collections.emptyList());
+        return vo;
     }
 
     @Override
@@ -290,6 +391,9 @@ public class GameServiceImpl implements GameService {
             return cached;
         }
         GameDO record = requireGame(gameId);
+        if (STATUS_WAITING.equals(record.getStatus())) {
+            throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE, "对局尚未开始");
+        }
         if (STATUS_FINISHED.equals(record.getStatus())) {
             return buildFinishedContext(record);
         }

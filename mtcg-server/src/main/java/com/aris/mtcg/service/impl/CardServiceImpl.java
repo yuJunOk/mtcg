@@ -20,6 +20,7 @@ import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.Resource;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -46,11 +47,15 @@ public class CardServiceImpl implements CardService {
     public PageVO<CardVO> listCards(CardQueryDTO query) {
         QueryWrapper qw =
                 QueryWrapper.create()
+                        .eq("card_code", query.getCardCode(), StringUtils::isNotBlank)
                         .like("card_name", query.getCardName(), StringUtils::isNotBlank)
                         .eq("card_type", query.getCardType(), StringUtils::isNotBlank)
                         .eq("color", query.getColor(), StringUtils::isNotBlank)
                         .eq("rarity", query.getRarity(), StringUtils::isNotBlank)
                         .eq("product_code", query.getProductCode(), StringUtils::isNotBlank)
+                        .eq("level", query.getLevel(), Objects::nonNull)
+                        .eq("attack_range", query.getAttackRange(), Objects::nonNull)
+                        .like("traits", query.getTrait(), StringUtils::isNotBlank)
                         .orderBy("card_code", true);
         int pageNum =
                 (query.getPageNum() == null || query.getPageNum() < 1) ? 1 : query.getPageNum();

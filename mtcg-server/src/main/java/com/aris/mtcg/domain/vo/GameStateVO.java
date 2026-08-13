@@ -13,7 +13,7 @@ public class GameStateVO {
 
     private String gameId;
 
-    /** IN_PROGRESS / FINISHED */
+    /** WAITING / IN_PROGRESS / FINISHED */
     private String status;
 
     private Integer turnCount;

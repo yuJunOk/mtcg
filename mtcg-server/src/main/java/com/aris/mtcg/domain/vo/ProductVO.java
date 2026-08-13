@@ -24,6 +24,9 @@ public class ProductVO {
 
     private String description;
 
+    /** 产品图相对路径 */
+    private String imagePath;
+
     private LocalDateTime createTime;
 
     // ========== 静态工厂方法 ==========
@@ -39,6 +42,7 @@ public class ProductVO {
         vo.setProductName(product.getProductName());
         vo.setReleaseDate(product.getReleaseDate());
         vo.setDescription(product.getDescription());
+        vo.setImagePath(product.getImagePath());
         vo.setCreateTime(product.getCreateTime());
         return vo;
     }
@@ -67,6 +71,7 @@ public class ProductVO {
         product.setProductName(vo.getProductName());
         product.setReleaseDate(vo.getReleaseDate());
         product.setDescription(vo.getDescription());
+        product.setImagePath(vo.getImagePath());
         return product;
     }
 

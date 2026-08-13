@@ -42,6 +42,12 @@ public class DeckVO {
     /** 用户自定义标签 */
     private String tags;
 
+    /** 封面卡编号 */
+    private String coverCardCode;
+
+    /** 封面卡图路径（由封面卡或第一张卡派生） */
+    private String coverImagePath;
+
     /** 主卡组总张数 = sum(quantity) */
     private Integer mainDeckSize;
 
@@ -66,6 +72,7 @@ public class DeckVO {
         vo.setIsValid(deck.getIsValid());
         vo.setSortOrder(deck.getSortOrder());
         vo.setTags(deck.getTags());
+        vo.setCoverCardCode(deck.getCoverCardCode());
         vo.setMainDeckSize(totalQty(vo.getMainDeck()));
         vo.setRushDeckSize(totalQty(vo.getRushDeck()));
         vo.setCreateTime(deck.getCreateTime() != null ? deck.getCreateTime().format(FMT) : null);
@@ -83,6 +90,7 @@ public class DeckVO {
         vo.setMainDeck(dto.getMainDeck());
         vo.setRushDeck(dto.getRushDeck());
         vo.setTags(dto.getTags());
+        vo.setCoverCardCode(dto.getCoverCardCode());
         vo.setMainDeckSize(totalQty(dto.getMainDeck()));
         vo.setRushDeckSize(totalQty(dto.getRushDeck()));
         return vo;

@@ -30,4 +30,8 @@ public class DeckCreateDTO {
     /** 可选，自定义标签（逗号分隔，服务端规范化） */
     @Size(max = 256, message = "标签长度不能超过 256")
     private String tags;
+
+    /** 封面卡编号（须在主卡组或冲击卡组内） */
+    @Size(max = 32, message = "封面卡编号长度不能超过 32")
+    private String coverCardCode;
 }

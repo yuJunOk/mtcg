@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@mtcg/common/stores'
 import { Card } from '@mtcg/common/components'
 
+const route = useRoute()
 const router = useRouter()
 const store = useGameStore()
 
@@ -23,16 +24,28 @@ const toggleFullscreen = () => {
 const onFullscreenChange = () => {
   isFullscreen.value = !!document.fullscreenElement
 }
-onMounted(() => document.addEventListener('fullscreenchange', onFullscreenChange))
-onUnmounted(() => document.removeEventListener('fullscreenchange', onFullscreenChange))
+onMounted(async () => {
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  const raw = route.params.gameId
+  const id = typeof raw === 'string' ? Number(raw) : Number(Array.isArray(raw) ? raw[0] : raw)
+  if (Number.isFinite(id) && id > 0) {
+    try {
+      await store.loadGame(id)
+    } catch {
+      // notifier
+    }
+  }
+})
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  store.stopPolling()
+})
 
 const turnCount = computed(() => store.gameState?.turnCount ?? 1)
 const phaseLabel = computed(() => store.gameState?.currentPhase ?? '行动阶段')
 
 /* 手牌扇形布局: 根据索引计算每张卡的旋转角度、水平偏移和弧度上抬 */
 const handCount = 5
-const totalTime = '02:35'   // TODO: 接入真实计时器
-const turnTime = '00:12'    // TODO: 接入真实计时器
 
 /* 区域卡牌数量 (TODO: 接入真实游戏状态) */
 const opponentZones = { characterDeck: 38, rushDeck: 9, retreat: 2, crop: 1 }
@@ -47,7 +60,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   const offset = index - center
   const maxAngle = 14
   const angle = (offset / center) * maxAngle
-  const spacing = 38
+  const spacing = 50
   const xOffset = offset * spacing
   const arcLift = 5
   const yOffset = Math.abs(offset) * arcLift
@@ -66,7 +79,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
       <div class="opponent-info">
         <span class="opponent-avatar"></span>
         <div class="opponent-meta">
-          <span class="opponent-name">{{ store.opponent?.playerId ?? 'AI 对手' }}</span>
+          <span class="opponent-name">{{ store.opponent?.playerId ?? '对手' }}</span>
           <span class="opponent-hand">手牌 {{ store.opponent?.handCount ?? 0 }}</span>
         </div>
       </div>
@@ -189,9 +202,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
         <!-- 中线: 居中状态药丸(回合+计时) | 右侧操作按钮(认输分隔防误触) -->
         <div class="row-midline">
           <span class="turn-badge">
-            第{{ turnCount }}回合 · 你的回合 · {{ phaseLabel }}
-            <span class="badge-sep">·</span>
-            <span class="badge-time">{{ totalTime }} / {{ turnTime }}</span>
+            第{{ turnCount }}回合 · {{ phaseLabel }}
           </span>
           <div class="mid-actions">
             <button class="btn-phase">结束阶段</button>
@@ -336,6 +347,8 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   --col-w: 110px;  /* 左右列宽度 */
   --deck-meta-h: 20px;   /* 卡组顶/底条带高度: 放标签/统计/摘要 */
   --base-meta-h: 18px;   /* 基地区标签条高度 */
+  --slot-inset: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
+    inset 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
 /* ============================================
@@ -347,7 +360,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   display: flex;
   align-items: center;
   padding: 0 var(--space-md);
-  background: var(--bg-surface);
+  background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
   border-bottom: 1px solid var(--border);
   position: relative;
 }
@@ -407,9 +420,8 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+  background: var(--accent-blue);
   border: 2px solid var(--bg-surface);
-  box-shadow: 0 0 0 1px var(--accent-blue);
   flex-shrink: 0;
 }
 
@@ -442,14 +454,34 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   padding: var(--space-md);
   overflow: auto;          /* 窗口过小时出现滚动条而非堆叠 */
   position: relative;
+  isolation: isolate;
+}
+
+.canvas-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--shell-art) center 28% / cover no-repeat;
+  opacity: 0.22;
+  filter: var(--shell-art-filter);
+  pointer-events: none;
+}
+
+.canvas-area::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: color-mix(in srgb, var(--bg-base) 62%, transparent);
+  pointer-events: none;
 }
 
 .battlefield {
+  position: relative;
+  z-index: 1;
   height: 100%;
-  min-width: 600px;       /* 设计最小宽度阈值: 低于此值触发横向滚动 */
-  /* 页面高度阈值 950px: 视口高度 < 950px 时触发纵向滚动
-     扣除 顶部HUD(44) + 底部手牌区(90) + canvas 上下 padding(2×16) */
-  min-height: calc(950px - 44px - 90px - 2 * var(--space-md));
+  min-width: 600px;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -541,14 +573,13 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   left: 50%;
   transform: translateX(-50%);
   padding: 4px 18px;
-  background: var(--accent-blue);
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border-radius: 14px;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   letter-spacing: 0.5px;
-  box-shadow: 0 2px 8px rgba(92, 107, 192, 0.3);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -579,14 +610,14 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
 .btn-phase {
   height: 26px;
   padding: 0 12px;
-  background: var(--bg-surface-2);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .btn-phase:hover {
@@ -598,18 +629,17 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   height: 26px;
   padding: 0 16px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border: none;
   border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color var(--transition-fast), filter var(--transition-fast);
 }
 
 .btn-end-turn:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  filter: brightness(1.06);
 }
 
 /* 分隔线: 视觉隔离认输按钮, 防误触 */
@@ -644,7 +674,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
 .zone {
   position: relative;
   background: var(--bg-surface);
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
@@ -655,7 +685,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   min-height: 0;
 }
 
-/* 虚空区 / 撤退区: 蓝灰色系卡槽, 和基地绿色区分 */
+/* 虚空 / 撤退：刻入桌面的槽，不用斜纹私货色 */
 .zone.stack-zone {
   flex: 1 1 0;
   min-height: 0;
@@ -663,18 +693,9 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   max-width: 100%;
   overflow: visible;
   border-radius: var(--radius-md);
-  border: 2px solid rgba(129, 140, 248, 0.65);
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(129, 140, 248, 0.05) 0 6px,
-      transparent 6px 12px
-    ),
-    var(--bg-surface-2);
-  box-shadow:
-    inset 0 0 0 1px rgba(129, 140, 248, 0.3),
-    inset 0 2px 6px rgba(0, 0, 0, 0.4),
-    0 4px 14px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  box-shadow: var(--slot-inset);
 }
 
 /* 外置区域标签: 靛色系, 挂在卡槽外边缘
@@ -682,19 +703,18 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
    亮色主题: 靛蓝色底 + 白色文字 */
 .zone-tag {
   position: absolute;
-  font-size: 9px;
-  color: #fff;
+  font-size: 11px;
+  color: var(--text-secondary);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  background: #5C6BC0;
+  background: var(--bg-surface);
   padding: 1px 8px;
-  border: 1px solid rgba(92, 107, 192, 0.8);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   line-height: 1.4;
   pointer-events: none;
   z-index: 2;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 .zone-tag.top-left     { top: -10px; left: 4px; }
 .zone-tag.top-right    { top: -10px; right: 4px; }
@@ -710,15 +730,9 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   max-width: 100%;
   overflow: hidden;
   padding: 4px;
-  background:
-    repeating-linear-gradient(
-      135deg,
-      rgba(74, 222, 128, 0.06) 0 8px,
-      transparent 8px 16px
-    ),
-    var(--bg-surface-2);
-  border-color: var(--accent-green);
-  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.22);
+  background: var(--bg-surface-2);
+  border-color: var(--border);
+  box-shadow: var(--slot-inset);
 }
 
 /* 堆叠容器: relative + 子元素 absolute 按 --idx 偏移 */
@@ -740,19 +754,19 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   margin: 0 auto;
   width: 100%;
   aspect-ratio: var(--card-aspect-inv);
-  background: radial-gradient(circle at 50% 30%, rgba(74, 222, 128, 0.18), transparent 60%), var(--bg-base);
-  border: 1.5px solid rgba(74, 222, 128, 0.55);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--slot-inset);
 }
 .timeline-slot::after {
   content: attr(data-slot);
   position: absolute;
   bottom: 1px;
   right: 2px;
-  font-size: 7px;
-  letter-spacing: 0.5px;
-  color: rgba(74, 222, 128, 0.85);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--text-disabled);
   font-weight: 700;
   pointer-events: none;
 }
@@ -787,18 +801,18 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   position: absolute;
   top: 2px;
   left: 4px;
-  font-size: 9px;
-  color: #fff;
-  letter-spacing: 1px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
   font-weight: 700;
   white-space: nowrap;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--bg-surface);
   padding: 1px 8px;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   line-height: 1.4;
   pointer-events: none;
   z-index: 3;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .stack-label-out.top-right {
@@ -814,13 +828,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
 
 .zone.base {
   border-color: var(--border);
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(148, 163, 184, 0.04) 0 6px,
-      transparent 6px 12px
-    ),
-    var(--bg-surface-2);
+  background: var(--bg-surface-2);
   height: var(--card-h);
   width: calc((var(--card-h) * var(--card-aspect)) * 6 + var(--card-gap) * 5 + 8px);
   flex-shrink: 0;
@@ -830,7 +838,7 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   align-self: center;
   position: relative;
   overflow: visible;
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2), 0 4px 14px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--slot-inset);
   border-radius: var(--radius-md);
 }
 
@@ -839,19 +847,18 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
  */
 .base-tag {
   position: absolute;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-secondary);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  background: var(--bg-surface-2);
+  background: var(--bg-surface);
   padding: 1px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   line-height: 1.4;
   pointer-events: none;
   z-index: 2;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 /* 4 个角落定位：基地标签放在“卡槽没填充的空侧”更自然
@@ -895,37 +902,19 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   max-width: 100%;
   overflow: visible;
   border-radius: var(--radius-md);
-  border: 2px solid rgba(129, 140, 248, 0.65);
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(129, 140, 248, 0.05) 0 6px,
-      transparent 6px 12px
-    ),
-    var(--bg-surface-2);
-  box-shadow:
-    inset 0 0 0 1px rgba(129, 140, 248, 0.3),
-    inset 0 2px 6px rgba(0, 0, 0, 0.4),
-    0 4px 14px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  box-shadow: var(--slot-inset);
 }
 
-/* 冲击卡组: 琥珀色主题, 打横放, flex-shrink:0 让时间线吃剩余高度 */
+/* 冲击卡组：金边区分，仍走 token */
 .zone.deck.rush-deck {
   flex: 0 0 auto;
   height: auto;
   aspect-ratio: var(--card-aspect-inv);
-  border-color: rgba(251, 146, 60, 0.7);
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(251, 146, 60, 0.04) 0 6px,
-      transparent 6px 12px
-    ),
-    var(--bg-surface-2);
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 146, 60, 0.25),
-    inset 0 2px 6px rgba(0, 0, 0, 0.4),
-    0 4px 14px rgba(0, 0, 0, 0.2);
+  border-color: color-mix(in srgb, var(--accent-gold) 55%, var(--border));
+  background: var(--bg-surface-2);
+  box-shadow: var(--slot-inset);
 }
 
 /* 堆叠区卡面: Card 组件需要居中绝对定位 */
@@ -953,27 +942,24 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
 .base-slot {
   height: 100%;
   aspect-ratio: var(--card-aspect);
-  background:
-    radial-gradient(circle at 50% 30%, rgba(148, 163, 184, 0.15), transparent 60%),
-    var(--bg-surface);
-  border: 1.5px solid rgba(148, 163, 184, 0.3);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   position: relative;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
-  transition: border-color 0.2s, background 0.2s;
+  box-shadow: var(--slot-inset);
+  transition: border-color var(--transition-fast);
 }
 
-/* 加个空槽序号底纹，视觉不那么空 */
 .base-slot::before {
   content: attr(data-slot);
   position: absolute;
   bottom: 2px;
   right: 4px;
-  font-size: 9px;
-  color: rgba(148, 163, 184, 0.35);
+  font-size: 10px;
+  color: var(--text-disabled);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.04em;
   pointer-events: none;
 }
 
@@ -1043,12 +1029,14 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px dashed rgba(148, 163, 184, 0.25);
-  border-radius: 5px;
-  font-size: 9px;
-  color: rgba(148, 163, 184, 0.4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  box-shadow: var(--slot-inset);
+  font-size: 11px;
+  color: var(--text-disabled);
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 0.04em;
   pointer-events: none;
 }
 
@@ -1059,12 +1047,12 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px dashed rgba(148, 163, 184, 0.25);
-  border-radius: 5px;
-  font-size: 9px;
-  color: rgba(148, 163, 184, 0.4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-disabled);
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 0.04em;
   pointer-events: none;
 }
 
@@ -1093,25 +1081,17 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
 /* 整槽 hover 抬起 */
 .battle-cell:hover .bc-slot {
   transform: translateY(-3px);
-  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5));
 }
 
-/* 可攻击脉冲外框 */
 .bc-slot.has-attack::before {
   content: '';
   position: absolute;
   inset: -3px;
   border-radius: 7px;
-  border: 2px solid rgba(239, 68, 68, 0.8);
-  box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
-  animation: slot-attack-pulse 1.4s ease-in-out infinite;
+  border: 2px solid var(--accent-red);
+  box-shadow: var(--shadow-glow);
   z-index: 1;
   pointer-events: none;
-}
-
-@keyframes slot-attack-pulse {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.06); }
 }
 
 /* 实时属性徽章已移至 Card.vue 组件内, 通过 level/power/attackRange/attachCount 属性渲染 */
@@ -1122,31 +1102,29 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
    ============================================ */
 .hud-bottom {
   flex-shrink: 0;
-  height: 90px;
+  height: 118px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 0 8px;
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border);
+  padding: 0 0 10px;
+  background: transparent;
   overflow: visible;
 }
 
 /* 手牌扇形容器 */
 .hand-fan {
   position: relative;
-  width: 200px;
-  height: 75px;
+  width: 280px;
+  height: 100px;
 }
 
-/* 扇形卡槽: 绝对定位居中, transform 由 JS 计算旋转/偏移 */
 .hand-slot {
   position: absolute;
   bottom: 0;
   left: 50%;
-  width: 54px;
-  height: 75px;
-  margin-left: -27px;
+  width: 72px;
+  height: 100px;
+  margin-left: -36px;
   transform-origin: bottom center;
   transition: transform 0.25s ease;
 }
@@ -1164,112 +1142,15 @@ const fanCardStyle = (index: number, total: number): { transform: string; zIndex
 }
 
 .hand-slot:hover .hand-card-inner {
-  transform: translateY(-35px) scale(1.3);
-  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.7));
+  transform: translateY(-28px) scale(1.22);
 }
 
 .hand-card-inner :deep(.card-face) {
   border-radius: 4px;
 }
 
-/* ============================================
-   亮色主题覆盖：确保虚空区/撤退区/卡组在浅色背景下清晰可见
-   ============================================ */
-/* 虚空区/撤退区标签亮色主题 */
-[data-theme="light"] .zone-tag {
-  background: #5C6BC0;
-  border-color: rgba(92, 107, 192, 0.8);
-  color: #fff;
-}
-
-/* 虚空区/撤退区背景亮色主题 */
-[data-theme="light"] .zone.stack-zone {
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(129, 140, 248, 0.08) 0 6px,
-      transparent 6px 12px
-    ),
-    #E8EAF6;
-  box-shadow:
-    inset 0 0 0 1px rgba(92, 107, 192, 0.5),
-    inset 0 2px 6px rgba(0, 0, 0, 0.15),
-    0 4px 14px rgba(0, 0, 0, 0.1);
-}
-
-/* 卡组块背景亮色主题 */
-[data-theme="light"] .zone.deck {
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(129, 140, 248, 0.08) 0 6px,
-      transparent 6px 12px
-    ),
-    #E8EAF6;
-  box-shadow:
-    inset 0 0 0 1px rgba(92, 107, 192, 0.5),
-    inset 0 2px 6px rgba(0, 0, 0, 0.15),
-    0 4px 14px rgba(0, 0, 0, 0.1);
-}
-
-/* 冲击卡组背景亮色主题 */
-[data-theme="light"] .zone.deck.rush-deck {
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(251, 146, 60, 0.08) 0 6px,
-      transparent 6px 12px
-    ),
-    #FFF3E0;
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 146, 60, 0.5),
-    inset 0 2px 6px rgba(0, 0, 0, 0.15),
-    0 4px 14px rgba(0, 0, 0, 0.1);
-}
-
-/* 冲击卡组标签橙色 */
 .zone-tag.rush {
-  background: #FB8C00;
-  border-color: rgba(251, 140, 0, 0.8);
-}
-
-/* 基地标签亮色主题 */
-[data-theme="light"] .base-tag {
-  background: #fff;
-  border-color: var(--border);
-  color: var(--text-secondary);
-}
-
-/* 基地区背景亮色主题 */
-[data-theme="light"] .zone.base {
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(148, 163, 184, 0.06) 0 6px,
-      transparent 6px 12px
-    ),
-    #E8EAF6;
-  box-shadow: inset 0 0 0 1px rgba(92, 107, 192, 0.3), 0 4px 14px rgba(0, 0, 0, 0.1);
-}
-
-/* 基地卡槽序号亮色主题 */
-[data-theme="light"] .base-slot::before {
-  color: rgba(92, 107, 192, 0.5);
-}
-
-/* 亮色主题: 提升战区空槽可见度 (纯白背景下灰蓝边框过淡) */
-[data-theme="light"] .base-slot {
-  background:
-    radial-gradient(circle at 50% 30%, rgba(92, 107, 192, 0.18), transparent 60%),
-    var(--bg-surface);
-  border-color: rgba(92, 107, 192, 0.55);
-  box-shadow: inset 0 2px 4px rgba(92, 107, 192, 0.12);
-}
-
-/* 战区菱形空槽虚线占位 */
-[data-theme="light"] .battle-cell:not(:has(.bc-slot))::before,
-[data-theme="light"] .bc-slot:not(.has-card)::before {
-  border-color: rgba(92, 107, 192, 0.45);
-  color: rgba(92, 107, 192, 0.7);
+  color: var(--accent-gold);
+  border-color: color-mix(in srgb, var(--accent-gold) 45%, var(--border));
 }
 </style>

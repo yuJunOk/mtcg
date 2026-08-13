@@ -20,7 +20,8 @@ public interface GameMapper extends BaseMapper<GameDO> {
     @Select(
             """
             SELECT * FROM mtcg_game_record
-            WHERE player1_id = #{userId} OR player2_id = #{userId}
+            WHERE (player1_id = #{userId} OR player2_id = #{userId})
+              AND status <> 'WAITING'
             ORDER BY create_time DESC
             LIMIT #{limit} OFFSET #{offset}
             """)
@@ -52,7 +53,19 @@ public interface GameMapper extends BaseMapper<GameDO> {
     @Select(
             """
             SELECT COUNT(*) FROM mtcg_game_record
-            WHERE player1_id = #{userId} OR player2_id = #{userId}
+            WHERE (player1_id = #{userId} OR player2_id = #{userId})
+              AND status <> 'WAITING'
             """)
     long countHistory(@Param("userId") Long userId);
+
+    /** 等待加入的休闲房间（排除本人发起） */
+    @Select(
+            """
+            SELECT * FROM mtcg_game_record
+            WHERE status = 'WAITING' AND game_mode = 'CASUAL'
+              AND player2_id IS NULL AND player1_id <> #{userId}
+            ORDER BY create_time ASC
+            LIMIT 1
+            """)
+    GameDO selectOpenWaiting(@Param("userId") Long userId);
 }

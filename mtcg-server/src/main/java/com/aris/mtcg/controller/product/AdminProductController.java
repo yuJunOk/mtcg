@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 管理员产品管理接口
@@ -44,5 +46,12 @@ public class AdminProductController {
     public Result<Void> delete(@PathVariable Long id) {
         productService.deleteProduct(id);
         return Result.success();
+    }
+
+    /** 上传产品图片 */
+    @PostMapping("/{id}/image")
+    public Result<String> uploadImage(
+            @PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return Result.success(productService.uploadProductImage(id, file));
     }
 }

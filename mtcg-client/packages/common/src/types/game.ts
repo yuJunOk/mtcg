@@ -14,6 +14,22 @@ export type GameSeat = 'PLAYER1' | 'PLAYER2'
 /** 对局模式 */
 export type GameMode = 'CASUAL' | 'RANKED' | 'AI'
 
+/** AI 难度（对齐迭代八 Difficulty） */
+export type AIDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT'
+
+/** AI 打牌倾向（对齐迭代八 PlayStyle） */
+export type AIPlayStyle = 'AGGRESSIVE' | 'DEFENSIVE' | 'CONTROL'
+
+/** 创建 AI 对局入参（对齐 CreateAIGameRequest） */
+export interface CreateAIGameDTO {
+  humanDeckId: number
+  aiDeckId: number
+  difficulty: AIDifficulty
+  playStyle: AIPlayStyle
+  /** PLAYER1 我先 / PLAYER2 AI 先；空则随机 */
+  firstPlayer?: GameSeat | null
+}
+
 /** 回合阶段（PhaseType 枚举名） */
 export type PhaseType =
   | 'TURN_START'
@@ -102,7 +118,7 @@ export interface PlayerStateVO {
 /** 对局状态视图（对齐 GameStateVO） */
 export interface GameStateVO {
   gameId: string
-  /** IN_PROGRESS / FINISHED */
+  /** WAITING / IN_PROGRESS / FINISHED */
   status: GameStatus | string
   turnCount: number | null
   currentPhase: PhaseType | string | null
@@ -117,14 +133,25 @@ export interface GameStateVO {
 /** 创建对局入参（对齐 GameCreateDTO） */
 export interface GameCreateDTO {
   deck1Id: number
-  deck2Id: number
-  /** 可空：AI / 自由匹配由系统填 */
+  deck2Id?: number | null
+  /** 可空：创建房间时不填 */
   player2Id?: number | null
   gameMode: GameMode
   /** PLAYER1 / PLAYER2；空则随机 */
   firstPlayer?: GameSeat | null
   mulligan1Indices?: number[] | null
   mulligan2Indices?: number[] | null
+}
+
+/** 加入房间 / 在线匹配 */
+export interface GameJoinDTO {
+  deckId: number
+}
+
+/** 在线匹配结果 */
+export interface GameMatchVO {
+  matched: boolean
+  gameId: number | null
 }
 
 /** 执行操作入参（对齐 ActionRequestDTO；playerId 由服务端确定） */

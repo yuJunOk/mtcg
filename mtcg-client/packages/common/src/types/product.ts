@@ -8,6 +8,7 @@ export interface ProductVO {
   productName: string
   releaseDate: string | null
   description: string | null
+  imagePath: string | null
   createTime: string
 }
 

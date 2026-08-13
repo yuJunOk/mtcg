@@ -1,6 +1,5 @@
 /* ============================================
    MTCG 基础样式 — 重置 + 共享变量
-   所有主题共用
    ============================================ */
 
 *,
@@ -27,13 +26,13 @@ html, body {
 }
 
 :root {
-  /* 共享 — 圆角 */
-  --radius-sm:  4px;
-  --radius-md:  8px;
-  --radius-lg:  12px;
-  --radius-xl:  16px;
+  /* 圆角 */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  18px;
 
-  /* 共享 — 间距 */
+  /* 间距 */
   --space-xs:  4px;
   --space-sm:  8px;
   --space-md:  16px;
@@ -41,7 +40,7 @@ html, body {
   --space-xl:  32px;
   --space-2xl: 48px;
 
-  /* 共享 — 字体 */
+  /* 字号 */
   --font-size-xs:   12px;
   --font-size-sm:   13px;
   --font-size-base: 14px;
@@ -50,13 +49,30 @@ html, body {
   --font-size-xl:   24px;
   --font-size-2xl:  32px;
 
-  /* 共享 — 过渡 */
+  /* 壳层节奏 */
+  --shell-max: 1280px;
+  --topbar-h: 56px;
+  --ctrl-h: 36px;
+  --deck-col: 300px;
+  --pool-col: 1fr;
+
+  /* 卡面固定尺寸：宽决定高，容器滚动。禁止用 1fr 去平分剩余视口高度 */
+  --card-face-w: 156px;
+  --card-face-h: calc(var(--card-face-w) * 2080 / 1488);
+  --card-thumb-w: 40px;
+  --card-thumb-h: calc(var(--card-thumb-w) * 2080 / 1488);
+  --card-cover-w: 200px;
+  --card-cover-h: calc(var(--card-cover-w) * 2080 / 1488);
+
+  /* 壳层氛围图（game-pc/public/background.png） */
+  --shell-art: url('/background.png');
+
+  /* 过渡 */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
   --transition-slow: 400ms ease;
 }
 
-/* 工具类 */
 .text-secondary { color: var(--text-secondary); }
 .text-disabled  { color: var(--text-disabled); }
 .text-accent    { color: var(--accent); }

@@ -80,9 +80,12 @@ CREATE TABLE IF NOT EXISTS mtcg_product (
     product_name    VARCHAR(128)    NOT NULL,
     release_date    DATE,
     description     TEXT,
+    image_path      VARCHAR(256),
     create_time     TIMESTAMP       NOT NULL DEFAULT NOW(),
     update_time     TIMESTAMP       NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE mtcg_product ADD COLUMN IF NOT EXISTS image_path VARCHAR(256);
 
 -- =====================================================
 -- 卡牌-特征关联表
@@ -127,9 +130,12 @@ CREATE TABLE IF NOT EXISTS mtcg_deck (
     is_valid            BOOLEAN         NOT NULL DEFAULT FALSE,
     sort_order          INTEGER         NOT NULL DEFAULT 0,
     tags                VARCHAR(256),
+    cover_card_code     VARCHAR(32),
     create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
     update_time         TIMESTAMP       NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE mtcg_deck ADD COLUMN IF NOT EXISTS cover_card_code VARCHAR(32);
 
 CREATE INDEX IF NOT EXISTS idx_deck_user_id ON mtcg_deck (user_id);
 CREATE INDEX IF NOT EXISTS idx_deck_user_sort ON mtcg_deck (user_id, sort_order);
@@ -159,9 +165,9 @@ CREATE INDEX IF NOT EXISTS idx_collection_user_id ON mtcg_card_collection (user_
 CREATE TABLE IF NOT EXISTS mtcg_game_record (
     id                  BIGSERIAL       PRIMARY KEY,
     player1_id          BIGINT          NOT NULL,
-    player2_id          BIGINT          NOT NULL,
+    player2_id          BIGINT,
     deck1_id            BIGINT          NOT NULL,
-    deck2_id            BIGINT          NOT NULL,
+    deck2_id            BIGINT,
     winner              VARCHAR(16),
     game_mode           VARCHAR(16)     NOT NULL,
     status              VARCHAR(16)     NOT NULL,
@@ -172,12 +178,19 @@ CREATE TABLE IF NOT EXISTS mtcg_game_record (
     end_time            TIMESTAMP,
     CONSTRAINT ck_game_winner CHECK (winner IS NULL OR winner IN ('PLAYER1', 'PLAYER2', 'DRAW')),
     CONSTRAINT ck_game_mode   CHECK (game_mode IN ('CASUAL', 'RANKED', 'AI')),
-    CONSTRAINT ck_game_status CHECK (status IN ('IN_PROGRESS', 'FINISHED'))
+    CONSTRAINT ck_game_status CHECK (status IN ('WAITING', 'IN_PROGRESS', 'FINISHED'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_game_player1     ON mtcg_game_record (player1_id);
 CREATE INDEX IF NOT EXISTS idx_game_player2     ON mtcg_game_record (player2_id);
 CREATE INDEX IF NOT EXISTS idx_game_create_time ON mtcg_game_record (create_time DESC);
+
+-- 已有库：等待房间需要 player2/deck2 可空，status 含 WAITING
+ALTER TABLE mtcg_game_record ALTER COLUMN player2_id DROP NOT NULL;
+ALTER TABLE mtcg_game_record ALTER COLUMN deck2_id DROP NOT NULL;
+ALTER TABLE mtcg_game_record DROP CONSTRAINT IF EXISTS ck_game_status;
+ALTER TABLE mtcg_game_record ADD CONSTRAINT ck_game_status
+    CHECK (status IN ('WAITING', 'IN_PROGRESS', 'FINISHED'));
 
 -- =====================================================
 -- 自动更新 update_time 触发器

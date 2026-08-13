@@ -53,6 +53,7 @@ public class DeckServiceImpl implements DeckService {
         deck.setRushDeckCodes(DeckVO.toJson(rushDeck));
         deck.setIsValid(result.getValid());
         deck.setTags(normalizeTags(dto.getTags()));
+        deck.setCoverCardCode(resolveCoverCardCode(dto.getCoverCardCode(), mainDeck, rushDeck));
         deck.setSortOrder(nextSortOrder(userId));
         deckMapper.insert(deck);
         return deck.getId();
@@ -81,6 +82,15 @@ public class DeckServiceImpl implements DeckService {
             DeckValidateResultVO result = validateEntries(vo.getMainDeck(), vo.getRushDeck());
             deck.setIsValid(result.getValid());
         }
+        if (dto.getCoverCardCode() != null || needRevalidate) {
+            DeckVO vo = DeckVO.fromDO(deck);
+            String requested =
+                    dto.getCoverCardCode() != null
+                            ? dto.getCoverCardCode()
+                            : deck.getCoverCardCode();
+            deck.setCoverCardCode(
+                    resolveCoverCardCode(requested, vo.getMainDeck(), vo.getRushDeck()));
+        }
         deckMapper.update(deck);
     }
 
@@ -93,7 +103,9 @@ public class DeckServiceImpl implements DeckService {
     @Override
     public DeckVO getDeck(Long userId, Long deckId) {
         DeckDO deck = checkOwnership(userId, deckId);
-        return DeckVO.fromDO(deck);
+        DeckVO vo = DeckVO.fromDO(deck);
+        attachCoverImages(List.of(vo));
+        return vo;
     }
 
     @Override
@@ -104,7 +116,9 @@ public class DeckServiceImpl implements DeckService {
         }
         qw.orderBy("sort_order", true).orderBy("id", true);
         List<DeckDO> decks = deckMapper.selectListByQuery(qw);
-        return decks.stream().map(DeckVO::fromDO).collect(Collectors.toList());
+        List<DeckVO> vos = decks.stream().map(DeckVO::fromDO).collect(Collectors.toList());
+        attachCoverImages(vos);
+        return vos;
     }
 
     @Override
@@ -207,6 +221,64 @@ public class DeckServiceImpl implements DeckService {
     }
 
     // ========== 私有方法 ==========
+
+    private void attachCoverImages(List<DeckVO> vos) {
+        Map<DeckVO, String> vo2Code = new LinkedHashMap<>();
+        for (DeckVO vo : vos) {
+            String code = resolveCoverCardCode(vo.getCoverCardCode(), vo.getMainDeck(), vo.getRushDeck());
+            vo.setCoverCardCode(code);
+            if (StringUtils.isNotBlank(code)) {
+                vo2Code.put(vo, code);
+            }
+        }
+        if (vo2Code.isEmpty()) {
+            return;
+        }
+        List<CardDO> cards =
+                cardMapper.selectListByQuery(
+                        QueryWrapper.create().in("card_code", new HashSet<>(vo2Code.values())));
+        Map<String, String> paths =
+                cards.stream()
+                        .filter(c -> StringUtils.isNotBlank(c.getImagePath()))
+                        .collect(
+                                Collectors.toMap(
+                                        CardDO::getCardCode, CardDO::getImagePath, (a, b) -> a));
+        vo2Code.forEach((vo, code) -> vo.setCoverImagePath(paths.get(code)));
+    }
+
+    /**
+     * 封面须在卡组内；未指定或已不在卡组则回退主卡组第一张，再回退冲击第一张。
+     */
+    private String resolveCoverCardCode(
+            String requested, List<DeckCardEntry> mainDeck, List<DeckCardEntry> rushDeck) {
+        if (containsCard(mainDeck, requested) || containsCard(rushDeck, requested)) {
+            return requested.trim();
+        }
+        return firstCardCode(mainDeck, rushDeck);
+    }
+
+    private boolean containsCard(List<DeckCardEntry> entries, String cardCode) {
+        if (entries == null || StringUtils.isBlank(cardCode)) {
+            return false;
+        }
+        String code = cardCode.trim();
+        return entries.stream().anyMatch(e -> code.equals(e.getCardCode()));
+    }
+
+    /** 列表封面回退：主卡组第一张，否则冲击第一张 */
+    private String firstCardCode(List<DeckCardEntry> mainDeck, List<DeckCardEntry> rushDeck) {
+        if (mainDeck != null
+                && !mainDeck.isEmpty()
+                && StringUtils.isNotBlank(mainDeck.get(0).getCardCode())) {
+            return mainDeck.get(0).getCardCode();
+        }
+        if (rushDeck != null
+                && !rushDeck.isEmpty()
+                && StringUtils.isNotBlank(rushDeck.get(0).getCardCode())) {
+            return rushDeck.get(0).getCardCode();
+        }
+        return null;
+    }
 
     private DeckDO checkOwnership(Long userId, Long deckId) {
         DeckDO deck = deckMapper.selectOneById(deckId);

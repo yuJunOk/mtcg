@@ -18,6 +18,10 @@ export interface DeckVO {
   isValid: boolean | null
   sortOrder: number | null
   tags: string | null
+  /** 封面卡编号 */
+  coverCardCode: string | null
+  /** 封面卡图路径（由封面卡派生） */
+  coverImagePath: string | null
   mainDeckSize: number
   rushDeckSize: number
   createTime: string | null
@@ -31,6 +35,8 @@ export interface DeckCreateDTO {
   rushDeck: DeckCardEntry[]
   /** 可选，逗号分隔标签 */
   tags?: string
+  /** 封面卡编号 */
+  coverCardCode?: string
 }
 
 /** 编辑卡组入参（全部可选；deck 非空时整表覆盖） */
@@ -40,6 +46,8 @@ export interface DeckUpdateDTO {
   rushDeck?: DeckCardEntry[]
   /** 非 null 时覆盖（空串表示清空） */
   tags?: string
+  /** 非 null 时覆盖（空串表示清空并回退第一张） */
+  coverCardCode?: string
 }
 
 /** 卡组列表批量重排入参 */

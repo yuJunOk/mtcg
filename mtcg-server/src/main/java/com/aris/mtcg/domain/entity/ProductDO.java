@@ -33,6 +33,9 @@ public class ProductDO {
     /** 描述 */
     private String description;
 
+    /** 产品图相对路径 */
+    private String imagePath;
+
     /** 创建时间（插入时由数据库 NOW() 自动填充） */
     @Column(onInsertValue = "NOW()")
     private LocalDateTime createTime;

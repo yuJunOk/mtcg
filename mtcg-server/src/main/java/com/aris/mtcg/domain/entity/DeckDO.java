@@ -40,6 +40,9 @@ public class DeckDO {
     /** 用户自定义标签（逗号分隔） */
     private String tags;
 
+    /** 封面卡编号（须在卡组内） */
+    private String coverCardCode;
+
     /** 创建时间（插入时由数据库 NOW() 自动填充） */
     @Column(onInsertValue = "NOW()")
     private LocalDateTime createTime;

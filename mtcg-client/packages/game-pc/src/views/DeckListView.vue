@@ -3,9 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { deckApi } from '@mtcg/common'
 import type { DeckVO } from '@mtcg/common'
-import { useThemeStore } from '@mtcg/common/stores'
-
-useThemeStore()
+import DeckCover from '@/components/DeckCover.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -15,6 +13,7 @@ const dragFrom = ref<number | null>(null)
 const orderSnapshot = ref<DeckVO[]>([])
 
 const hasValidDeck = computed(() => decks.value.some((d) => d.isValid === true))
+const noticeText = ref('')
 
 onMounted(() => {
   void loadDecks()
@@ -24,27 +23,12 @@ async function loadDecks(): Promise<void> {
   decks.value = await deckApi.list(undefined, loading)
 }
 
-function goHome(): void {
-  router.push('/')
-}
-
-function goCreate(): void {
-  router.push('/decks/new')
-}
-
-function goEdit(id: number): void {
-  router.push(`/decks/${id}`)
-}
-
 async function handleValidate(deck: DeckVO): Promise<void> {
   validatingId.value = deck.id
+  noticeText.value = ''
   try {
     const result = await deckApi.validate(deck.id)
-    if (result.valid) {
-      window.alert('校验通过：卡组合法')
-    } else {
-      window.alert(`校验未通过：\n${result.errors.join('\n')}`)
-    }
+    noticeText.value = result.valid ? `「${deck.deckName}」校验通过` : result.errors.join('；')
     await loadDecks()
   } catch {
     // notifier
@@ -54,9 +38,7 @@ async function handleValidate(deck: DeckVO): Promise<void> {
 }
 
 async function handleDelete(deck: DeckVO): Promise<void> {
-  if (!window.confirm(`确定删除卡组「${deck.deckName}」？`)) {
-    return
-  }
+  if (!window.confirm(`删除「${deck.deckName}」？`)) return
   try {
     await deckApi.delete(deck.id, loading)
     await loadDecks()
@@ -65,29 +47,27 @@ async function handleDelete(deck: DeckVO): Promise<void> {
   }
 }
 
+function playDeck(deck: DeckVO): void {
+  localStorage.setItem('mtcg_ready_deck_id', String(deck.id))
+  void router.push('/match')
+}
+
 function onDragStart(index: number, e: DragEvent): void {
   dragFrom.value = index
   orderSnapshot.value = decks.value.slice()
   e.dataTransfer?.setData('text/plain', String(index))
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-  }
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 
 function onDragOver(e: DragEvent): void {
   e.preventDefault()
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'move'
-  }
 }
 
 function onDrop(toIndex: number, e: DragEvent): void {
   e.preventDefault()
   const from = dragFrom.value
   dragFrom.value = null
-  if (from === null || from === toIndex) {
-    return
-  }
+  if (from === null || from === toIndex) return
   const next = decks.value.slice()
   const [item] = next.splice(from, 1)
   next.splice(toIndex, 0, item)
@@ -100,286 +80,288 @@ function onDragEnd(): void {
 }
 
 async function persistOrder(): Promise<void> {
-  const items = decks.value.map((d, i) => ({ id: d.id, sortOrder: i }))
   try {
-    await deckApi.reorder({ items })
+    await deckApi.reorder({
+      items: decks.value.map((d, i) => ({ id: d.id, sortOrder: i })),
+    })
   } catch {
     decks.value = orderSnapshot.value.slice()
   }
 }
-
-function formatTags(tags: string | null): string {
-  if (!tags || !tags.trim()) return ''
-  return tags
-}
 </script>
 
 <template>
-  <div class="deck-list-page">
-    <header class="page-header">
-      <button type="button" class="btn-ghost" @click="goHome">← 首页</button>
-      <div class="header-main">
+  <div class="page">
+    <header class="head">
+      <div>
+        <p class="kicker">构筑</p>
         <h1>我的卡组</h1>
-        <p class="subtitle">拖拽卡片可调整列表顺序；开打需合法卡组（主 50 + 冲击 9）</p>
+        <p>合法：主卡 50 · 冲击 9。拖拽封面可排序。</p>
       </div>
-      <button type="button" class="btn-primary" :disabled="loading" @click="goCreate">
+      <button type="button" class="primary" :disabled="loading" @click="router.push('/decks/new')">
         新建卡组
       </button>
     </header>
 
-    <div v-if="!loading && decks.length === 0" class="empty-state">
+    <p v-if="noticeText" class="notice">{{ noticeText }}</p>
+    <p v-else-if="decks.length > 0 && !hasValidDeck" class="notice">
+      暂无合法卡组，完成构筑并校验后方可开打
+    </p>
+
+    <div v-if="!loading && decks.length === 0" class="empty">
       <p>还没有卡组</p>
-      <p class="hint">从卡池挑选角色卡与冲击卡，保存并校验通过后即可对战</p>
-      <button type="button" class="btn-primary" @click="goCreate">去构筑</button>
+      <button type="button" class="primary" @click="router.push('/decks/new')">开始构筑</button>
     </div>
 
-    <div v-else-if="!hasValidDeck && decks.length > 0" class="banner-warn">
-      暂无合法卡组。请编辑卡组凑齐 50+9 并点击「校验」，或新建后保存校验。
-      <button type="button" class="btn-link" @click="goCreate">去构筑</button>
-    </div>
-
-    <ul class="deck-list" @dragover="onDragOver">
-      <li
+    <div v-else class="grid" @dragover="onDragOver">
+      <article
         v-for="(deck, index) in decks"
         :key="deck.id"
-        class="deck-card"
-        :class="{ dragging: dragFrom === index }"
+        class="tile"
+        :class="{ dragging: dragFrom === index, ok: deck.isValid }"
         draggable="true"
         @dragstart="onDragStart(index, $event)"
         @drop="onDrop(index, $event)"
         @dragend="onDragEnd"
+        @click="router.push(`/decks/${deck.id}`)"
       >
-        <div class="drag-handle" title="拖拽排序">⋮⋮</div>
-        <div class="deck-body" @click="goEdit(deck.id)">
-          <div class="deck-title-row">
+        <div class="cover">
+          <DeckCover :image-path="deck.coverImagePath" placeholder="🃏" lazy />
+        </div>
+        <div class="info">
+          <div class="title-row">
             <h2>{{ deck.deckName }}</h2>
-            <span
-              class="valid-badge"
-              :class="deck.isValid ? 'ok' : 'bad'"
-            >
-              {{ deck.isValid ? '合法' : '未合法' }}
+            <span class="status" :class="{ on: deck.isValid }">
+              {{ deck.isValid ? '合法' : '未完成' }}
             </span>
           </div>
-          <p class="deck-meta">
-            主卡组 {{ deck.mainDeckSize ?? 0 }} / 50 · 冲击 {{ deck.rushDeckSize ?? 0 }} / 9
+          <p class="meta">
+            主 {{ deck.mainDeckSize ?? 0 }}/50
+            <span class="sep">·</span>
+            冲击 {{ deck.rushDeckSize ?? 0 }}/9
           </p>
-          <p v-if="formatTags(deck.tags)" class="deck-tags">{{ formatTags(deck.tags) }}</p>
+          <div class="ops" @click.stop>
+            <button v-if="deck.isValid" type="button" class="play" @click="playDeck(deck)">出战</button>
+            <button type="button" :disabled="validatingId === deck.id" @click="handleValidate(deck)">
+              校验
+            </button>
+            <button type="button" class="danger" @click="handleDelete(deck)">删除</button>
+          </div>
         </div>
-        <div class="deck-actions">
-          <button type="button" class="btn-ghost" @click="goEdit(deck.id)">编辑</button>
-          <button
-            type="button"
-            class="btn-ghost"
-            :disabled="validatingId === deck.id"
-            @click="handleValidate(deck)"
-          >
-            {{ validatingId === deck.id ? '校验中…' : '校验' }}
-          </button>
-          <button type="button" class="btn-danger" @click="handleDelete(deck)">删除</button>
-        </div>
-      </li>
-    </ul>
+      </article>
+    </div>
 
-    <p v-if="loading" class="loading-tip">加载中…</p>
+    <p v-if="loading" class="loading">加载中</p>
   </div>
 </template>
 
 <style scoped>
-.deck-list-page {
-  min-height: 100vh;
-  padding: 24px 28px 48px;
-  background:
-    radial-gradient(ellipse 70% 40% at 10% 0%, rgba(0, 212, 170, 0.08), transparent 55%),
-    var(--bg-base);
-  color: var(--text-primary);
+.page {
+  width: min(var(--shell-max), 100%);
+  margin: 0 auto;
+  padding: 32px var(--space-lg) 64px;
 }
 
-.page-header {
+.head {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
 }
 
-.header-main {
-  flex: 1;
-}
-
-.header-main h1 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-}
-
-.subtitle {
+.head h1 {
   margin: 6px 0 0;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  padding-bottom: 10px;
+}
+
+.kicker {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.head p {
+  margin: 8px 0 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
-.empty-state,
-.banner-warn {
-  padding: 20px 24px;
-  border-radius: 12px;
+.notice {
+  margin: 0 0 var(--space-md);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
   border: 1px solid var(--border);
-  background: var(--bg-surface);
-  margin-bottom: 20px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
-.empty-state {
+.empty {
+  padding: 48px 24px;
   text-align: center;
-}
-
-.empty-state .hint {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.banner-warn {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.deck-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.deck-card {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s ease, opacity 0.15s ease;
 }
 
-.deck-card.dragging {
-  opacity: 0.55;
-}
-
-.drag-handle {
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
-  color: var(--text-disabled);
-  cursor: grab;
-  user-select: none;
-  letter-spacing: -2px;
-}
-
-.deck-body {
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-}
-
-.deck-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.deck-title-row h2 {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: 600;
-}
-
-.valid-badge {
-  font-size: var(--font-size-xs);
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-
-.valid-badge.ok {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
-}
-
-.valid-badge.bad {
+.empty p {
+  margin: 0 0 16px;
   color: var(--text-secondary);
 }
 
-.deck-meta,
-.deck-tags {
-  margin: 6px 0 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--card-cover-w));
+  grid-auto-rows: max-content;
+  gap: 18px;
+  align-content: start;
+  justify-content: start;
 }
 
-.deck-actions {
+.tile {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  justify-content: center;
-}
-
-.btn-primary,
-.btn-ghost,
-.btn-danger,
-.btn-link {
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-
-.btn-primary {
-  height: 40px;
-  padding: 0 18px;
-  border: none;
-  background: var(--accent);
-  color: #0b1220;
-  font-weight: 600;
-}
-
-.btn-ghost {
-  height: 32px;
-  padding: 0 12px;
+  width: var(--card-cover-w);
+  flex: none;
+  align-self: start;
+  padding: 0;
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  color: inherit;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--edge-highlight), var(--shadow-sm);
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.tile:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.tile.ok {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
+.tile.dragging {
+  opacity: 0.4;
+}
+
+.cover {
+  position: relative;
+  width: var(--card-cover-w);
+  height: var(--card-cover-h);
+  flex: none;
+  background: var(--bg-surface-2);
+}
+
+.ops {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ops button {
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.btn-ghost:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.btn-danger {
-  height: 32px;
+.ops button.play {
+  color: var(--accent-contrast);
+  background: var(--accent);
   padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--accent-red) 40%, var(--border));
-  background: transparent;
+}
+
+.ops button:hover:not(:disabled):not(.play) {
+  color: var(--accent);
+}
+
+.ops button.danger:hover:not(:disabled) {
   color: var(--accent-red);
 }
 
-.btn-link {
-  border: none;
-  background: transparent;
-  color: var(--text-link);
-  padding: 0;
+.ops button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-.btn-primary:disabled,
-.btn-ghost:disabled {
+.info {
+  padding: 12px 12px 14px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title-row h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.status.on {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.meta {
+  margin: 6px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.sep {
+  margin: 0 4px;
+  opacity: 0.5;
+}
+
+.primary {
+  height: 40px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.loading-tip {
+.loading {
   text-align: center;
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin-top: 40px;
 }
 </style>

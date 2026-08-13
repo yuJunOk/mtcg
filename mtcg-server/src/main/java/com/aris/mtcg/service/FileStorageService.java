@@ -21,6 +21,15 @@ public interface FileStorageService {
     String storeCardImage(String cardCode, MultipartFile file);
 
     /**
+     * 校验并存储产品图片
+     *
+     * @param productCode 产品编号（用于目录与文件名）
+     * @param file 图片文件
+     * @return 相对存储路径
+     */
+    String storeProductImage(String productCode, MultipartFile file);
+
+    /**
      * 删除图片文件
      *
      * @param imagePath 相对路径

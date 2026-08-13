@@ -122,7 +122,13 @@ public enum ErrorCode {
     NOT_YOUR_TURN(5104, "当前不是你的操作回合"),
 
     /** 卡组未通过合法性校验 */
-    DECK_INVALID(5105, "卡组未通过合法性校验");
+    DECK_INVALID(5105, "卡组未通过合法性校验"),
+
+    /** AI 对战尚未交付 */
+    AI_NOT_AVAILABLE(5106, "AI 对战尚未开放"),
+
+    /** 房间无法加入（已开局 / 已取消 / 自己的房间） */
+    GAME_NOT_JOINABLE(5107, "对局无法加入");
 
     private final int code;
 

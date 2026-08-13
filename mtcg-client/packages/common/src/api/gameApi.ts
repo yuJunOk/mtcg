@@ -9,17 +9,45 @@ import type { PageVO } from '../types/common'
 import type {
   ActionRequestDTO,
   ActionResultVO,
+  CreateAIGameDTO,
   GameCreateDTO,
   GameHistoryVO,
+  GameJoinDTO,
+  GameMatchVO,
   GameStateVO,
   GameStatsVO,
   ReplayVO,
 } from '../types/game'
 
 export const gameApi = {
-  /** 创建对局，返回 gameId */
+  /** 创建对局或等待房间，返回 gameId */
   create: (dto: GameCreateDTO, loadingRef?: Ref<boolean>) =>
     http.post<number>('/games', dto, loadingRef),
+
+  /** 创建 AI 对局（迭代八未交付时后端返回尚未开放） */
+  createAi: (dto: CreateAIGameDTO, loadingRef?: Ref<boolean>) =>
+    http.post<number>(
+      '/games',
+      {
+        deck1Id: dto.humanDeckId,
+        deck2Id: dto.aiDeckId,
+        gameMode: 'AI',
+        firstPlayer: dto.firstPlayer,
+      } satisfies GameCreateDTO,
+      loadingRef,
+    ),
+
+  /** 在线匹配 */
+  match: (dto: GameJoinDTO, loadingRef?: Ref<boolean>) =>
+    http.post<GameMatchVO>('/games/match', dto, loadingRef),
+
+  /** 加入等待房间，返回 gameId */
+  join: (id: number, dto: GameJoinDTO, loadingRef?: Ref<boolean>) =>
+    http.post<number>(`/games/${id}/join`, dto, loadingRef),
+
+  /** 取消本人等待房间 */
+  cancelWaiting: (id: number, loadingRef?: Ref<boolean>) =>
+    http.post<void>(`/games/${id}/cancel`, undefined, loadingRef),
 
   /** 查询对局状态（含隐私裁剪） */
   getState: (id: number, loadingRef?: Ref<boolean>) =>

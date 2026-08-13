@@ -3,14 +3,13 @@ import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authApi, useThemeStore, useUserStore } from '@mtcg/common'
 
-/** 与后端 UserConstant.USERCODE_BASE 对齐：usercode = BASE + id */
 const USERCODE_BASE = 100_000
 const REMEMBER_KEY = 'mtcg_remember_usercode'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
-useThemeStore()
+const theme = useThemeStore()
 
 const loading = ref(false)
 const showRegister = ref(false)
@@ -57,7 +56,7 @@ async function handleLogin(): Promise<void> {
     }
     await router.replace(redirectPath.value)
   } catch {
-    // 错误由 setHttpErrorNotifier 提示
+    // notifier
   }
 }
 
@@ -83,198 +82,255 @@ async function handleRegister(): Promise<void> {
     const usercode = String(USERCODE_BASE + userId)
     await userStore.login({ usercode, password: registerForm.password }, loading)
     loginForm.usercode = usercode
-    registerHint.value = `注册成功，你的玩家编号是 ${usercode}，请妥善保存`
+    registerHint.value = `注册成功，玩家编号 ${usercode}，请妥善保存`
     localStorage.setItem(REMEMBER_KEY, usercode)
     await router.replace(redirectPath.value)
   } catch {
-    // 错误由 setHttpErrorNotifier 提示
+    // notifier
   }
 }
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-atmosphere" aria-hidden="true" />
-    <div class="login-panel">
-      <header class="login-brand">
-        <p class="brand-mark">MTCG</p>
-        <h1 class="brand-title">超英击战</h1>
-        <p class="brand-sub">登录后构筑卡组，开启对战</p>
-      </header>
+  <div class="page">
+    <aside class="brand-pane">
+      <p class="mark">MARVEL</p>
+      <h1>超英击战</h1>
+      <p class="tag">构筑超英卡组，击战多元宇宙。</p>
+    </aside>
 
-      <p v-if="formError" class="form-error">{{ formError }}</p>
-      <p v-if="registerHint" class="form-hint">{{ registerHint }}</p>
-
-      <form class="login-form" @submit.prevent="handleLogin">
-        <label class="field">
-          <span class="field-label">玩家编号</span>
-          <input
-            v-model="loginForm.usercode"
-            class="field-input"
-            type="text"
-            autocomplete="username"
-            placeholder="如 100001"
-            :disabled="loading"
-          />
-        </label>
-        <label class="field">
-          <span class="field-label">密码</span>
-          <input
-            v-model="loginForm.password"
-            class="field-input"
-            type="password"
-            autocomplete="current-password"
-            placeholder="请输入密码"
-            :disabled="loading"
-          />
-        </label>
-        <label class="remember">
-          <input v-model="loginForm.remember" type="checkbox" :disabled="loading" />
-          <span>记住玩家编号</span>
-        </label>
-        <button class="btn-primary" type="submit" :disabled="loading">
-          {{ loading ? '请稍候…' : '进入游戏' }}
-        </button>
-      </form>
-
+    <section class="form-pane">
       <button
-        class="toggle-register"
         type="button"
-        :disabled="loading"
-        @click="showRegister = !showRegister"
+        class="theme-btn"
+        :title="theme.theme === 'dark' ? '切换亮色' : '切换暗色'"
+        @click="theme.toggle()"
       >
-        {{ showRegister ? '收起注册' : '没有账号？注册' }}
+        <svg v-if="theme.theme === 'dark'" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <circle cx="8" cy="8" r="3.2" fill="currentColor" />
+          <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+            <path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M3.1 12.9l1.1-1.1M11.8 4.2l1.1-1.1" />
+          </g>
+        </svg>
+        <svg v-else viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <path fill="currentColor" d="M11.4 10.2A5.2 5.2 0 0 1 6.2 3.4 5.4 5.4 0 1 0 11.4 10.2Z" />
+        </svg>
       </button>
 
-      <form v-if="showRegister" class="register-form" @submit.prevent="handleRegister">
-        <label class="field">
-          <span class="field-label">昵称（可选）</span>
-          <input
-            v-model="registerForm.username"
-            class="field-input"
-            type="text"
-            maxlength="64"
-            placeholder="展示名"
-            :disabled="loading"
-          />
-        </label>
-        <label class="field">
-          <span class="field-label">设置密码</span>
-          <input
-            v-model="registerForm.password"
-            class="field-input"
-            type="password"
-            autocomplete="new-password"
-            placeholder="至少 6 位"
-            :disabled="loading"
-          />
-        </label>
-        <label class="field">
-          <span class="field-label">确认密码</span>
-          <input
-            v-model="registerForm.confirmPassword"
-            class="field-input"
-            type="password"
-            autocomplete="new-password"
-            placeholder="再次输入密码"
-            :disabled="loading"
-          />
-        </label>
-        <p class="register-note">玩家编号由系统自动分配，注册成功后会显示</p>
-        <button class="btn-secondary" type="submit" :disabled="loading">
-          {{ loading ? '注册中…' : '注册并登录' }}
+      <div class="panel">
+        <header class="head">
+          <h2>登录</h2>
+          <p>使用玩家编号进入游戏</p>
+        </header>
+
+        <p v-if="formError" class="banner err">{{ formError }}</p>
+        <p v-if="registerHint" class="banner ok">{{ registerHint }}</p>
+
+        <form class="form" @submit.prevent="handleLogin">
+          <label class="field">
+            <span>玩家编号</span>
+            <input
+              v-model="loginForm.usercode"
+              type="text"
+              autocomplete="username"
+              placeholder="如 100001"
+              :disabled="loading"
+            />
+          </label>
+          <label class="field">
+            <span>密码</span>
+            <input
+              v-model="loginForm.password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="请输入密码"
+              :disabled="loading"
+            />
+          </label>
+          <label class="check">
+            <input v-model="loginForm.remember" type="checkbox" :disabled="loading" />
+            <span>记住玩家编号</span>
+          </label>
+          <button class="primary" type="submit" :disabled="loading">
+            {{ loading ? '请稍候…' : '进入游戏' }}
+          </button>
+        </form>
+
+        <button type="button" class="link" :disabled="loading" @click="showRegister = !showRegister">
+          {{ showRegister ? '收起注册' : '没有账号？注册' }}
         </button>
-      </form>
-    </div>
+
+        <form v-if="showRegister" class="form register" @submit.prevent="handleRegister">
+          <label class="field">
+            <span>昵称（可选）</span>
+            <input v-model="registerForm.username" type="text" maxlength="64" :disabled="loading" />
+          </label>
+          <label class="field">
+            <span>设置密码</span>
+            <input
+              v-model="registerForm.password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="至少 6 位"
+              :disabled="loading"
+            />
+          </label>
+          <label class="field">
+            <span>确认密码</span>
+            <input
+              v-model="registerForm.confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              :disabled="loading"
+            />
+          </label>
+          <p class="note">玩家编号由系统分配，注册成功后显示</p>
+          <button class="secondary" type="submit" :disabled="loading">
+            {{ loading ? '注册中…' : '注册并登录' }}
+          </button>
+        </form>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.login-page {
-  position: relative;
+.page {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 20px;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
   background: var(--bg-base);
-  overflow: hidden;
 }
 
-.login-atmosphere {
+.brand-pane {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px 56px;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+.brand-pane::before {
+  content: '';
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(0, 212, 170, 0.12), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(92, 107, 192, 0.14), transparent 50%),
-    linear-gradient(160deg, #151821 0%, var(--bg-base) 45%, #1a2030 100%);
-  pointer-events: none;
+  z-index: 0;
+  background: var(--shell-art) center / cover no-repeat;
+  opacity: var(--shell-art-opacity);
+  filter: var(--shell-art-filter);
 }
 
-.login-panel {
+.brand-pane::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--shell-scrim);
+}
+
+.brand-pane > * {
   position: relative;
-  width: min(420px, 100%);
-  padding: 40px 36px 32px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(12px);
+  z-index: 1;
 }
 
-.login-brand {
-  margin-bottom: 28px;
-  text-align: center;
-}
-
-.brand-mark {
+.mark {
   margin: 0;
-  font-size: 42px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: var(--accent);
-  line-height: 1.1;
-}
-
-.brand-title {
-  margin: 8px 0 0;
-  font-size: var(--font-size-xl);
+  font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary);
+  letter-spacing: 0.28em;
+  color: var(--accent);
+  line-height: 1;
 }
 
-.brand-sub {
+.brand-pane h1 {
+  margin: 18px 0 0;
+  font-size: clamp(40px, 5vw, 56px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.tag {
+  margin: 18px 0 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  max-width: 18em;
+  line-height: 1.7;
+}
+
+.form-pane {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: var(--space-lg);
+}
+
+.theme-btn {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.theme-btn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.panel {
+  width: min(400px, 100%);
+}
+
+.head {
+  margin-bottom: 24px;
+}
+
+.head h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+}
+
+.head p {
   margin: 8px 0 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
-.form-error {
+.banner {
   margin: 0 0 12px;
   padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(229, 57, 53, 0.12);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.banner.err {
+  background: color-mix(in srgb, var(--accent-red) 12%, transparent);
   color: var(--accent-red);
-  font-size: var(--font-size-sm);
 }
 
-.form-hint {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(0, 212, 170, 0.12);
+.banner.ok {
+  background: var(--accent-soft);
   color: var(--accent);
-  font-size: var(--font-size-sm);
 }
 
-.login-form,
-.register-form {
+.form {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.register-form {
+.form.register {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -284,81 +340,65 @@ async function handleRegister(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.field-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
-.field-input {
+.field input {
   height: 44px;
   padding: 0 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg-surface-2);
+  background: var(--bg-surface);
   color: var(--text-primary);
   font-size: var(--font-size-md);
   outline: none;
-  transition: border-color 0.15s ease;
 }
 
-.field-input:focus {
+.field input:focus {
+  box-shadow: var(--shadow-glow);
   border-color: var(--accent);
 }
 
-.field-input::placeholder {
-  color: var(--text-disabled);
-}
-
-.remember {
+.check {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   cursor: pointer;
-  user-select: none;
 }
 
-.btn-primary,
-.btn-secondary {
-  height: 46px;
-  border: none;
-  border-radius: 10px;
+.primary,
+.secondary {
+  height: 44px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-md);
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.btn-primary {
-  margin-top: 4px;
+.primary {
+  border: none;
   background: var(--accent);
-  color: #0b1220;
+  color: var(--accent-contrast);
 }
 
-.btn-secondary {
-  background: var(--bg-surface-2);
+.secondary {
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
   color: var(--text-primary);
-  border: 1px solid var(--border-light);
 }
 
-.btn-primary:hover:not(:disabled),
-.btn-secondary:hover:not(:disabled) {
-  opacity: 0.92;
-  transform: translateY(-1px);
-}
-
-.btn-primary:disabled,
-.btn-secondary:disabled,
-.toggle-register:disabled {
-  opacity: 0.55;
+.primary:disabled,
+.secondary:disabled,
+.link:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.toggle-register {
-  margin-top: 18px;
+.link {
+  margin-top: 16px;
   width: 100%;
   border: none;
   background: transparent;
@@ -368,9 +408,30 @@ async function handleRegister(): Promise<void> {
   padding: 8px;
 }
 
-.register-note {
+.note {
   margin: 0;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+@media (max-width: 860px) {
+  .page {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-pane {
+    padding: 32px 24px 24px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mark {
+    font-size: 13px;
+    letter-spacing: 0.22em;
+  }
+
+  .brand-pane h1 {
+    font-size: clamp(32px, 8vw, 44px);
+  }
 }
 </style>

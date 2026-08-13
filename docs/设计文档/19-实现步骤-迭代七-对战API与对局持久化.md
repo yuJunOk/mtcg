@@ -129,7 +129,10 @@
 | 校验卡组 | POST | `/decks/{id}/validate` |
 | 卡组列表拖拽重排 | POST | `/decks/reorder`（**本迭代必接**） |
 | 卡牌分页（构筑卡池） | GET | `/cards`（已有） |
-| 创建对局 | POST | `/games` |
+| 创建对局 / 等待房间 | POST | `/games` |
+| 在线匹配 | POST | `/games/match` |
+| 加入房间 | POST | `/games/{id}/join` |
+| 取消等待房间 | POST | `/games/{id}/cancel` |
 | 查询局面 | GET | `/games/{id}` |
 | 执行操作 | POST | `/games/{id}/actions` |
 | 认输 | POST | `/games/{id}/surrender` |
@@ -137,7 +140,7 @@
 | 历史 | GET | `/games/history` |
 | 统计 | GET | `/games/stats` |
 
-> Controller：`/games/history`、`/games/stats` 写在 `/{id}` 之前。
+> Controller：`/games/history`、`/games/stats`、`/games/match` 写在 `/{id}` 之前。
 
 ---
 
@@ -159,7 +162,7 @@
 | 12 | 前端 - `deckApi` + 卡组类型（完整 CRUD） | ✅ |
 | 13 | 前端 - 我的卡组列表 + 构筑编辑器（含拖拽排序） | ✅ |
 | 14 | 前端 - 对战类型 + `gameApi` + `gameStore` | ✅ |
-| 15 | 前端 - 对战入口（创建 / 加入） | ⬜ |
+| 15 | 前端 - 对战入口（匹配 / 创建房间 / 加入） | ✅ |
 | 16 | 前端 - `BattleView` 绑局面与操作 | ⬜ |
 | 17 | 前端 - 轮询 + 双开联调 | ⬜ |
 | 18 | 验收关闭 | ⬜ |
@@ -194,7 +197,7 @@
 | `game-pc/src/views/HomeView.vue` | 真实用户 / 登出；对战/卡组入口跳路由 |
 | `game-pc/src/views/DeckListView.vue` | 我的卡组列表（新建/删除/编辑/校验/合法标记/**拖拽重排**） |
 | `game-pc/src/views/DeckBuilderView.vue` | 构筑编辑器（卡池 + 主/冲击区 + 保存/校验/**条目拖拽排序**） |
-| `game-pc/src/views/MatchLobbyView.vue` | 创建/加入对局（选合法卡组） |
+| `game-pc/src/views/MatchLobbyView.vue` | 备战室：在线匹配 / 创建房间 / 加入；匹配不到建议 AI |
 | `game-pc/src/views/BattleView.vue` | 绑真实局面 |
 | `common/.../api/deckApi.ts` + `types/deck.ts` | 卡组 CRUD / validate / **reorder** |
 | `common/.../api/gameApi.ts` + `types/game.ts` | 对战 API / VO |
@@ -342,19 +345,22 @@ delete(id) / validate(id) / reorder(dto)   // reorder 本迭代必做
 
 ---
 
-### 步骤 15：对战入口（创建 / 加入）
+### 步骤 15：对战入口（匹配 / 创建房间 / 加入）
 
-`MatchLobbyView.vue`：
+`MatchLobbyView.vue`：选合法卡组后：
 
-| 模式 | 表单 |
+| 模式 | 行为 |
 | --- | --- |
-| 创建 | 己方**合法**卡组、对手用户 ID、对手卡组 ID、`gameMode=CASUAL`、可选先攻/调度 |
-| 加入 | 输入 `gameId` → `loadGame` → `/battle/:gameId` |
+| 在线匹配 | `POST /games/match`（本人 `deckId`）。命中则进对战；未命中则建议创建房间或与 AI 对战 |
+| 创建房间 | `POST /games`（只交 `deck1Id` + `CASUAL`）→ 得到对局 ID，轮询 `GET /games/{id}` 直到 `IN_PROGRESS` |
+| 加入房间 | 输入对局 ID → `POST /games/{id}/join` |
+| 与 AI 对战 | 弹窗选 AI 卡组 / 难度 / 倾向 / 先后手 → `createAi`；本迭代后端返回尚未开放 |
 
-- 己方卡组下拉：`deckApi.list` 过滤 `isValid===true`
-- 若无合法卡组：按钮引导去 `/decks`，**禁止**灰开打且无说明
+- 己方卡组：`deckApi.list` 过滤 `isValid===true`，点选横带切换
+- 若无合法卡组：引导去 `/decks`，**禁止**灰开打且无说明
+- **禁止**手填对手用户 ID / 对手卡组 ID；**禁止**用卡背草稿图垫封面
 
-**检验**：账号 A/B 各自用游戏端构筑合法卡组后，A 创建、B 加入。
+**检验**：账号 A 创建房间，B 用对局 ID 加入（或 B 点在线匹配吃到 A 的空房）。
 
 ---
 
@@ -454,7 +460,7 @@ S17 --> S18[验收]
 - [ ] **可在游戏端完成**：创建卡组 → 从卡池加入主/冲击 → 保存 → 校验通过
 - [ ] **拖拽**：卡组列表可重排并持久化；构筑内条目可拖拽改序并保存后保持
 - [ ] 卡组列表展示合法标记；可编辑/删除
-- [ ] 能用本人合法卡组创建/加入对局（无合法卡组时引导去构筑）
+- [ ] 能用本人合法卡组：在线匹配、创建房间、加入房间（无合法卡组时引导去构筑）
 - [ ] `BattleView` 主路径为真实 VO
 - [ ] 双开可操作并靠轮询同步，能打完或认输结束一局
 - [ ] game-pc `build` / typecheck 通过
@@ -467,7 +473,7 @@ S17 --> S18[验收]
 | --- | --- | --- |
 | **迭代八** | AI 对战（FR6.1） | 启发式 AI、难度；**不含**收藏 UI、**不含** AI 构筑辅助 |
 | **迭代八之后（AI 扩展）** | ① 卡牌收藏游戏端 UI → ② AI 辅助构筑（FR6.2） | 收藏后端已有；为 FR6.2 提供库存；可同迭代文档拆两步 |
-| **迭代九** | 排位 | 匹配 + 积分；大厅可替换手填对手 |
+| **迭代九** | 排位 | 匹配队列 + 积分；替换本迭代的「吃最早空房」 |
 | **产品化后续** | 独立图鉴页、排行/生涯精修 | 非 AI 主链 |
 | **体验后续** | WebSocket 替轮询、Pixi 战场、mobile 同步 | 增强 |
 

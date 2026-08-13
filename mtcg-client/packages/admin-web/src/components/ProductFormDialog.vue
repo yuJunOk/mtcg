@@ -6,6 +6,8 @@ import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { adminProductApi } from '@mtcg/common/api'
+import { resolveCardImageUrl } from '@mtcg/common'
+import ImageUploader from './ImageUploader.vue'
 import type { ProductVO, ProductCreateDTO, ProductUpdateDTO } from '@mtcg/common/types'
 
 export type ProductFormMode = 'create' | 'edit'
@@ -28,6 +30,8 @@ const form = reactive({
   productName: '',
   releaseDate: '',
   description: '',
+  imageFile: null as File | null,
+  imagePath: null as string | null,
 })
 
 const rules: FormRules = {
@@ -54,6 +58,8 @@ function resetForm() {
     productName: '',
     releaseDate: '',
     description: '',
+    imageFile: null,
+    imagePath: null,
   })
 }
 
@@ -63,7 +69,20 @@ function fillFromProduct(row: ProductVO) {
     productName: row.productName,
     releaseDate: row.releaseDate ?? '',
     description: row.description ?? '',
+    imageFile: null,
+    imagePath: row.imagePath ?? null,
   })
+}
+
+async function uploadImage(productId: number, file: File): Promise<string | null> {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await adminProductApi.uploadImage(productId, formData)
+  } catch {
+    ElMessage.error('图片上传失败')
+    return null
+  }
 }
 
 async function handleSubmit() {
@@ -79,7 +98,10 @@ async function handleSubmit() {
           releaseDate: form.releaseDate || undefined,
           description: form.description || undefined,
         }
-        await adminProductApi.create(dto, submitting)
+        const id = await adminProductApi.create(dto, submitting)
+        if (form.imageFile) {
+          await uploadImage(id, form.imageFile)
+        }
         ElMessage.success('新增成功')
       } else if (props.product?.id != null) {
         const dto: ProductUpdateDTO = {
@@ -88,6 +110,9 @@ async function handleSubmit() {
           description: form.description || undefined,
         }
         await adminProductApi.update(props.product.id, dto, submitting)
+        if (form.imageFile) {
+          await uploadImage(props.product.id, form.imageFile)
+        }
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
@@ -140,6 +165,18 @@ watch(
       <el-form-item label="描述">
         <el-input v-model="form.description" type="textarea" :rows="4" maxlength="500" show-word-limit />
       </el-form-item>
+      <el-form-item label="产品图">
+        <div v-if="mode === 'edit' && form.imagePath && !form.imageFile" class="existing-image">
+          <el-image
+            :src="resolveCardImageUrl(form.imagePath)"
+            fit="contain"
+            class="image-preview"
+            :preview-src-list="[resolveCardImageUrl(form.imagePath)]"
+          />
+          <div class="image-tip">已有图片，可重新上传替换</div>
+        </div>
+        <ImageUploader v-model="form.imageFile" />
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">取消</el-button>
@@ -147,3 +184,26 @@ watch(
     </template>
   </el-dialog>
 </template>
+
+<style scoped>
+.existing-image {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.image-preview {
+  width: 100%;
+  height: 120px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #f5f7fa;
+}
+.image-preview :deep(.el-image__inner) {
+  object-fit: contain;
+}
+.image-tip {
+  font-size: 12px;
+  color: #909399;
+}
+</style>
