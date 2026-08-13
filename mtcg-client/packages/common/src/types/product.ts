@@ -8,7 +8,10 @@ export interface ProductVO {
   productName: string
   releaseDate: string | null
   description: string | null
+  /** 封面（imagePaths 首张，兼容旧字段） */
   imagePath: string | null
+  /** 产品图相对路径列表 */
+  imagePaths?: string[] | null
   createTime: string
 }
 

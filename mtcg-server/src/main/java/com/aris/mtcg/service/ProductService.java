@@ -31,11 +31,18 @@ public interface ProductService {
     void deleteProduct(Long id);
 
     /**
-     * 上传产品图片（存储文件并更新 imagePath）
+     * 追加上传产品图片（写入 imagePaths 数组末尾；首张同步到 imagePath）
      *
      * @return 相对存储路径
      */
     String uploadProductImage(Long productId, MultipartFile file);
+
+    /**
+     * 删除产品的一张图（按相对路径）
+     *
+     * @param imagePath 相对路径
+     */
+    void deleteProductImage(Long productId, String imagePath);
 
     /** 按产品编号查询卡牌列表（分页） */
     PageVO<CardVO> listCardsByProduct(String productCode, Integer pageNum, Integer pageSize);

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { deckApi, productApi, resolveCardImageUrl } from '@mtcg/common'
+import { deckApi, productApi, productCoverPath, resolveCardImageUrl } from '@mtcg/common'
 import type { DeckVO, ProductVO } from '@mtcg/common'
 import { HERO_TRIO_PATHS } from '@/constants/heroArt'
 import CardRail from '@/components/CardRail.vue'
@@ -51,13 +51,14 @@ onMounted(async () => {
       <div class="hero-veil" aria-hidden="true" />
       <div class="hero-inner">
         <div class="hero-copy">
-          <p class="kicker">漫威对战卡牌</p>
-          <h1>超英击战</h1>
-          <p class="lead">构筑超英卡组，进入大厅匹配。卡面是主角，规则写在卡上。</p>
+          <p class="kicker">超英击战</p>
+          <h1>MTCG</h1>
+          <p class="lead">构筑卡组，大厅匹配。卡面是主角。</p>
           <div class="hero-actions">
             <button type="button" class="primary" @click="router.push('/match')">开始对战</button>
             <button type="button" class="ghost" @click="router.push('/decks')">管理卡组</button>
           </div>
+          <p class="hero-status">{{ rosterHint }}</p>
         </div>
         <div class="hero-stack" aria-hidden="true">
           <span v-for="src in heroCards" :key="src" class="hero-card">
@@ -69,9 +70,10 @@ onMounted(async () => {
 
     <div class="well">
       <section class="block roster">
-        <p class="roster-hint">{{ rosterHint }}</p>
         <p class="later">
-          <button type="button" class="link muted" @click="router.push('/coming-soon')">图鉴</button>
+          <button type="button" class="link" @click="router.push('/cards')">卡表</button>
+          ·
+          <button type="button" class="link" @click="router.push('/products')">商品</button>
           ·
           <button type="button" class="link muted" @click="router.push('/coming-soon')">排行</button>
           后续开放
@@ -110,16 +112,23 @@ onMounted(async () => {
       <section class="block">
         <header class="sec">
           <h2>商品系列</h2>
+          <button type="button" class="more" @click="router.push('/products')">全部 →</button>
         </header>
         <div v-if="series.length === 0" class="empty">暂无系列数据</div>
         <CardRail v-else :item-count="series.length">
-          <div v-for="product in series" :key="product.id" class="strip-card static">
+          <button
+            v-for="product in series"
+            :key="product.id"
+            type="button"
+            class="strip-card"
+            @click="router.push({ path: '/cards', query: { product: product.productCode } })"
+          >
             <span class="strip-art">
-              <DeckCover :image-path="product.imagePath" placeholder="📦" />
+              <DeckCover :image-path="productCoverPath(product)" placeholder="📦" />
             </span>
             <span class="strip-name">{{ product.productName || product.productCode }}</span>
             <span class="strip-meta">{{ product.productCode }}</span>
-          </div>
+          </button>
         </CardRail>
       </section>
     </div>
@@ -135,9 +144,9 @@ onMounted(async () => {
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: min(72vh, 620px);
+  min-height: min(52vh, 480px);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   overflow: hidden;
 }
 
@@ -160,11 +169,11 @@ onMounted(async () => {
   z-index: 1;
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 56px var(--space-lg) 48px;
+  padding: 36px var(--space-lg);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 32px;
+  gap: 28px;
 }
 
 .hero-copy {
@@ -230,33 +239,39 @@ onMounted(async () => {
 }
 
 .hero-inner h1 {
-  margin: 14px 0 0;
-  font-size: clamp(40px, 6vw, 64px);
+  margin: 10px 0 0;
+  font-size: clamp(44px, 7vw, 72px);
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   max-width: 12em;
-  line-height: 1.12;
+  line-height: 1.05;
 }
 
 .lead {
-  margin: 16px 0 0;
+  margin: 12px 0 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-md);
-  max-width: 28em;
-  line-height: 1.7;
+  font-size: var(--font-size-sm);
+  max-width: 26em;
+  line-height: 1.6;
 }
 
 .hero-actions {
-  margin-top: 28px;
+  margin-top: 22px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 
+.hero-status {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .well {
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 28px var(--space-lg) 72px;
+  padding: 20px var(--space-lg) 64px;
 }
 
 .block + .block {
@@ -297,14 +312,8 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px 16px;
-}
-
-.roster-hint {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
 }
 
 .roster .later {
@@ -357,15 +366,6 @@ onMounted(async () => {
 
 .strip-meta.on {
   color: var(--accent);
-}
-
-.strip-card.static {
-  cursor: default;
-}
-
-.strip-card.static:hover {
-  transform: none;
-  border-color: var(--border);
 }
 
 .empty {

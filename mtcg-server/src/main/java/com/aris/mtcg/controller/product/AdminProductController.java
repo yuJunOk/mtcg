@@ -48,10 +48,17 @@ public class AdminProductController {
         return Result.success();
     }
 
-    /** 上传产品图片 */
+    /** 上传产品图片（追加到多图列表） */
     @PostMapping("/{id}/image")
     public Result<String> uploadImage(
             @PathVariable Long id, @RequestParam("file") MultipartFile file) {
         return Result.success(productService.uploadProductImage(id, file));
+    }
+
+    /** 删除产品的一张图 */
+    @PostMapping("/{id}/images/delete")
+    public Result<Void> deleteImage(@PathVariable Long id, @RequestParam("path") String path) {
+        productService.deleteProductImage(id, path);
+        return Result.success();
     }
 }

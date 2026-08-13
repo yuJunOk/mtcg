@@ -18,6 +18,7 @@ import com.aris.mtcg.service.ProductService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.Resource;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -103,10 +104,13 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public void deleteProduct(Long id) {
         ProductDO product = loadOrThrow(id);
-        // 不做外键校验；存在卡牌引用产品时由应用层（迭代二）做检查，当前允许删
         productMapper.deleteById(id);
-        if (product.getImagePath() != null) {
-            fileStorageService.deleteImage(product.getImagePath());
+        List<String> paths = ProductVO.parseImagePaths(product.getImagePaths());
+        if (paths.isEmpty() && StringUtils.isNotBlank(product.getImagePath())) {
+            paths = List.of(product.getImagePath());
+        }
+        for (String path : paths) {
+            fileStorageService.deleteImage(path);
         }
         auditService.record(
                 "DELETE", "PRODUCT", String.valueOf(id), "删除产品 " + product.getProductCode());
@@ -116,16 +120,42 @@ public class ProductServiceImpl implements ProductService {
     public String uploadProductImage(Long productId, MultipartFile file) {
         ProductDO product = loadOrThrow(productId);
         String newPath = fileStorageService.storeProductImage(product.getProductCode(), file);
-        String oldPath = product.getImagePath();
+        List<String> paths = ProductVO.parseImagePaths(product.getImagePaths());
+        if (paths.isEmpty() && StringUtils.isNotBlank(product.getImagePath())) {
+            paths = new ArrayList<>();
+            paths.add(product.getImagePath().trim());
+        }
+        paths.add(newPath);
         ProductDO update = new ProductDO();
         update.setId(productId);
-        update.setImagePath(newPath);
+        ProductVO.applyImageFields(update, paths);
         productMapper.update(update);
-        if (oldPath != null && !oldPath.isEmpty() && !oldPath.equals(newPath)) {
-            fileStorageService.deleteImage(oldPath);
-        }
         auditService.record("UPDATE", "PRODUCT", String.valueOf(productId), "上传产品图片");
         return newPath;
+    }
+
+    @Override
+    public void deleteProductImage(Long productId, String imagePath) {
+        if (StringUtils.isBlank(imagePath)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        ProductDO product = loadOrThrow(productId);
+        String target = imagePath.trim();
+        List<String> paths = ProductVO.parseImagePaths(product.getImagePaths());
+        if (paths.isEmpty() && StringUtils.isNotBlank(product.getImagePath())) {
+            paths = new ArrayList<>();
+            paths.add(product.getImagePath().trim());
+        }
+        boolean removed = paths.removeIf(p -> p.equals(target));
+        if (!removed) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "图片不存在于该产品");
+        }
+        ProductDO update = new ProductDO();
+        update.setId(productId);
+        ProductVO.applyImageFields(update, paths);
+        productMapper.update(update);
+        fileStorageService.deleteImage(target);
+        auditService.record("UPDATE", "PRODUCT", String.valueOf(productId), "删除产品图片");
     }
 
     @Override

@@ -11,7 +11,6 @@ const title = computed(() => (typeof route.meta.title === 'string' ? route.meta.
 <template>
   <div class="page">
     <header class="head">
-      <p class="kicker">后续</p>
       <h1>{{ title }}</h1>
       <p class="desc">功能建设中，后续迭代开放。</p>
     </header>
@@ -23,25 +22,21 @@ const title = computed(() => (typeof route.meta.title === 'string' ? route.meta.
 .page {
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 36px var(--space-lg) 64px;
+  padding: 20px var(--space-lg) 48px;
 }
 
-.kicker {
+.head {
+  margin-bottom: 16px;
+}
+
+.head h1 {
   margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-h1 {
-  margin: 8px 0 0;
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-lg);
   font-weight: 700;
 }
 
 .desc {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }

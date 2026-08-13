@@ -194,9 +194,7 @@ onUnmounted(() => {
 <template>
   <div class="page">
     <header class="head">
-      <p class="kicker">对战</p>
       <h1>备战室</h1>
-      <p>选卡组后可以在线匹配、创建房间，或配置一局 AI 对战。</p>
     </header>
 
     <div v-if="loading" class="empty">加载中…</div>
@@ -323,14 +321,13 @@ onUnmounted(() => {
 .page {
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 36px var(--space-lg) 80px;
+  padding: 20px var(--space-lg) 48px;
 }
 
 .head {
-  margin-bottom: 28px;
+  margin-bottom: 14px;
 }
 
-.kicker,
 .ready-kicker {
   margin: 0;
   font-size: 12px;
@@ -339,17 +336,10 @@ onUnmounted(() => {
   color: var(--accent);
 }
 
-h1 {
-  margin: 8px 0 0;
-  font-size: var(--font-size-2xl);
+.head h1 {
+  margin: 0;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-}
-
-.head p {
-  margin: 10px 0 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  max-width: 36em;
 }
 
 .empty {

@@ -33,8 +33,11 @@ public class ProductDO {
     /** 描述 */
     private String description;
 
-    /** 产品图相对路径 */
+    /** 产品图相对路径（首图冗余，兼容旧字段；权威列表见 imagePaths） */
     private String imagePath;
+
+    /** 产品图路径 JSON 数组文本，如 ["a.png","b.png"] */
+    private String imagePaths;
 
     /** 创建时间（插入时由数据库 NOW() 自动填充） */
     @Column(onInsertValue = "NOW()")

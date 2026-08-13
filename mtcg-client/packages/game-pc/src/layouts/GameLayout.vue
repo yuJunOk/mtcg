@@ -26,12 +26,16 @@ const navItems = [
   { to: '/', name: 'home', label: '首页' },
   { to: '/match', name: 'match', label: '对战' },
   { to: '/decks', name: 'deck-list', label: '卡组' },
+  { to: '/cards', name: 'card-list', label: '卡表' },
+  { to: '/products', name: 'product-list', label: '商品' },
 ] as const
 
 function isNavOn(name: string): boolean {
   if (name === 'home') return route.name === 'home'
   if (name === 'match') return route.name === 'match'
   if (name === 'deck-list') return route.name === 'deck-list'
+  if (name === 'card-list') return route.name === 'card-list'
+  if (name === 'product-list') return route.name === 'product-list'
   return false
 }
 
@@ -64,7 +68,7 @@ async function handleLogout(): Promise<void> {
       <div class="bar-inner">
         <button type="button" class="brand" @click="router.push('/')">
           <span class="mark">M</span>
-          <span class="logo">超英击战</span>
+          <span class="logo">MTCG</span>
         </button>
         <nav class="nav">
           <button
@@ -169,7 +173,7 @@ async function handleLogout(): Promise<void> {
 
 .logo {
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   font-size: 15px;
 }
 

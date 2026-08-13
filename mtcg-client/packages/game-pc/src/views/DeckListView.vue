@@ -93,10 +93,9 @@ async function persistOrder(): Promise<void> {
 <template>
   <div class="page">
     <header class="head">
-      <div>
-        <p class="kicker">构筑</p>
+      <div class="title-block">
         <h1>我的卡组</h1>
-        <p>合法：主卡 50 · 冲击 9。拖拽封面可排序。</p>
+        <p class="hint">主 50 · 冲击 9 · 拖拽排序</p>
       </div>
       <button type="button" class="primary" :disabled="loading" @click="router.push('/decks/new')">
         新建卡组
@@ -159,35 +158,34 @@ async function persistOrder(): Promise<void> {
 .page {
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 32px var(--space-lg) 64px;
+  padding: 20px var(--space-lg) 48px;
 }
 
 .head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-lg);
-  margin-bottom: var(--space-lg);
+  gap: var(--space-md);
+  margin-bottom: 14px;
+}
+
+.title-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  min-width: 0;
 }
 
 .head h1 {
-  margin: 6px 0 0;
-  font-size: var(--font-size-2xl);
+  margin: 0;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  padding-bottom: 10px;
 }
 
-.kicker {
+.hint {
   margin: 0;
   font-size: 12px;
-  letter-spacing: 0.16em;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.head p {
-  margin: 8px 0 0;
-  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 

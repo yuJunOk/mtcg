@@ -3,7 +3,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { productApi, adminProductApi } from '@mtcg/common/api'
-import { resolveCardImageUrl } from '@mtcg/common'
+import { resolveCardImageUrl, productCoverPath } from '@mtcg/common'
 import { ProductFormDialog } from '@/components'
 import type { ProductFormMode } from '@/components/ProductFormDialog.vue'
 import type { ProductVO } from '@mtcg/common/types'
@@ -95,14 +95,14 @@ onMounted(() => {
         <el-table-column label="产品图" width="88">
           <template #default="{ row }">
             <el-image
-              v-if="row.imagePath"
-              :src="resolveCardImageUrl(row.imagePath)"
+              v-if="productCoverPath(row)"
+              :src="resolveCardImageUrl(productCoverPath(row))"
               fit="contain"
               class="thumb"
-              :preview-src-list="[resolveCardImageUrl(row.imagePath)]"
+              :preview-src-list="(row.imagePaths?.length ? row.imagePaths : [row.imagePath]).filter(Boolean).map((p: string) => resolveCardImageUrl(p))"
               preview-teleported
             />
-            <span v-else class="no-img">无</span>
+            <span v-else class="no-img">📦</span>
           </template>
         </el-table-column>
         <el-table-column prop="productName" label="产品名称" min-width="200" show-overflow-tooltip />

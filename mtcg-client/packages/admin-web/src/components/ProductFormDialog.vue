@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /**
- * 产品新增/编辑弹窗
+ * 产品新增/编辑弹窗（支持多图：追加上传 / 单张删除）
  */
 import { ref, reactive, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { adminProductApi } from '@mtcg/common/api'
-import { resolveCardImageUrl } from '@mtcg/common'
+import { productCoverPath, resolveCardImageUrl } from '@mtcg/common'
 import ImageUploader from './ImageUploader.vue'
 import type { ProductVO, ProductCreateDTO, ProductUpdateDTO } from '@mtcg/common/types'
 
@@ -25,13 +25,15 @@ const emit = defineEmits<{
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
+/** 当前选择器内的单文件；选中后立刻记入 imageFiles */
+const pendingFile = ref<File | null>(null)
 const form = reactive({
   productCode: '',
   productName: '',
   releaseDate: '',
   description: '',
-  imageFile: null as File | null,
-  imagePath: null as string | null,
+  imageFiles: [] as File[],
+  imagePaths: [] as string[],
 })
 
 const rules: FormRules = {
@@ -52,26 +54,33 @@ const dialogVisible = computed({
 
 const title = computed(() => (props.mode === 'create' ? '新增产品' : '编辑产品'))
 
-function resetForm() {
+const previewUrls = computed(() => form.imagePaths.map((p) => resolveCardImageUrl(p)))
+
+function resetForm(): void {
   Object.assign(form, {
     productCode: '',
     productName: '',
     releaseDate: '',
     description: '',
-    imageFile: null,
-    imagePath: null,
+    imageFiles: [],
+    imagePaths: [],
   })
+  pendingFile.value = null
 }
 
-function fillFromProduct(row: ProductVO) {
+function fillFromProduct(row: ProductVO): void {
+  const paths =
+    row.imagePaths?.filter((p) => Boolean(p?.trim())) ??
+    (productCoverPath(row) ? [productCoverPath(row)!] : [])
   Object.assign(form, {
     productCode: row.productCode,
     productName: row.productName,
     releaseDate: row.releaseDate ?? '',
     description: row.description ?? '',
-    imageFile: null,
-    imagePath: row.imagePath ?? null,
+    imageFiles: [],
+    imagePaths: [...paths],
   })
+  pendingFile.value = null
 }
 
 async function uploadImage(productId: number, file: File): Promise<string | null> {
@@ -85,7 +94,35 @@ async function uploadImage(productId: number, file: File): Promise<string | null
   }
 }
 
-async function handleSubmit() {
+async function handleRemoveImage(path: string): Promise<void> {
+  if (props.mode !== 'edit' || props.product?.id == null) {
+    form.imagePaths = form.imagePaths.filter((p) => p !== path)
+    return
+  }
+  try {
+    await ElMessageBox.confirm('确定删除这张产品图？', '提示', {
+      type: 'warning',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  try {
+    await adminProductApi.deleteImage(props.product.id, path)
+    form.imagePaths = form.imagePaths.filter((p) => p !== path)
+    ElMessage.success('已删除')
+    emit('success')
+  } catch {
+    // notifier
+  }
+}
+
+function removePendingFile(index: number): void {
+  form.imageFiles.splice(index, 1)
+}
+
+async function handleSubmit(): Promise<void> {
   if (!formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
@@ -99,8 +136,8 @@ async function handleSubmit() {
           description: form.description || undefined,
         }
         const id = await adminProductApi.create(dto, submitting)
-        if (form.imageFile) {
-          await uploadImage(id, form.imageFile)
+        for (const file of form.imageFiles) {
+          await uploadImage(id, file)
         }
         ElMessage.success('新增成功')
       } else if (props.product?.id != null) {
@@ -110,9 +147,11 @@ async function handleSubmit() {
           description: form.description || undefined,
         }
         await adminProductApi.update(props.product.id, dto, submitting)
-        if (form.imageFile) {
-          await uploadImage(props.product.id, form.imageFile)
+        for (const file of form.imageFiles) {
+          const path = await uploadImage(props.product.id, file)
+          if (path) form.imagePaths.push(path)
         }
+        form.imageFiles = []
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
@@ -131,13 +170,20 @@ watch(
     else if (props.product) fillFromProduct(props.product)
   },
 )
+
+watch(pendingFile, (file) => {
+  if (!file) return
+  if (!form.imageFiles.includes(file)) {
+    form.imageFiles.push(file)
+  }
+})
 </script>
 
 <template>
   <el-dialog
     v-model="dialogVisible"
     :title="title"
-    width="560px"
+    width="640px"
     :close-on-click-modal="false"
   >
     <el-form
@@ -166,16 +212,27 @@ watch(
         <el-input v-model="form.description" type="textarea" :rows="4" maxlength="500" show-word-limit />
       </el-form-item>
       <el-form-item label="产品图">
-        <div v-if="mode === 'edit' && form.imagePath && !form.imageFile" class="existing-image">
-          <el-image
-            :src="resolveCardImageUrl(form.imagePath)"
-            fit="contain"
-            class="image-preview"
-            :preview-src-list="[resolveCardImageUrl(form.imagePath)]"
-          />
-          <div class="image-tip">已有图片，可重新上传替换</div>
+        <div v-if="form.imagePaths.length > 0" class="gallery">
+          <div v-for="(path, idx) in form.imagePaths" :key="path" class="gallery-item">
+            <el-image
+              :src="resolveCardImageUrl(path)"
+              fit="contain"
+              class="image-preview"
+              :preview-src-list="previewUrls"
+              :initial-index="idx"
+              preview-teleported
+            />
+            <el-button type="danger" link size="small" @click="handleRemoveImage(path)">删除</el-button>
+          </div>
         </div>
-        <ImageUploader v-model="form.imageFile" />
+        <div v-if="form.imageFiles.length > 0" class="pending">
+          <div v-for="(file, idx) in form.imageFiles" :key="`${file.name}-${idx}`" class="pending-row">
+            <span>{{ file.name }}</span>
+            <el-button type="danger" link size="small" @click="removePendingFile(idx)">移除</el-button>
+          </div>
+        </div>
+        <ImageUploader v-model="pendingFile" />
+        <div class="image-tip">可多张：每次选择一张追加；首张作为列表封面</div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -186,14 +243,21 @@ watch(
 </template>
 
 <style scoped>
-.existing-image {
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  width: 100%;
+}
+.gallery-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 4px;
 }
 .image-preview {
-  width: 100%;
+  width: 120px;
   height: 120px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
@@ -202,7 +266,23 @@ watch(
 .image-preview :deep(.el-image__inner) {
   object-fit: contain;
 }
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+.pending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #606266;
+}
 .image-tip {
+  margin-top: 8px;
   font-size: 12px;
   color: #909399;
 }

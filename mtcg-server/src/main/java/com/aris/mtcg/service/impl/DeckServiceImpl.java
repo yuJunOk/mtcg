@@ -225,7 +225,8 @@ public class DeckServiceImpl implements DeckService {
     private void attachCoverImages(List<DeckVO> vos) {
         Map<DeckVO, String> vo2Code = new LinkedHashMap<>();
         for (DeckVO vo : vos) {
-            String code = resolveCoverCardCode(vo.getCoverCardCode(), vo.getMainDeck(), vo.getRushDeck());
+            String code =
+                    resolveCoverCardCode(vo.getCoverCardCode(), vo.getMainDeck(), vo.getRushDeck());
             vo.setCoverCardCode(code);
             if (StringUtils.isNotBlank(code)) {
                 vo2Code.put(vo, code);
@@ -246,9 +247,7 @@ public class DeckServiceImpl implements DeckService {
         vo2Code.forEach((vo, code) -> vo.setCoverImagePath(paths.get(code)));
     }
 
-    /**
-     * 封面须在卡组内；未指定或已不在卡组则回退主卡组第一张，再回退冲击第一张。
-     */
+    /** 封面须在卡组内；未指定或已不在卡组则回退主卡组第一张，再回退冲击第一张。 */
     private String resolveCoverCardCode(
             String requested, List<DeckCardEntry> mainDeck, List<DeckCardEntry> rushDeck) {
         if (containsCard(mainDeck, requested) || containsCard(rushDeck, requested)) {

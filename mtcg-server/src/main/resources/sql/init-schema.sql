@@ -87,6 +87,16 @@ CREATE TABLE IF NOT EXISTS mtcg_product (
 
 ALTER TABLE mtcg_product ADD COLUMN IF NOT EXISTS image_path VARCHAR(256);
 
+-- 商品多图：JSON 数组文本，如 ["product/BP01/a.png","product/BP01/b.png"]
+ALTER TABLE mtcg_product ADD COLUMN IF NOT EXISTS image_paths TEXT;
+
+-- 将旧单图迁入数组（仅当 image_paths 为空且 image_path 有值）
+UPDATE mtcg_product
+SET image_paths = '["' || replace(image_path, '"', '\"') || '"]'
+WHERE (image_paths IS NULL OR btrim(image_paths) = '' OR btrim(image_paths) = '[]')
+  AND image_path IS NOT NULL
+  AND btrim(image_path) <> '';
+
 -- =====================================================
 -- 卡牌-特征关联表
 -- =====================================================

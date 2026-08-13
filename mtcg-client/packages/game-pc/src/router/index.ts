@@ -41,6 +41,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '备战室' },
       },
       {
+        path: 'cards',
+        name: 'card-list',
+        component: () => import('@/views/CardListView.vue'),
+        meta: { title: '卡表' },
+      },
+      {
+        path: 'products',
+        name: 'product-list',
+        component: () => import('@/views/ProductListView.vue'),
+        meta: { title: '商品' },
+      },
+      {
         path: 'coming-soon',
         name: 'coming-soon',
         component: () => import('@/views/PlaceholderView.vue'),
