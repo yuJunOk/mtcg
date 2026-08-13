@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton } from 'naive-ui'
+import { NButton, NTag } from 'naive-ui'
 import { deckApi, productApi, productCoverPath, resolveCardImageUrl } from '@mtcg/common'
 import type { DeckVO, ProductVO } from '@mtcg/common'
 import { HERO_TRIO_PATHS } from '@/constants/heroArt'
@@ -56,21 +56,24 @@ onMounted(async () => {
       <div class="hero-veil" aria-hidden="true" />
       <div class="hero-inner">
         <div class="hero-copy">
-          <p class="kicker">超英击战</p>
-          <h1>MTCG</h1>
+          <p class="kicker">MTCG</p>
+          <h1>超英击战</h1>
           <p class="lead">集结超英，构筑击战。一张牌，扭转战局。</p>
           <div class="hero-actions">
-            <n-button type="primary" size="large" @click="router.push('/match')">
+            <n-button type="primary" size="large" class="cta-main" @click="router.push('/match')">
               ⚡ 开始对战
             </n-button>
-            <n-button size="large" @click="router.push('/decks')">
+            <n-button size="large" secondary class="cta-sub" @click="router.push('/decks')">
               🃏 管理卡组
             </n-button>
           </div>
-          <p class="hero-status">{{ rosterHint }}</p>
+          <n-tag size="small" :bordered="false" class="hero-status" round>
+            {{ rosterHint }}
+          </n-tag>
         </div>
 
         <div class="hero-stage" aria-hidden="true">
+          <div class="hero-glow" />
           <div class="hero-stack">
             <span
               v-for="(card, i) in heroCards"
@@ -87,23 +90,24 @@ onMounted(async () => {
     </section>
 
     <div class="well">
-      <p class="later">
-        <n-button text type="primary" @click="router.push('/cards')">卡表</n-button>
-        ·
-        <n-button text type="primary" @click="router.push('/products')">商品</n-button>
-        ·
-        <n-button text class="muted-link" @click="router.push('/coming-soon')">排行</n-button>
-        <span class="later-note">后续开放</span>
-      </p>
+      <nav class="quick" aria-label="快捷入口">
+        <n-button secondary @click="router.push('/cards')">🎴 卡表</n-button>
+        <n-button secondary @click="router.push('/products')">📦 商品</n-button>
+        <n-button quaternary disabled>🏆 排行 · 后续</n-button>
+      </nav>
 
       <section class="block">
         <header class="sec">
-          <h2>我的卡组</h2>
+          <div class="sec-text">
+            <h2>🃏 我的卡组</h2>
+            <p class="sec-hint">出战用的牌组，点封面进入编辑</p>
+          </div>
           <n-button text type="primary" @click="router.push('/decks')">全部 →</n-button>
         </header>
-        <div v-if="previewDecks.length === 0" class="empty">
-          还没有卡组。
-          <n-button text type="primary" @click="router.push('/decks/new')">去构筑</n-button>
+        <div v-if="previewDecks.length === 0" class="empty panel">
+          <span class="empty-ico" aria-hidden="true">🃏</span>
+          <p>还没有卡组</p>
+          <n-button type="primary" secondary @click="router.push('/decks/new')">✨ 去构筑</n-button>
         </div>
         <CardRail v-else :item-count="previewDecks.length">
           <button
@@ -118,7 +122,7 @@ onMounted(async () => {
             </span>
             <span class="strip-name">{{ deck.deckName }}</span>
             <span class="strip-meta" :class="{ on: deck.isValid }">
-              {{ deck.isValid ? '合法' : '未完成' }}
+              {{ deck.isValid ? '✓ 合法' : '… 未完成' }}
               · {{ deck.mainDeckSize ?? 0 }}/50
             </span>
           </button>
@@ -127,10 +131,16 @@ onMounted(async () => {
 
       <section class="block">
         <header class="sec">
-          <h2>商品系列</h2>
+          <div class="sec-text">
+            <h2>📦 商品系列</h2>
+            <p class="sec-hint">点系列进入该系列卡表</p>
+          </div>
           <n-button text type="primary" @click="router.push('/products')">全部 →</n-button>
         </header>
-        <div v-if="series.length === 0" class="empty">暂无系列数据</div>
+        <div v-if="series.length === 0" class="empty panel">
+          <span class="empty-ico" aria-hidden="true">📦</span>
+          <p>暂无系列数据</p>
+        </div>
         <CardRail v-else :item-count="series.length">
           <button
             v-for="product in series"
@@ -160,10 +170,11 @@ onMounted(async () => {
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: min(52vh, 480px);
+  min-height: min(58vh, 540px);
   display: flex;
   align-items: center;
   overflow: hidden;
+  border-bottom: 1px solid var(--border);
 }
 
 .hero-art {
@@ -172,24 +183,25 @@ onMounted(async () => {
   background: var(--shell-art) center / cover no-repeat;
   opacity: 1;
   filter: none;
+  transform: scale(1.02);
 }
 
-/* 左侧保可读，右侧让氛围图透出；勿叠过重的 shell-scrim */
+/* 左侧保可读，右侧让氛围图与叠卡透出 */
 .hero-veil {
   position: absolute;
   inset: 0;
   background:
     linear-gradient(
       105deg,
-      color-mix(in srgb, var(--bg-base) 78%, transparent) 0%,
-      color-mix(in srgb, var(--bg-base) 42%, transparent) 38%,
-      color-mix(in srgb, var(--bg-base) 12%, transparent) 68%,
+      color-mix(in srgb, var(--bg-base) 82%, transparent) 0%,
+      color-mix(in srgb, var(--bg-base) 36%, transparent) 40%,
+      color-mix(in srgb, var(--bg-base) 8%, transparent) 70%,
       transparent 100%
     ),
     linear-gradient(
       180deg,
-      transparent 55%,
-      color-mix(in srgb, var(--bg-base) 45%, transparent) 100%
+      transparent 50%,
+      color-mix(in srgb, var(--bg-base) 55%, transparent) 100%
     );
 }
 
@@ -198,11 +210,11 @@ onMounted(async () => {
   z-index: 1;
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 28px var(--space-lg) 24px;
+  padding: 36px var(--space-lg) 32px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 480px);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 500px);
   align-items: center;
-  gap: 16px 28px;
+  gap: 20px 32px;
 }
 
 .hero-copy {
@@ -211,68 +223,97 @@ onMounted(async () => {
 
 .kicker {
   margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.2em;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
   font-weight: 700;
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
 }
 
 .hero-inner h1 {
-  margin: 8px 0 0;
-  font-size: clamp(44px, 6vw, 68px);
+  margin: 14px 0 0;
+  font-size: clamp(40px, 5.6vw, 64px);
   font-weight: 800;
-  letter-spacing: 0.06em;
-  line-height: 1;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
   color: var(--text-primary);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--bg-base) 40%, transparent);
 }
 
 .lead {
-  margin: 10px 0 0;
+  margin: 14px 0 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  max-width: 26em;
-  line-height: 1.55;
+  font-size: var(--font-size-md);
+  max-width: 28em;
+  line-height: 1.65;
 }
 
 .hero-actions {
-  margin-top: 18px;
+  margin-top: 22px;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+}
+
+.cta-main {
+  min-width: 148px;
+  font-weight: 700;
+}
+
+.cta-sub {
+  min-width: 140px;
+  font-weight: 600;
 }
 
 .hero-status {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
+  margin-top: 14px;
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent) !important;
+  color: var(--text-secondary) !important;
 }
 
 .hero-stage {
+  position: relative;
   display: flex;
   justify-content: flex-end;
   align-items: flex-end;
-  height: 340px;
+  height: 360px;
+}
+
+.hero-glow {
+  position: absolute;
+  right: 8%;
+  bottom: 8%;
+  width: 70%;
+  height: 55%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  filter: blur(36px);
+  pointer-events: none;
 }
 
 .hero-stack {
   position: relative;
-  width: 440px;
-  height: 340px;
+  width: 460px;
+  height: 360px;
 }
 
 .hero-card {
   position: absolute;
   bottom: 0;
   display: block;
-  width: 210px;
-  height: calc(210px * 2080 / 1488);
+  width: 220px;
+  height: calc(220px * 2080 / 1488);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   box-shadow: var(--shadow-lg);
-  animation: hero-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  animation: hero-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
 .hero-card img {
@@ -289,25 +330,25 @@ onMounted(async () => {
 
 .hero-card.slot-0 {
   left: 0;
-  transform: rotate(-10deg) translateY(10px);
+  transform: rotate(-11deg) translateY(12px);
   z-index: 1;
 }
 
 .hero-card.slot-1 {
   left: 28%;
-  transform: rotate(1deg) translateY(-6px);
+  transform: rotate(1deg) translateY(-10px);
   z-index: 3;
 }
 
 .hero-card.slot-2 {
   left: 54%;
-  transform: rotate(11deg) translateY(12px);
+  transform: rotate(12deg) translateY(14px);
   z-index: 2;
 }
 
 .hero-card:hover {
   z-index: 4;
-  transform: translateY(-8px) rotate(0deg);
+  transform: translateY(-10px) rotate(0deg) scale(1.02);
   box-shadow: var(--shadow-lg), var(--shadow-glow);
 }
 
@@ -323,50 +364,53 @@ onMounted(async () => {
 .well {
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 4px var(--space-lg) 32px;
+  padding: 20px var(--space-lg) 40px;
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .block {
-  margin-top: 18px;
+  margin-top: 22px;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm), var(--edge-highlight);
 }
 
 .block + .block {
-  margin-top: 22px;
+  margin-top: 18px;
 }
 
 .sec {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
+}
+
+.sec-text {
+  min-width: 0;
 }
 
 .sec h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
 }
 
-.muted-link {
-  color: var(--text-secondary) !important;
-  font-weight: 500;
-}
-
-.later {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  margin: 0 0 2px;
+.sec-hint {
+  margin: 4px 0 0;
   font-size: 12px;
-  color: var(--text-disabled);
-}
-
-.later-note {
-  margin-left: 2px;
+  color: var(--text-secondary);
 }
 
 .strip-card {
@@ -378,16 +422,21 @@ onMounted(async () => {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-surface);
+  background: var(--bg-elevated);
   color: inherit;
   cursor: pointer;
   text-align: left;
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .strip-card:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: var(--shadow-md);
 }
 
 .strip-art {
@@ -415,12 +464,33 @@ onMounted(async () => {
 
 .strip-meta.on {
   color: var(--accent);
+  font-weight: 600;
 }
 
 .empty {
   padding: 8px 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.empty.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+}
+
+.empty-ico {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.empty.panel p {
+  margin: 0;
 }
 
 @media (max-width: 960px) {
@@ -430,24 +500,28 @@ onMounted(async () => {
 
   .hero-inner {
     grid-template-columns: 1fr;
-    padding-top: 20px;
-    padding-bottom: 12px;
+    padding-top: 22px;
+    padding-bottom: 18px;
   }
 
   .hero-stage {
-    height: 260px;
+    height: 280px;
     justify-content: center;
     order: -1;
   }
 
   .hero-stack {
-    width: 340px;
-    height: 260px;
+    width: 360px;
+    height: 280px;
   }
 
   .hero-card {
-    width: 160px;
-    height: calc(160px * 2080 / 1488);
+    width: 168px;
+    height: calc(168px * 2080 / 1488);
+  }
+
+  .block {
+    padding: 12px;
   }
 }
 
