@@ -72,15 +72,22 @@ def normalize_seed_card(card: dict[str, Any]) -> dict[str, Any]:
     product_code = ensure_product_code(card)
     rarity = str(card.get("rarity") or card_code.rsplit("-", 1)[-1]).upper()
     base = card.get("base_card_no") or card_code[: -(len(rarity) + 1)]
+    card_type = card.get("card_type") or "CHARACTER"
+    # 角色卡默认 S1（规则 201.8）；冲击卡无环境
+    environment = card.get("environment")
+    if card_type == "RUSH_POINT":
+        environment = None
+    elif not environment:
+        environment = "S1"
     return {
         "card_code": card_code,
         "base_card_no": base,
         "product_code": product_code,
         "card_name": card.get("card_name"),
-        "card_type": card.get("card_type") or "CHARACTER",
+        "card_type": card_type,
         "level": card.get("level"),
         "color": card.get("color"),
-        "environment": card.get("environment"),
+        "environment": environment,
         "traits": card.get("traits"),
         "attack_range": card.get("attack_range"),
         "power": card.get("power"),

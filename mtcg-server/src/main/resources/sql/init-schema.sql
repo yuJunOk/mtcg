@@ -57,6 +57,17 @@ CREATE INDEX IF NOT EXISTS idx_card_product ON mtcg_card (product_code);
 -- 兼容已有库：补 traits 列
 ALTER TABLE mtcg_card ADD COLUMN IF NOT EXISTS traits VARCHAR(256);
 
+-- 角色卡环境统一为 S1（规则 201.8）；冲击卡保持空
+UPDATE mtcg_card
+SET environment = 'S1'
+WHERE card_type = 'CHARACTER'
+  AND (environment IS NULL OR btrim(environment) = '');
+
+UPDATE mtcg_card
+SET environment = NULL
+WHERE card_type = 'RUSH_POINT'
+  AND environment IS NOT NULL;
+
 -- =====================================================
 -- 产品表
 -- =====================================================

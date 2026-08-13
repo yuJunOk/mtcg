@@ -22,7 +22,7 @@ SELECT
     'CHARACTER',
     6,
     'GREEN',
-    NULL,
+    'S1',
     '斗界',
     2,
     2500,

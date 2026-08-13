@@ -46,6 +46,12 @@ function pickDeck(deck: DeckVO): void {
   localStorage.setItem(READY_DECK_KEY, String(deck.id))
 }
 
+function openViewer(deck: DeckVO, e: Event): void {
+  e.stopPropagation()
+  e.preventDefault()
+  void router.push(`/decks/${deck.deckCode || deck.id}`)
+}
+
 function requireDeck(): DeckVO | null {
   formError.value = ''
   const deck = selected.value
@@ -333,6 +339,15 @@ onUnmounted(() => {
           >
             <span class="strip-art">
               <DeckCover :image-path="deck.coverImagePath" placeholder="🃏" />
+              <button
+                type="button"
+                class="strip-eye"
+                title="查看卡组"
+                :disabled="locked"
+                @click="openViewer(deck, $event)"
+              >
+                👁
+              </button>
             </span>
             <span class="strip-name">{{ deck.deckName }}</span>
           </button>
@@ -628,11 +643,48 @@ onUnmounted(() => {
 }
 
 .strip-art {
+  position: relative;
   display: block;
   width: var(--card-face-w);
   height: var(--card-face-h);
   flex: none;
   background: var(--bg-surface-2);
+}
+
+.strip-eye {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  appearance: none;
+}
+
+.strip-card:hover .strip-eye,
+.strip-card:focus-within .strip-eye {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.strip-eye:hover:not(:disabled),
+.strip-eye:focus-visible {
+  background: #fff;
+}
+
+.strip-eye:disabled {
+  cursor: not-allowed;
 }
 
 .strip-name {
