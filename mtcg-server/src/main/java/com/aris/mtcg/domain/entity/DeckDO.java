@@ -37,9 +37,7 @@ public class DeckDO {
     /** 最近一次校验结果（缓存；与 status 同步） */
     private Boolean isValid;
 
-    /**
-     * 卡组状态：READY=可用 / DRAFT=草稿（与 {@link #isValid} 同步，由校验自动写入）
-     */
+    /** 卡组状态：READY=可用 / DRAFT=草稿（与 {@link #isValid} 同步，由校验自动写入） */
     private String status;
 
     /** 是否公开可见 */

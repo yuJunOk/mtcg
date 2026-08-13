@@ -186,8 +186,7 @@ public class DeckServiceImpl implements DeckService {
         deck.setIsPublic(false);
         deck.setIsCopyable(false);
         deck.setTags(source.getTags());
-        deck.setCoverCardCode(
-                resolveCoverCardCode(source.getCoverCardCode(), mainDeck, rushDeck));
+        deck.setCoverCardCode(resolveCoverCardCode(source.getCoverCardCode(), mainDeck, rushDeck));
         deck.setSortOrder(nextSortOrder(userId));
         deckMapper.insert(deck);
         return deck.getDeckCode();

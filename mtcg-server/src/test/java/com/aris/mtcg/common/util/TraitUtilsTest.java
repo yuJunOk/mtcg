@@ -43,6 +43,8 @@ class TraitUtilsTest {
     @Test
     void ofDescAndParseKnown() {
         assertEquals(EnumTrait.HUMAN, EnumTrait.ofDesc("人类"));
-        assertEquals(List.of(EnumTrait.HUMAN, EnumTrait.AVENGERS), TraitUtils.parseKnown("人类/复仇者联盟/未知标签"));
+        assertEquals(
+                List.of(EnumTrait.HUMAN, EnumTrait.AVENGERS),
+                TraitUtils.parseKnown("人类/复仇者联盟/未知标签"));
     }
 }

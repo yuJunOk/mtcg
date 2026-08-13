@@ -117,7 +117,8 @@ class GameServiceImplTest {
         assertTrue(gameManager.contains(code));
         ArgumentCaptor<GameDO> insertCaptor = ArgumentCaptor.forClass(GameDO.class);
         verify(gameMapper).insert(insertCaptor.capture());
-        when(gameMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(insertCaptor.getValue());
+        when(gameMapper.selectOneByQuery(any(QueryWrapper.class)))
+                .thenReturn(insertCaptor.getValue());
         verify(gameMapper, atLeastOnce()).update(any(GameDO.class));
 
         GameStateVO vo = gameService.getGameState(USER1, code);
@@ -418,8 +419,7 @@ class GameServiceImplTest {
     }
 
     private GameEngine newEngineWithUserIds() {
-        return newStartedEngine(
-                7L, GAME_CODE, String.valueOf(USER1), String.valueOf(USER2));
+        return newStartedEngine(7L, GAME_CODE, String.valueOf(USER1), String.valueOf(USER2));
     }
 
     private GameDO baseRecord() {

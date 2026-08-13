@@ -41,9 +41,7 @@ public class DeckVO {
 
     private Boolean isValid;
 
-    /**
-     * 卡组状态 code：READY=可用 / DRAFT=草稿（由 isValid 自动派生）
-     */
+    /** 卡组状态 code：READY=可用 / DRAFT=草稿（由 isValid 自动派生） */
     private String status;
 
     /** 是否公开可见 */
@@ -64,9 +62,7 @@ public class DeckVO {
     /** 封面卡图路径（由封面卡或第一张卡派生） */
     private String coverImagePath;
 
-    /**
-     * 主卡组涉及的颜色 code（如 RED、GREEN），按枚举序；展示层转中文短名。
-     */
+    /** 主卡组涉及的颜色 code（如 RED、GREEN），按枚举序；展示层转中文短名。 */
     private List<String> colors;
 
     /** 主卡组总张数 = sum(quantity) */
@@ -106,7 +102,8 @@ public class DeckVO {
     }
 
     private static String resolveStatus(DeckDO deck) {
-        if (StringUtils.isNotBlank(deck.getStatus()) && EnumDeckStatus.of(deck.getStatus()) != null) {
+        if (StringUtils.isNotBlank(deck.getStatus())
+                && EnumDeckStatus.of(deck.getStatus()) != null) {
             return deck.getStatus();
         }
         return EnumDeckStatus.fromValid(Boolean.TRUE.equals(deck.getIsValid())).getCode();
