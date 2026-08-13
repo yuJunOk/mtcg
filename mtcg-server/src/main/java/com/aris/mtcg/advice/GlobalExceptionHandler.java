@@ -90,17 +90,34 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public Result<Object> handleException(Exception e) {
-        // 数据库异常（MyBatis / JDBC）
-        String msg = e.getMessage();
-        if (msg != null
-                && (msg.contains("PSQLException")
-                        || msg.contains("BadSqlGrammarException")
-                        || msg.contains("DuplicateKeyException")
-                        || msg.contains("DataIntegrityViolationException"))) {
-            log.error("databaseException: {}", msg);
+        if (isDatabaseException(e)) {
+            log.error("databaseException", e);
             return Result.fail(ErrorCode.DB_ERROR, "数据库操作失败，请稍后重试");
         }
         log.error("systemException", e);
         return Result.fail(ErrorCode.SYSTEM_ERROR, "系统内部错误，请稍后重试");
+    }
+
+    /** 判断是否为数据库相关异常（含 cause 链） */
+    private static boolean isDatabaseException(Throwable e) {
+        Throwable cur = e;
+        while (cur != null) {
+            String name = cur.getClass().getName();
+            String msg = cur.getMessage();
+            if (name.contains("PSQLException")
+                    || name.contains("BadSqlGrammarException")
+                    || name.contains("DuplicateKeyException")
+                    || name.contains("DataIntegrityViolationException")
+                    || name.contains("DataAccessException")
+                    || (msg != null
+                            && (msg.contains("PSQLException")
+                                    || msg.contains("BadSqlGrammarException")
+                                    || msg.contains("DuplicateKeyException")
+                                    || msg.contains("DataIntegrityViolationException")))) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 }

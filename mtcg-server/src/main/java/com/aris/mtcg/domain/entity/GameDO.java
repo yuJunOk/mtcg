@@ -40,7 +40,7 @@ public class GameDO {
     /** 对局状态：WAITING / IN_PROGRESS / FINISHED */
     private String status;
 
-    /** 最近一次回合结束的完整状态快照（JSONB，以 String 读写） */
+    /** 最近一次回合结束的完整状态快照（JSON 文本） */
     private String turnSnapshot;
 
     /** 操作流水 JSON 数组字符串 */

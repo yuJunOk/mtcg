@@ -15,8 +15,12 @@ const previewDecks = computed(() => decks.value.slice(0, 8))
 const deckCount = computed(() => decks.value.length)
 const validCount = computed(() => decks.value.filter((d) => d.isValid === true).length)
 
-/** 英雄区固定复联三巨头真卡面，不用卡背/先后手草稿 */
-const heroCards = HERO_TRIO_PATHS.map((path) => resolveCardImageUrl(path))
+/** 英雄区固定复联三巨头真卡面 */
+const heroCards = HERO_TRIO_PATHS.map((path, i) => ({
+  path,
+  src: resolveCardImageUrl(path),
+  delay: `${0.08 + i * 0.1}s`,
+}))
 
 const rosterHint = computed(() => {
   if (deckCount.value === 0) return '还没有卡组，先去构筑一套'
@@ -26,7 +30,7 @@ const rosterHint = computed(() => {
 
 function onImgError(e: Event): void {
   const el = e.target as HTMLImageElement
-  el.style.visibility = 'hidden'
+  el.classList.add('is-broken')
 }
 
 onMounted(async () => {
@@ -53,32 +57,53 @@ onMounted(async () => {
         <div class="hero-copy">
           <p class="kicker">超英击战</p>
           <h1>MTCG</h1>
-          <p class="lead">构筑卡组，大厅匹配。卡面是主角。</p>
+          <p class="lead">集结超英，构筑击战。一张牌，扭转战局。</p>
           <div class="hero-actions">
-            <button type="button" class="primary" @click="router.push('/match')">开始对战</button>
-            <button type="button" class="ghost" @click="router.push('/decks')">管理卡组</button>
+            <button type="button" class="primary" @click="router.push('/match')">
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M8.9 1.6 3.2 8.2c-.2.3 0 .7.4.7h3.1l-.8 5.1c-.1.5.5.8.8.4l5.7-6.6c.2-.3 0-.7-.4-.7H8.9l.8-5.1c.1-.5-.5-.8-.8-.4Z"
+                />
+              </svg>
+              开始对战
+            </button>
+            <button type="button" class="ghost" @click="router.push('/decks')">
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                <rect x="2.5" y="3.5" width="8" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4" />
+                <rect x="5.5" y="1.5" width="8" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4" />
+              </svg>
+              管理卡组
+            </button>
           </div>
           <p class="hero-status">{{ rosterHint }}</p>
         </div>
-        <div class="hero-stack" aria-hidden="true">
-          <span v-for="src in heroCards" :key="src" class="hero-card">
-            <img :src="src" alt="" @error="onImgError" />
-          </span>
+
+        <div class="hero-stage" aria-hidden="true">
+          <div class="hero-stack">
+            <span
+              v-for="(card, i) in heroCards"
+              :key="card.path"
+              class="hero-card"
+              :class="`slot-${i}`"
+              :style="{ animationDelay: card.delay }"
+            >
+              <img :src="card.src" alt="" @error="onImgError" />
+            </span>
+          </div>
         </div>
       </div>
     </section>
 
     <div class="well">
-      <section class="block roster">
-        <p class="later">
-          <button type="button" class="link" @click="router.push('/cards')">卡表</button>
-          ·
-          <button type="button" class="link" @click="router.push('/products')">商品</button>
-          ·
-          <button type="button" class="link muted" @click="router.push('/coming-soon')">排行</button>
-          后续开放
-        </p>
-      </section>
+      <p class="later">
+        <button type="button" class="link" @click="router.push('/cards')">卡表</button>
+        ·
+        <button type="button" class="link" @click="router.push('/products')">商品</button>
+        ·
+        <button type="button" class="link muted" @click="router.push('/coming-soon')">排行</button>
+        <span class="later-note">后续开放</span>
+      </p>
 
       <section class="block">
         <header class="sec">
@@ -161,7 +186,15 @@ onMounted(async () => {
 .hero-veil {
   position: absolute;
   inset: 0;
-  background: var(--shell-scrim);
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--bg-base) 86%, transparent) 0%,
+      color-mix(in srgb, var(--bg-base) 48%, transparent) 46%,
+      color-mix(in srgb, var(--bg-base) 10%, transparent) 78%,
+      transparent 100%
+    ),
+    var(--shell-scrim);
 }
 
 .hero-inner {
@@ -169,36 +202,81 @@ onMounted(async () => {
   z-index: 1;
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 36px var(--space-lg);
-  display: flex;
+  padding: 28px var(--space-lg) 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 480px);
   align-items: center;
-  justify-content: space-between;
-  gap: 28px;
+  gap: 16px 28px;
 }
 
 .hero-copy {
   min-width: 0;
-  flex: 1;
+}
+
+.kicker {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.hero-inner h1 {
+  margin: 8px 0 0;
+  font-size: clamp(44px, 6vw, 68px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.lead {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 26em;
+  line-height: 1.55;
+}
+
+.hero-actions {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hero-status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.hero-stage {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  height: 340px;
 }
 
 .hero-stack {
-  display: flex;
-  align-items: flex-end;
-  flex-shrink: 0;
-  padding: 8px 12px 0 0;
+  position: relative;
+  width: 440px;
+  height: 340px;
 }
 
 .hero-card {
+  position: absolute;
+  bottom: 0;
   display: block;
-  width: 240px;
-  height: calc(240px * 2080 / 1488);
-  flex: none;
+  width: 210px;
+  height: calc(210px * 2080 / 1488);
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-surface-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
-  transition: transform var(--transition-fast);
+  animation: hero-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
 .hero-card img {
@@ -206,90 +284,72 @@ onMounted(async () => {
   height: 100%;
   object-fit: contain;
   object-position: center top;
+  background: var(--bg-surface-2);
 }
 
-.hero-card:nth-child(1) {
-  transform: rotate(-9deg) translateY(18px);
+.hero-card img.is-broken {
+  opacity: 0;
+}
+
+.hero-card.slot-0 {
+  left: 0;
+  transform: rotate(-10deg) translateY(10px);
   z-index: 1;
 }
 
-.hero-card:nth-child(2) {
-  margin-left: -64px;
-  transform: rotate(2deg) translateY(-6px);
+.hero-card.slot-1 {
+  left: 28%;
+  transform: rotate(1deg) translateY(-6px);
+  z-index: 3;
+}
+
+.hero-card.slot-2 {
+  left: 54%;
+  transform: rotate(11deg) translateY(12px);
   z-index: 2;
 }
 
-.hero-card:nth-child(3) {
-  margin-left: -64px;
-  transform: rotate(11deg) translateY(20px);
-  z-index: 1;
-}
-
 .hero-card:hover {
-  z-index: 3;
+  z-index: 4;
   transform: translateY(-8px) rotate(0deg);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
 }
 
-.kicker {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: 0.22em;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.hero-inner h1 {
-  margin: 10px 0 0;
-  font-size: clamp(44px, 7vw, 72px);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  max-width: 12em;
-  line-height: 1.05;
-}
-
-.lead {
-  margin: 12px 0 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  max-width: 26em;
-  line-height: 1.6;
-}
-
-.hero-actions {
-  margin-top: 22px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.hero-status {
-  margin: 14px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
+@keyframes hero-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .well {
   width: min(var(--shell-max), 100%);
   margin: 0 auto;
-  padding: 20px var(--space-lg) 64px;
+  padding: 4px var(--space-lg) 32px;
+}
+
+.block {
+  margin-top: 18px;
 }
 
 .block + .block {
-  margin-top: 36px;
+  margin-top: 22px;
 }
 
 .sec {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 14px;
-  padding-bottom: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
 }
 
 .sec h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
 }
 
@@ -308,16 +368,19 @@ onMounted(async () => {
   font-weight: 500;
 }
 
-.roster {
+.later {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px 16px;
+  gap: 6px;
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: var(--text-disabled);
 }
 
-.roster .later {
-  margin: 0;
+.later-note {
+  margin-left: 2px;
 }
 
 .strip-card {
@@ -369,15 +432,9 @@ onMounted(async () => {
 }
 
 .empty {
-  padding: 20px 0;
+  padding: 8px 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
-}
-
-.later {
-  margin: 12px 0 0;
-  font-size: 12px;
-  color: var(--text-disabled);
 }
 
 .primary,
@@ -388,6 +445,14 @@ onMounted(async () => {
   font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primary svg,
+.ghost svg {
+  flex-shrink: 0;
 }
 
 .primary {
@@ -398,29 +463,41 @@ onMounted(async () => {
 
 .ghost {
   border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
   color: var(--text-primary);
 }
 
 @media (max-width: 960px) {
+  .hero {
+    min-height: auto;
+  }
+
   .hero-inner {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    padding-top: 20px;
+    padding-bottom: 12px;
+  }
+
+  .hero-stage {
+    height: 260px;
+    justify-content: center;
+    order: -1;
   }
 
   .hero-stack {
-    align-self: center;
-    padding-right: 0;
+    width: 340px;
+    height: 260px;
   }
 
   .hero-card {
-    width: 168px;
-    height: calc(168px * 2080 / 1488);
+    width: 160px;
+    height: calc(160px * 2080 / 1488);
   }
+}
 
-  .hero-card:nth-child(2),
-  .hero-card:nth-child(3) {
-    margin-left: -40px;
+@media (prefers-reduced-motion: reduce) {
+  .hero-card {
+    animation: none;
   }
 }
 </style>

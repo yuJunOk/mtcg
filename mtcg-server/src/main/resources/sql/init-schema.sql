@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS mtcg_game_record (
     winner              VARCHAR(16),
     game_mode           VARCHAR(16)     NOT NULL,
     status              VARCHAR(16)     NOT NULL,
-    turn_snapshot       JSONB,
+    turn_snapshot       TEXT,
     action_log          TEXT            NOT NULL DEFAULT '[]',
     create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
     update_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
@@ -201,6 +201,10 @@ ALTER TABLE mtcg_game_record ALTER COLUMN deck2_id DROP NOT NULL;
 ALTER TABLE mtcg_game_record DROP CONSTRAINT IF EXISTS ck_game_status;
 ALTER TABLE mtcg_game_record ADD CONSTRAINT ck_game_status
     CHECK (status IN ('WAITING', 'IN_PROGRESS', 'FINISHED'));
+
+-- 已有库：turn_snapshot 从 JSONB 改为 TEXT，避免 JDBC 写入 varchar→jsonb 类型错误
+ALTER TABLE mtcg_game_record
+    ALTER COLUMN turn_snapshot TYPE TEXT USING turn_snapshot::text;
 
 -- =====================================================
 -- 自动更新 update_time 触发器

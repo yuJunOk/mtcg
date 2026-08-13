@@ -50,12 +50,16 @@ const isNew = computed(() => deckId.value === null)
 
 const deckName = ref('新卡组')
 const tags = ref('')
+/** 封面卡编号（保存时提交；空则后端回退主卡组首张） */
+const coverCardCode = ref('')
 const coverPickerOpen = ref(false)
 const pendingCover = ref('')
 const mainDeck = ref<DeckCardEntry[]>([])
 const rushDeck = ref<DeckCardEntry[]>([])
 const serverValid = ref<boolean | null>(null)
 const validateResult = ref<DeckValidateResultVO | null>(null)
+/** 点选加入失败时的即时提示 */
+const addHint = ref('')
 
 /** cardCode → 展示元数据 */
 const cardMeta = reactive<Record<string, CardVO>>({})
