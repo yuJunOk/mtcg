@@ -1,8 +1,11 @@
 package com.aris.mtcg.service.impl;
 
 import com.aris.mtcg.common.enums.EnumCardType;
+import com.aris.mtcg.common.enums.EnumColor;
+import com.aris.mtcg.common.enums.EnumDeckStatus;
 import com.aris.mtcg.common.exception.BusinessException;
 import com.aris.mtcg.common.result.ErrorCode;
+import com.aris.mtcg.common.util.PublicCodeUtils;
 import com.aris.mtcg.dao.CardMapper;
 import com.aris.mtcg.dao.DeckMapper;
 import com.aris.mtcg.domain.dto.DeckCardEntry;
@@ -37,31 +40,36 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DeckServiceImpl implements DeckService {
 
+    private static final int CODE_ALLOC_MAX_RETRY = 16;
+
     @Resource private DeckMapper deckMapper;
 
     @Resource private CardMapper cardMapper;
 
     @Override
-    public Long createDeck(Long userId, DeckCreateDTO dto) {
+    public String createDeck(Long userId, DeckCreateDTO dto) {
         List<DeckCardEntry> mainDeck = normalizeEntries(dto.getMainDeck());
         List<DeckCardEntry> rushDeck = normalizeEntries(dto.getRushDeck());
         DeckValidateResultVO result = validateEntries(mainDeck, rushDeck);
         DeckDO deck = new DeckDO();
         deck.setUserId(userId);
+        deck.setDeckCode(allocateUniqueDeckCode());
         deck.setDeckName(dto.getDeckName());
         deck.setMainDeckCodes(DeckVO.toJson(mainDeck));
         deck.setRushDeckCodes(DeckVO.toJson(rushDeck));
-        deck.setIsValid(result.getValid());
+        applyValidationResult(deck, result.getValid());
+        deck.setIsPublic(Boolean.TRUE.equals(dto.getIsPublic()));
+        deck.setIsCopyable(Boolean.TRUE.equals(dto.getIsCopyable()));
         deck.setTags(normalizeTags(dto.getTags()));
         deck.setCoverCardCode(resolveCoverCardCode(dto.getCoverCardCode(), mainDeck, rushDeck));
         deck.setSortOrder(nextSortOrder(userId));
         deckMapper.insert(deck);
-        return deck.getId();
+        return deck.getDeckCode();
     }
 
     @Override
-    public void updateDeck(Long userId, Long deckId, DeckUpdateDTO dto) {
-        DeckDO deck = checkOwnership(userId, deckId);
+    public void updateDeck(Long userId, String idOrCode, DeckUpdateDTO dto) {
+        DeckDO deck = checkOwnership(userId, idOrCode);
         boolean needRevalidate = false;
         if (dto.getDeckName() != null) {
             deck.setDeckName(dto.getDeckName());
@@ -77,10 +85,16 @@ public class DeckServiceImpl implements DeckService {
         if (dto.getTags() != null) {
             deck.setTags(normalizeTags(dto.getTags()));
         }
+        if (dto.getIsPublic() != null) {
+            deck.setIsPublic(dto.getIsPublic());
+        }
+        if (dto.getIsCopyable() != null) {
+            deck.setIsCopyable(dto.getIsCopyable());
+        }
         if (needRevalidate) {
             DeckVO vo = DeckVO.fromDO(deck);
             DeckValidateResultVO result = validateEntries(vo.getMainDeck(), vo.getRushDeck());
-            deck.setIsValid(result.getValid());
+            applyValidationResult(deck, result.getValid());
         }
         if (dto.getCoverCardCode() != null || needRevalidate) {
             DeckVO vo = DeckVO.fromDO(deck);
@@ -95,16 +109,17 @@ public class DeckServiceImpl implements DeckService {
     }
 
     @Override
-    public void deleteDeck(Long userId, Long deckId) {
-        checkOwnership(userId, deckId);
-        deckMapper.deleteById(deckId);
+    public void deleteDeck(Long userId, String idOrCode) {
+        DeckDO deck = checkOwnership(userId, idOrCode);
+        deckMapper.deleteById(deck.getId());
     }
 
     @Override
-    public DeckVO getDeck(Long userId, Long deckId) {
-        DeckDO deck = checkOwnership(userId, deckId);
+    public DeckVO getDeck(Long userId, String idOrCode) {
+        DeckDO deck = checkOwnership(userId, idOrCode);
         DeckVO vo = DeckVO.fromDO(deck);
         attachCoverImages(List.of(vo));
+        attachMainColors(List.of(vo));
         return vo;
     }
 
@@ -118,6 +133,7 @@ public class DeckServiceImpl implements DeckService {
         List<DeckDO> decks = deckMapper.selectListByQuery(qw);
         List<DeckVO> vos = decks.stream().map(DeckVO::fromDO).collect(Collectors.toList());
         attachCoverImages(vos);
+        attachMainColors(vos);
         return vos;
     }
 
@@ -132,13 +148,49 @@ public class DeckServiceImpl implements DeckService {
     }
 
     @Override
-    public DeckValidateResultVO validateDeck(Long userId, Long deckId) {
-        DeckDO deck = checkOwnership(userId, deckId);
+    public DeckValidateResultVO validateDeck(Long userId, String idOrCode) {
+        DeckDO deck = checkOwnership(userId, idOrCode);
         DeckVO vo = DeckVO.fromDO(deck);
         DeckValidateResultVO result = validateEntries(vo.getMainDeck(), vo.getRushDeck());
-        deck.setIsValid(result.getValid());
+        applyValidationResult(deck, result.getValid());
         deckMapper.update(deck);
         return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String copyDeckByCode(Long userId, String deckCode) {
+        DeckDO source = resolveDeck(deckCode);
+        boolean owner = Objects.equals(source.getUserId(), userId);
+        if (!owner && !Boolean.TRUE.equals(source.getIsCopyable())) {
+            throw new BusinessException(ErrorCode.DECK_NOT_COPYABLE);
+        }
+        DeckVO sourceVo = DeckVO.fromDO(source);
+        List<DeckCardEntry> mainDeck = normalizeEntries(sourceVo.getMainDeck());
+        List<DeckCardEntry> rushDeck = normalizeEntries(sourceVo.getRushDeck());
+        DeckValidateResultVO result = validateEntries(mainDeck, rushDeck);
+
+        String baseName = StringUtils.defaultIfBlank(source.getDeckName(), "未命名卡组");
+        String copyName = baseName.endsWith(" 副本") ? baseName : baseName + " 副本";
+        if (copyName.length() > 64) {
+            copyName = copyName.substring(0, 64);
+        }
+
+        DeckDO deck = new DeckDO();
+        deck.setUserId(userId);
+        deck.setDeckCode(allocateUniqueDeckCode());
+        deck.setDeckName(copyName);
+        deck.setMainDeckCodes(DeckVO.toJson(mainDeck));
+        deck.setRushDeckCodes(DeckVO.toJson(rushDeck));
+        applyValidationResult(deck, result.getValid());
+        deck.setIsPublic(false);
+        deck.setIsCopyable(false);
+        deck.setTags(source.getTags());
+        deck.setCoverCardCode(
+                resolveCoverCardCode(source.getCoverCardCode(), mainDeck, rushDeck));
+        deck.setSortOrder(nextSortOrder(userId));
+        deckMapper.insert(deck);
+        return deck.getDeckCode();
     }
 
     @Override
@@ -247,6 +299,66 @@ public class DeckServiceImpl implements DeckService {
         vo2Code.forEach((vo, code) -> vo.setCoverImagePath(paths.get(code)));
     }
 
+    /** 同步 is_valid 与 status（READY/DRAFT） */
+    private void applyValidationResult(DeckDO deck, Boolean valid) {
+        boolean ok = Boolean.TRUE.equals(valid);
+        deck.setIsValid(ok);
+        deck.setStatus(EnumDeckStatus.fromValid(ok).getCode());
+    }
+
+    /** 汇总主卡组颜色 code（按 EnumColor 序），供前端转成「绿 / 红」展示 */
+    private void attachMainColors(List<DeckVO> vos) {
+        if (vos == null || vos.isEmpty()) {
+            return;
+        }
+        Set<String> allCodes = new HashSet<>();
+        for (DeckVO vo : vos) {
+            if (vo.getMainDeck() == null) {
+                continue;
+            }
+            for (DeckCardEntry e : vo.getMainDeck()) {
+                if (e != null && StringUtils.isNotBlank(e.getCardCode())) {
+                    allCodes.add(e.getCardCode().trim());
+                }
+            }
+        }
+        if (allCodes.isEmpty()) {
+            for (DeckVO vo : vos) {
+                vo.setColors(List.of());
+            }
+            return;
+        }
+        List<CardDO> cards =
+                cardMapper.selectListByQuery(QueryWrapper.create().in("card_code", allCodes));
+        Map<String, String> code2Color =
+                cards.stream()
+                        .filter(c -> StringUtils.isNotBlank(c.getColor()))
+                        .collect(
+                                Collectors.toMap(
+                                        CardDO::getCardCode, CardDO::getColor, (a, b) -> a));
+        for (DeckVO vo : vos) {
+            Set<String> found = new HashSet<>();
+            if (vo.getMainDeck() != null) {
+                for (DeckCardEntry e : vo.getMainDeck()) {
+                    if (e == null || StringUtils.isBlank(e.getCardCode())) {
+                        continue;
+                    }
+                    String color = code2Color.get(e.getCardCode().trim());
+                    if (StringUtils.isNotBlank(color)) {
+                        found.add(color.trim().toUpperCase());
+                    }
+                }
+            }
+            List<String> ordered = new ArrayList<>();
+            for (EnumColor c : EnumColor.values()) {
+                if (found.contains(c.getCode())) {
+                    ordered.add(c.getCode());
+                }
+            }
+            vo.setColors(ordered);
+        }
+    }
+
     /** 封面须在卡组内；未指定或已不在卡组则回退主卡组第一张，再回退冲击第一张。 */
     private String resolveCoverCardCode(
             String requested, List<DeckCardEntry> mainDeck, List<DeckCardEntry> rushDeck) {
@@ -288,6 +400,48 @@ public class DeckServiceImpl implements DeckService {
             throw new BusinessException(ErrorCode.DECK_FORBIDDEN);
         }
         return deck;
+    }
+
+    /** 按数字 id 或 D- 编码解析卡组并校验归属 */
+    private DeckDO checkOwnership(Long userId, String idOrCode) {
+        DeckDO deck = resolveDeck(idOrCode);
+        if (!Objects.equals(deck.getUserId(), userId)) {
+            throw new BusinessException(ErrorCode.DECK_FORBIDDEN);
+        }
+        return deck;
+    }
+
+    private DeckDO resolveDeck(String idOrCode) {
+        String key = PublicCodeUtils.normalize(idOrCode);
+        if (StringUtils.isBlank(key)) {
+            throw new BusinessException(ErrorCode.DECK_NOT_FOUND);
+        }
+        DeckDO deck;
+        if (PublicCodeUtils.isDeckCode(key)) {
+            deck = deckMapper.selectOneByQuery(QueryWrapper.create().eq("deck_code", key));
+        } else {
+            try {
+                deck = deckMapper.selectOneById(Long.parseLong(key));
+            } catch (NumberFormatException e) {
+                throw new BusinessException(ErrorCode.DECK_NOT_FOUND);
+            }
+        }
+        if (deck == null) {
+            throw new BusinessException(ErrorCode.DECK_NOT_FOUND);
+        }
+        return deck;
+    }
+
+    /** 循环查重生成唯一 deck_code */
+    private String allocateUniqueDeckCode() {
+        for (int i = 0; i < CODE_ALLOC_MAX_RETRY; i++) {
+            String code = PublicCodeUtils.newDeckCode();
+            long count = deckMapper.selectCountByQuery(QueryWrapper.create().eq("deck_code", code));
+            if (count == 0) {
+                return code;
+            }
+        }
+        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成卡组编码失败");
     }
 
     /** 同编号合并为一条：保留首次出现顺序，quantity 累加；quantity<=0 丢弃 */

@@ -5,7 +5,7 @@ import com.aris.mtcg.common.enums.EnumColor;
 import com.aris.mtcg.common.enums.EnumRarity;
 import com.aris.mtcg.common.exception.BusinessException;
 import com.aris.mtcg.common.result.ErrorCode;
-import com.aris.mtcg.dao.CardFeatureRelMapper;
+import com.aris.mtcg.common.util.TraitUtils;
 import com.aris.mtcg.dao.CardMapper;
 import com.aris.mtcg.domain.dto.CardCreateDTO;
 import com.aris.mtcg.domain.dto.CardQueryDTO;
@@ -36,8 +36,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class CardServiceImpl implements CardService {
 
     @Resource private CardMapper cardMapper;
-
-    @Resource private CardFeatureRelMapper cardFeatureRelMapper;
 
     @Resource private FileStorageService fileStorageService;
 
@@ -74,15 +72,14 @@ public class CardServiceImpl implements CardService {
 
     @Override
     public Long createCard(CardCreateDTO dto) {
-        // 校验编号唯一
         long count =
                 cardMapper.selectCountByQuery(
                         QueryWrapper.create().eq("card_code", dto.getCardCode()));
         if (count > 0) {
             throw new BusinessException(ErrorCode.CARD_CODE_DUPLICATE);
         }
-        // 校验枚举合法性
         validateCreateEnums(dto);
+        dto.setTraits(TraitUtils.normalize(dto.getTraits()));
         CardDO card = CardVO.toDO(CardVO.fromDTO(dto));
         cardMapper.insert(card);
         auditService.record(
@@ -93,7 +90,6 @@ public class CardServiceImpl implements CardService {
     @Override
     public void updateCard(Long id, CardUpdateDTO dto) {
         loadOrThrow(id);
-        // 校验更新的枚举合法性（仅对非空字段）
         if (dto.getCardType() != null && EnumCardType.of(dto.getCardType()) == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "非法卡牌类型");
         }
@@ -124,7 +120,7 @@ public class CardServiceImpl implements CardService {
             update.setEnvironment(dto.getEnvironment());
         }
         if (dto.getTraits() != null) {
-            update.setTraits(dto.getTraits());
+            update.setTraits(TraitUtils.normalize(dto.getTraits()));
         }
         if (dto.getAttackRange() != null) {
             update.setAttackRange(dto.getAttackRange());
@@ -152,7 +148,6 @@ public class CardServiceImpl implements CardService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteCard(Long id) {
         CardDO card = loadOrThrow(id);
-        cardFeatureRelMapper.deleteByQuery(QueryWrapper.create().eq("card_id", id));
         cardMapper.deleteById(id);
         if (card.getImagePath() != null) {
             fileStorageService.deleteImage(card.getImagePath());

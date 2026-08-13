@@ -10,8 +10,10 @@ const props = withDefaults(
     lazy?: boolean
     /** 无图时 emoji：卡组 🃏，商品 📦 */
     placeholder?: string
+    /** contain=完整卡比；cover=裁切铺满（列表瓦片） */
+    fit?: 'contain' | 'cover'
   }>(),
-  { lazy: false, placeholder: '🃏' },
+  { lazy: false, placeholder: '🃏', fit: 'contain' },
 )
 
 const failed = ref(false)
@@ -33,7 +35,7 @@ function onError(): void {
 </script>
 
 <template>
-  <span class="deck-cover">
+  <span class="deck-cover" :class="fit">
     <img
       v-if="showImage"
       :src="src"
@@ -58,8 +60,16 @@ function onError(): void {
 .deck-cover img {
   width: 100%;
   height: 100%;
+}
+
+.deck-cover.contain img {
   object-fit: contain;
   object-position: center top;
+}
+
+.deck-cover.cover img {
+  object-fit: cover;
+  object-position: center 18%;
 }
 
 .ph {

@@ -50,7 +50,7 @@
 | 布局组件 | `PascalCase + Layout` | `MainLayout.vue` |
 | 弹框 | `PascalCase + Dialog` | `CardFormDialog.vue` |
 | 公共弹窗壳 | `MtcgDialog` | 关闭 / 可选全屏 / 确定取消 + slots |
-| 选择器 | `PascalCase + Selector` | `ProductSelector.vue`、`CardFeatureSelector.vue` |
+| 选择器 | `PascalCase + Selector` | `ProductSelector.vue` |
 | 抽屉 | `PascalCase + Drawer` | `CardDetailDrawer.vue` |
 | 路由 name | `kebab-case` | `card-list`、`product-list` |
 
@@ -133,7 +133,7 @@ axios.delete('/admin/cards/1')
 
 ```ts
 // ✅ 领域 API（已解包 data；Token / 401 refresh 由 request 层处理）
-import { cardApi, productApi, cardFeatureApi } from '@mtcg/common/api'
+import { cardApi, productApi } from '@mtcg/common/api'
 import type { CardVO, CardQueryDTO } from '@mtcg/common/types'
 
 const page = await cardApi.list({ pageNum: 1, pageSize: 20 })

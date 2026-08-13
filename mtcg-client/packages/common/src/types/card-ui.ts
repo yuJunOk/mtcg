@@ -68,8 +68,8 @@ export const CARD_LEVEL_FILTER_OPTIONS: number[] = [1, 2, 3, 4, 5, 6]
 export const CARD_ATTACK_RANGE_FILTER_OPTIONS: number[] = [0, 1, 2, 3, 4, 5]
 
 /**
- * 常见特征筛选（对应卡牌 traits 字段，斜杠分隔）。
- * 与官网/卡表数据对齐，可按批次扩充。
+ * 常见卡牌特征目录（与后端 EnumTrait / 官网印刷标签对齐）。
+ * DB 与筛选均用中文标签；程序引用后端枚举常量即可，不再维护英文 code。
  */
 export const CARD_TRAIT_FILTER_OPTIONS: string[] = [
   '人类',
@@ -78,8 +78,8 @@ export const CARD_TRAIT_FILTER_OPTIONS: string[] = [
   '阿斯加德',
   '瓦坎达',
   '神奇四侠',
-  '捍卫者联盟',
   '变种人',
+  '捍卫者联盟',
   '银河护卫队',
   '时间犯',
   '神盾局',
@@ -90,11 +90,65 @@ export const CARD_TRAIT_FILTER_OPTIONS: string[] = [
   '斗界',
 ]
 
-/** 辅助：code -> desc */
+/** 拆分 traits 存储串 → 中文标签列表 */
+export function splitTraits(traits: string | null | undefined): string[] {
+  if (!traits?.trim()) return []
+  return traits
+    .replace(/，/g, ',')
+    .replace(/,/g, '/')
+    .split('/')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/** 中文标签列表 → 存储串 */
+export function joinTraits(labels: string[]): string {
+  return labels.map((s) => s.trim()).filter(Boolean).join('/')
+}
+
+/** 特征是否含有指定中文标签（效果条件用） */
+export function hasTraitLabel(
+  traits: string | string[] | null | undefined,
+  label: string,
+): boolean {
+  const list = Array.isArray(traits) ? traits : splitTraits(traits)
+  return list.includes(label.trim())
+}
+
+/** 辅助：code -> desc（大小写不敏感；已是中文 desc 则原样返回） */
 export function codeToDesc<T extends string>(
   options: Array<{ code: T; desc: string }>,
   code: T | null | undefined,
 ): string {
   if (!code) return ''
-  return options.find((o) => o.code === code)?.desc ?? String(code)
+  const raw = String(code).trim()
+  const hit = options.find(
+    (o) => o.code === raw || o.code.toLowerCase() === raw.toLowerCase() || o.desc === raw,
+  )
+  return hit?.desc ?? raw
 }
+
+/** 颜色码 → 短中文（红/绿…）；未知则原样 */
+export function colorCodeToLabel(code: string | null | undefined): string {
+  return codeToDesc(CARD_COLOR_OPTIONS, code as CardColor)
+}
+
+/** 多色展示：绿 / 红（按 CARD_COLOR_OPTIONS 顺序，永不拼英文码） */
+export function formatColorLabels(codes: Iterable<string | null | undefined>): string {
+  return collectColorCodes(codes)
+    .map((c) => colorCodeToLabel(c))
+    .filter(Boolean)
+    .join(' / ')
+}
+
+/** 去重并按官方色序排列 */
+export function collectColorCodes(codes: Iterable<string | null | undefined>): CardColor[] {
+  const set = new Set<string>()
+  for (const c of codes) {
+    if (!c) continue
+    const key = String(c).trim().toUpperCase()
+    if (key) set.add(key)
+  }
+  return CARD_COLOR_OPTIONS.map((o) => o.code).filter((code) => set.has(code))
+}
+

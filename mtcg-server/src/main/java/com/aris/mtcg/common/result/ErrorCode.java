@@ -101,6 +101,9 @@ public enum ErrorCode {
     /** 无权操作该卡组 */
     DECK_FORBIDDEN(4002, "无权操作该卡组"),
 
+    /** 该卡组不允许复制 */
+    DECK_NOT_COPYABLE(4005, "该卡组不允许复制"),
+
     /** 收藏记录不存在 */
     COLLECTION_NOT_FOUND(4003, "收藏记录不存在"),
 

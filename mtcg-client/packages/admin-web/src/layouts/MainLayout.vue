@@ -50,16 +50,7 @@ const menuItems = computed<MenuItem[]>(() => {
     { index: '/cards', icon: 'Picture', label: '卡牌管理' },
   ]
   if (userStore.isAdmin()) {
-    items.push({ index: '/cards/features', icon: 'PriceTag', label: '卡牌特征管理' })
-    items.push({
-      index: '/system',
-      icon: 'Setting',
-      label: '系统管理',
-      isSub: true,
-      children: [
-        { index: '/system/users', icon: 'User', label: '用户管理' },
-      ]
-    })
+    items.push({ index: '/users', icon: 'User', label: '用户管理' })
   }
   return items
 })

@@ -78,14 +78,14 @@ async function loadStats() {
 const statCards = computed(() => [
   { key: 'cardCount' as const, label: '卡牌总数', icon: 'Picture', color: '#409EFF', route: '/cards' },
   { key: 'productCount' as const, label: '产品总数', icon: 'Box', color: '#67C23A', route: '/products' },
-  { key: 'userCount' as const, label: '用户总数', icon: 'User', color: '#E6A23C', route: '/system/users' },
+  { key: 'userCount' as const, label: '用户总数', icon: 'User', color: '#E6A23C', route: '/users' },
   { key: 'todayBattleCount' as const, label: '今日对局', icon: 'Promotion', color: '#F56C6C', route: '#' },
 ])
 
 const quickActions = computed(() => [
   { label: '新增卡牌', icon: 'Plus', route: '/cards', color: '#409EFF' },
   { label: '新增产品', icon: 'Plus', route: '/products', color: '#67C23A' },
-  { label: '用户管理', icon: 'User', route: '/system/users', color: '#E6A23C' },
+  { label: '用户管理', icon: 'User', route: '/users', color: '#E6A23C' },
 ])
 
 const systemStatus = computed(() => ({

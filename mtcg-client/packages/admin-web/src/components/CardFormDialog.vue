@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
  * 卡牌新增/编辑弹窗
- * - 创建：提交后按 selectedFeatureIds 逐个 addFeature
- * - 编辑：打开时拉取已关联特征；提交时 diff 增删关联
+ * - 特征为自由文本（斜杠分隔，与官网一致）
  * - 不发送伪造 effectJson
  */
 import { ref, reactive, watch, computed } from 'vue'
@@ -11,7 +10,6 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { adminCardApi } from '@mtcg/common/api'
 import { resolveCardImageUrl } from '@mtcg/common'
 import ImageUploader from './ImageUploader.vue'
-import CardFeatureSelector from './CardFeatureSelector.vue'
 import ProductSelector from './ProductSelector.vue'
 import {
   CARD_TYPE_OPTIONS,
@@ -33,13 +31,8 @@ const emit = defineEmits<{
   success: []
 }>()
 
-// ========== 状态 ==========
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
-const featuresLoading = ref(false)
-const selectedFeatureIds = ref<number[]>([])
-/** 编辑打开时的原始特征 id，用于提交时 diff */
-const initialFeatureIds = ref<number[]>([])
 
 const form = reactive({
   cardCode: '',
@@ -49,6 +42,7 @@ const form = reactive({
   level: null as number | null,
   color: '' as CardColor | '',
   environment: '',
+  traits: '',
   attackRange: null as number | null,
   power: null as number | null,
   rarity: 'C' as CardRarity,
@@ -71,7 +65,6 @@ const dialogVisible = computed({
 
 const title = computed(() => (props.mode === 'create' ? '新增卡牌' : '编辑卡牌'))
 
-// ========== 方法 ==========
 function resetForm() {
   Object.assign(form, {
     cardCode: '',
@@ -81,6 +74,7 @@ function resetForm() {
     level: null,
     color: '',
     environment: '',
+    traits: '',
     attackRange: null,
     power: null,
     rarity: 'C',
@@ -88,8 +82,6 @@ function resetForm() {
     imageFile: null,
     imagePath: null,
   })
-  selectedFeatureIds.value = []
-  initialFeatureIds.value = []
 }
 
 function fillFromCard(row: CardVO) {
@@ -101,6 +93,7 @@ function fillFromCard(row: CardVO) {
     level: row.level ?? null,
     color: (row.color ?? '') as CardColor,
     environment: row.environment ?? '',
+    traits: row.traits ?? '',
     attackRange: row.attackRange ?? null,
     power: row.power ?? null,
     rarity: (row.rarity ?? 'C') as CardRarity,
@@ -108,18 +101,6 @@ function fillFromCard(row: CardVO) {
     imageFile: null,
     imagePath: row.imagePath,
   })
-}
-
-async function loadCardFeatures(cardId: number) {
-  featuresLoading.value = true
-  try {
-    const list = await adminCardApi.listFeatures(cardId)
-    const ids = list.map((f) => f.id)
-    selectedFeatureIds.value = ids
-    initialFeatureIds.value = [...ids]
-  } finally {
-    featuresLoading.value = false
-  }
 }
 
 async function uploadImage(cardId: number, file: File): Promise<string | null> {
@@ -130,21 +111,6 @@ async function uploadImage(cardId: number, file: File): Promise<string | null> {
   } catch {
     ElMessage.error('图片上传失败')
     return null
-  }
-}
-
-async function syncFeatures(cardId: number) {
-  const current = new Set(selectedFeatureIds.value)
-  const initial = new Set(initialFeatureIds.value)
-  for (const id of current) {
-    if (!initial.has(id)) {
-      await adminCardApi.addFeature(cardId, id)
-    }
-  }
-  for (const id of initial) {
-    if (!current.has(id)) {
-      await adminCardApi.removeFeature(cardId, id)
-    }
   }
 }
 
@@ -162,11 +128,11 @@ async function handleSubmit() {
         level: form.level ?? undefined,
         color: form.color || undefined,
         environment: form.environment || undefined,
+        traits: form.traits.trim(),
         attackRange: form.attackRange ?? undefined,
         power: form.power ?? undefined,
         rarity: form.rarity,
         effectText: form.effectText || undefined,
-        // 不发送伪造 effectJson；编辑时由后端保留原值
       }
 
       if (props.mode === 'create') {
@@ -174,16 +140,12 @@ async function handleSubmit() {
         if (form.imageFile) {
           await uploadImage(id, form.imageFile)
         }
-        for (const featureId of selectedFeatureIds.value) {
-          await adminCardApi.addFeature(id, featureId)
-        }
         ElMessage.success('新增成功')
       } else if (props.card?.id != null) {
         await adminCardApi.update(props.card.id, dto, submitting)
         if (form.imageFile) {
           await uploadImage(props.card.id, form.imageFile)
         }
-        await syncFeatures(props.card.id)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
@@ -194,16 +156,14 @@ async function handleSubmit() {
   })
 }
 
-// ========== 生命周期 / 监听 ==========
 watch(
   () => props.visible,
-  async (vis) => {
+  (vis) => {
     if (!vis) return
     if (props.mode === 'create') {
       resetForm()
     } else if (props.card) {
       fillFromCard(props.card)
-      await loadCardFeatures(props.card.id)
     }
   },
 )
@@ -214,7 +174,10 @@ watch(
     v-model="dialogVisible"
     :title="title"
     width="820px"
+    top="6vh"
+    append-to-body
     :close-on-click-modal="false"
+    class="card-form-dialog"
   >
     <el-form
       ref="formRef"
@@ -286,8 +249,13 @@ watch(
           </el-form-item>
         </el-col>
         <el-col :span="16">
-          <el-form-item label="特征" v-loading="featuresLoading">
-            <CardFeatureSelector v-model="selectedFeatureIds" />
+          <el-form-item label="特征">
+            <el-input
+              v-model="form.traits"
+              maxlength="256"
+              show-word-limit
+              placeholder="如：人类/复仇者联盟（斜杠分隔）"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="24">
@@ -345,5 +313,24 @@ watch(
 .image-tip {
   font-size: 12px;
   color: #909399;
+}
+</style>
+
+<style>
+.card-form-dialog.el-dialog {
+  margin-top: 6vh !important;
+  margin-bottom: 0;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+.card-form-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(88vh - 130px);
+  padding-top: 12px;
+  padding-bottom: 8px;
 }
 </style>

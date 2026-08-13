@@ -1,38 +1,39 @@
 <script setup lang="ts">
 /**
  * 图片上传组件（仅本地预览，提交表单时由父组件上传）
- * 
- * 功能：
- * - 支持拖拽/点击选择图片
- * - 本地预览
- * - 支持清除
- * 
- * 使用方式：
- * <ImageUploader v-model="file" />
- * // file 为 File | null
+ *
+ * - 单图：v-model = File | null
+ * - 多图：multiple + @select，每次追加后仍可继续选择
  */
 import { ref, watch } from 'vue'
 import { ElImage, ElButton, ElIcon, ElMessage } from 'element-plus'
 import { Delete, Upload } from '@element-plus/icons-vue'
 
-// Props 定义
-const props = defineProps<{
-  modelValue: File | null  // 选中的文件
-  accept?: string  // 接受的文件类型，默认图片
-  maxSize?: number  // 最大文件大小(MB)，默认 5MB
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue?: File | null
+    /** 多选时不占用 v-model，通过 select 事件回传 */
+    multiple?: boolean
+    accept?: string
+    maxSize?: number
+  }>(),
+  {
+    modelValue: null,
+    multiple: false,
+    accept: 'image/*',
+    maxSize: 5,
+  },
+)
 
-// Emits
 const emit = defineEmits<{
   'update:modelValue': [value: File | null]
+  select: [files: File[]]
 }>()
 
-// ========== 状态 ==========
 const dragOver = ref(false)
 const inputRef = ref<HTMLInputElement>()
 const previewUrl = ref('')
 
-// 监听文件变化，正确释放旧 object URL
 watch(
   () => props.modelValue,
   (newFile) => {
@@ -40,21 +41,17 @@ watch(
       URL.revokeObjectURL(previewUrl.value)
       previewUrl.value = ''
     }
-    if (newFile) {
+    if (newFile && !props.multiple) {
       previewUrl.value = URL.createObjectURL(newFile)
     }
   },
   { immediate: true },
 )
 
-// ========== 方法 ==========
-
-// 点击选择
 function handleClick() {
   inputRef.value?.click()
 }
 
-// 拖拽悬停
 function handleDragOver(e: DragEvent) {
   e.preventDefault()
   dragOver.value = true
@@ -64,49 +61,50 @@ function handleDragLeave() {
   dragOver.value = false
 }
 
-// 放下文件
 function handleDrop(e: DragEvent) {
   e.preventDefault()
   dragOver.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file) {
-    handleFile(file)
+  const list = e.dataTransfer?.files
+  if (list?.length) {
+    handleFiles(Array.from(list))
   }
 }
 
-// 选择文件
 function handleChange(e: Event) {
   const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) {
-    handleFile(file)
+  const list = input.files
+  if (list?.length) {
+    handleFiles(Array.from(list))
   }
-  // 清空 input，允许重复选择同一文件
   input.value = ''
 }
 
-// 处理文件
-function handleFile(file: File) {
-  // 检查文件类型
+function validateFile(file: File): boolean {
   if (!file.type.startsWith('image/')) {
     ElMessage.error('请选择图片文件')
-    return
+    return false
   }
-  // 检查文件大小
-  const maxSize = props.maxSize || 5
-  if (file.size / 1024 / 1024 > maxSize) {
-    ElMessage.error(`图片大小不能超过 ${maxSize}MB`)
-    return
+  if (file.size / 1024 / 1024 > props.maxSize) {
+    ElMessage.error(`图片大小不能超过 ${props.maxSize}MB`)
+    return false
   }
-  emit('update:modelValue', file)
+  return true
 }
 
-// 清除图片
+function handleFiles(files: File[]) {
+  const valid = files.filter(validateFile)
+  if (valid.length === 0) return
+  if (props.multiple) {
+    emit('select', valid)
+    return
+  }
+  emit('update:modelValue', valid[0])
+}
+
 function clearImage() {
   emit('update:modelValue', null)
 }
 
-// 点击上传区域
 function handleAreaClick() {
   handleClick()
 }
@@ -114,8 +112,8 @@ function handleAreaClick() {
 
 <template>
   <div class="image-uploader">
-    <!-- 显示模式：有图片 -->
-    <div v-if="modelValue" class="preview-container">
+    <!-- 单图预览 -->
+    <div v-if="!multiple && modelValue" class="preview-container">
       <el-image
         :src="previewUrl"
         fit="contain"
@@ -130,12 +128,13 @@ function handleAreaClick() {
       </div>
     </div>
 
-    <!-- 上传模式：无图片 -->
-    <div v-else class="upload-container">
+    <!-- 上传区：多图始终显示；单图在无文件时显示 -->
+    <div v-if="multiple || !modelValue" class="upload-container">
       <input
         ref="inputRef"
         type="file"
-        :accept="accept || 'image/*'"
+        :accept="accept"
+        :multiple="multiple"
         class="upload-input"
         @change="handleChange"
       />
@@ -148,8 +147,10 @@ function handleAreaClick() {
         @drop="handleDrop"
       >
         <el-icon class="upload-icon"><Upload /></el-icon>
-        <div class="upload-text">点击或拖拽图片到此处上传</div>
-        <div class="upload-hint">支持 JPG、PNG、GIF、WebP，最大 {{ maxSize || 5 }}MB</div>
+        <div class="upload-text">
+          {{ multiple ? '点击或拖拽，可一次选择多张图片' : '点击或拖拽图片到此处上传' }}
+        </div>
+        <div class="upload-hint">支持 JPG、PNG、GIF、WebP，最大 {{ maxSize }}MB</div>
       </div>
     </div>
   </div>

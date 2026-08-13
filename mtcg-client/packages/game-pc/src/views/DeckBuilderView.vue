@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NEmpty, NInput, NPagination, NSelect, NSpin, NTag } from 'naive-ui'
+import { NButton, NEmpty, NInput, NPagination, NSelect, NSpin, NSwitch, NTag } from 'naive-ui'
 import {
   CARD_ATTACK_RANGE_FILTER_OPTIONS,
   CARD_COLOR_OPTIONS,
@@ -10,7 +10,10 @@ import {
   CARD_TRAIT_FILTER_OPTIONS,
   CARD_TYPE_OPTIONS,
   cardApi,
+  collectColorCodes,
   deckApi,
+  formatColorLabels,
+  isDeckReady,
   productApi,
   resolveCardImageUrl,
 } from '@mtcg/common'
@@ -20,11 +23,11 @@ import type {
   CardType,
   CardVO,
   DeckCardEntry,
-  DeckValidateResultVO,
   ProductVO,
 } from '@mtcg/common'
 import { useThemeStore } from '@mtcg/common/stores'
 import { confirm, toast } from '@/feedback'
+import CardDetailDialog from '@/components/CardDetailDialog.vue'
 
 useThemeStore()
 
@@ -44,24 +47,27 @@ const deckId = computed(() => {
   if (route.path.endsWith('/new') || route.params.id === 'new') {
     return null
   }
-  const id = Number(route.params.id)
-  return Number.isFinite(id) && id > 0 ? id : null
+  const raw = route.params.id
+  const id = typeof raw === 'string' ? raw.trim() : Array.isArray(raw) ? raw[0]?.trim() : ''
+  return id || null
 })
 
 const isNew = computed(() => deckId.value === null)
 
 const deckName = ref('新卡组')
 const tags = ref('')
+const isPublic = ref(false)
+const isCopyable = ref(false)
 /** 封面卡编号（保存时提交；空则后端回退主卡组首张） */
 const coverCardCode = ref('')
 const coverPickerOpen = ref(false)
 const pendingCover = ref('')
 const mainDeck = ref<DeckCardEntry[]>([])
 const rushDeck = ref<DeckCardEntry[]>([])
+const fillingRush = ref(false)
 const serverValid = ref<boolean | null>(null)
-const validateResult = ref<DeckValidateResultVO | null>(null)
-/** 点选加入失败时的即时提示 */
-const addHint = ref('')
+const detailOpen = ref(false)
+const detailCard = ref<CardVO | null>(null)
 
 /** cardCode → 展示元数据 */
 const cardMeta = reactive<Record<string, CardVO>>({})
@@ -109,6 +115,19 @@ const mainCount = computed(() =>
 const rushCount = computed(() =>
   rushDeck.value.reduce((s, e) => s + (e.quantity || 0), 0),
 )
+
+/** 主卡组列表本地搜索（按名称 / 编号） */
+const mainDeckQuery = ref('')
+const filteredMainDeck = computed(() => {
+  const q = mainDeckQuery.value.trim().toLowerCase()
+  const rows = mainDeck.value.map((entry, index) => ({ entry, index }))
+  if (!q) return rows
+  return rows.filter(({ entry }) => {
+    const name = (cardMeta[entry.cardCode]?.cardName ?? '').toLowerCase()
+    const code = entry.cardCode.toLowerCase()
+    return name.includes(q) || code.includes(q)
+  })
+})
 const mainColorCount = computed(() => {
   const set = new Set<string>()
   for (const e of mainDeck.value) {
@@ -117,6 +136,10 @@ const mainColorCount = computed(() => {
   }
   return set.size
 })
+
+const mainColorLabel = computed(() =>
+  formatColorLabels(collectColorCodes(mainDeck.value.map((e) => cardMeta[e.cardCode]?.color))),
+)
 
 const inDeckCount = computed(() => {
   const map: Record<string, number> = {}
@@ -175,6 +198,8 @@ async function loadProducts(): Promise<void> {
 async function loadDeckIfNeeded(): Promise<void> {
   if (isNew.value) {
     coverCardCode.value = ''
+    isPublic.value = false
+    isCopyable.value = false
     dirty.value = false
     return
   }
@@ -182,6 +207,8 @@ async function loadDeckIfNeeded(): Promise<void> {
   const vo = await deckApi.get(id, loading)
   deckName.value = vo.deckName
   tags.value = vo.tags ?? ''
+  isPublic.value = vo.isPublic === true
+  isCopyable.value = vo.isCopyable === true
   coverCardCode.value = vo.coverCardCode ?? ''
   mainDeck.value = (vo.mainDeck ?? []).map((e) => ({
     cardCode: e.cardCode,
@@ -191,7 +218,7 @@ async function loadDeckIfNeeded(): Promise<void> {
     cardCode: e.cardCode,
     quantity: e.quantity,
   }))
-  serverValid.value = vo.isValid
+  serverValid.value = isDeckReady(vo)
   dirty.value = false
   await warmMetaForDeck()
 }
@@ -295,14 +322,13 @@ function onImgError(e: Event): void {
 function markDirty(): void {
   dirty.value = true
   serverValid.value = null
-  validateResult.value = null
 }
 
 function addCard(card: CardVO): void {
   rememberCard(card)
   const reason = reasonCannotAdd(card)
   if (reason) {
-    addHint.value = reason
+    toast.warning(reason)
     return
   }
   if (card.cardType === 'RUSH_POINT') {
@@ -310,8 +336,26 @@ function addCard(card: CardVO): void {
   } else {
     bumpEntry(mainDeck, card.cardCode, 1)
   }
-  addHint.value = ''
   markDirty()
+}
+
+function openCardDetail(card: CardVO): void {
+  rememberCard(card)
+  detailCard.value = card
+  detailOpen.value = true
+}
+
+function openEntryDetail(cardCode: string): void {
+  const card = cardMeta[cardCode]
+  if (!card) {
+    toast.info('卡牌信息尚未加载')
+    return
+  }
+  openCardDetail(card)
+}
+
+function closeCardDetail(): void {
+  detailOpen.value = false
 }
 
 function nameQtyInMain(cardName: string): number {
@@ -372,13 +416,12 @@ function changeQty(zone: 'main' | 'rush', index: number, delta: number): void {
     if (card) {
       const reason = reasonCannotAdd(card)
       if (reason) {
-        addHint.value = reason
+        toast.warning(reason)
         return
       }
     }
   }
   bumpEntry(list, entry.cardCode, delta)
-  addHint.value = ''
   markDirty()
 }
 
@@ -390,8 +433,77 @@ function removeEntry(zone: 'main' | 'rush', index: number): void {
   if (coverCardCode.value === entry.cardCode) {
     coverCardCode.value = ''
   }
-  addHint.value = ''
   markDirty()
+}
+
+/** 选取默认冲击卡（优先同色 SD，否则普通 C） */
+async function pickDefaultRushCard(): Promise<CardVO | null> {
+  const page = await cardApi.list({
+    cardType: 'RUSH_POINT',
+    rarity: 'C',
+    pageNum: 1,
+    pageSize: 100,
+  })
+  const cards = page.records ?? []
+  if (cards.length === 0) return null
+  for (const c of cards) rememberCard(c)
+
+  const mainColors = new Set<string>()
+  for (const e of mainDeck.value) {
+    const color = cardMeta[e.cardCode]?.color
+    if (color) mainColors.add(color)
+  }
+
+  const plain = cards.filter((c) => c.cardName === '冲击卡')
+  const pool = plain.length > 0 ? plain : cards
+
+  return (
+    pool.find(
+      (c) =>
+        c.productCode?.startsWith('SD') &&
+        c.color != null &&
+        mainColors.has(c.color),
+    ) ??
+    pool.find((c) => c.productCode?.startsWith('SD')) ??
+    pool[0] ??
+    null
+  )
+}
+
+/** 写入默认冲击卡组；silent 时不弹成功 toast（保存自动补齐用） */
+async function applyDefaultRushDeck(silent = false): Promise<boolean> {
+  const pick = await pickDefaultRushCard()
+  if (!pick) {
+    toast.warning('没有可用的冲击卡')
+    return false
+  }
+  rushDeck.value = [{ cardCode: pick.cardCode, quantity: RUSH_TARGET }]
+  if (!silent) {
+    markDirty()
+    toast.success(`已填入 9 张「${pick.cardName}」（${pick.cardCode}）`)
+  }
+  return true
+}
+
+/** 官方基础包习惯：9 张同款普通冲击卡；优先匹配主卡组颜色的 SD 冲击卡 */
+async function fillDefaultRushDeck(): Promise<void> {
+  if (fillingRush.value) return
+  if (rushDeck.value.length > 0) {
+    const ok = await confirm({
+      title: '填入默认冲击卡组',
+      content: '将覆盖当前冲击卡组，填入 9 张普通冲击卡。是否继续？',
+      positiveText: '覆盖填入',
+    })
+    if (!ok) return
+  }
+  fillingRush.value = true
+  try {
+    await applyDefaultRushDeck(false)
+  } catch {
+    toast.error('填入冲击卡组失败')
+  } finally {
+    fillingRush.value = false
+  }
 }
 
 function onEntryDragStart(zone: 'main' | 'rush', index: number, e: DragEvent): void {
@@ -457,7 +569,52 @@ async function confirmCoverAndSave(): Promise<void> {
   await persistDeck()
 }
 
+/** 保存前构筑规则检查（与后端校验对齐） */
+function collectSaveErrors(): string[] {
+  const errors: string[] = []
+  if (mainCount.value !== MAIN_TARGET) {
+    errors.push(`主卡组必须为 ${MAIN_TARGET} 张，当前 ${mainCount.value} 张`)
+  }
+  if (rushCount.value !== RUSH_TARGET) {
+    errors.push(`冲击卡组必须为 ${RUSH_TARGET} 张，当前 ${rushCount.value} 张`)
+  }
+  if (mainColorCount.value > COLOR_MAX) {
+    errors.push(`主卡组颜色最多 ${COLOR_MAX} 种，当前 ${mainColorCount.value} 种`)
+  }
+  const nameQty = new Map<string, number>()
+  for (const e of mainDeck.value) {
+    const name = cardMeta[e.cardCode]?.cardName
+    if (!name) continue
+    nameQty.set(name, (nameQty.get(name) ?? 0) + (e.quantity || 0))
+  }
+  for (const [name, qty] of nameQty) {
+    if (qty > SAME_NAME_MAX) {
+      errors.push(`同名卡「${name}」超过 ${SAME_NAME_MAX} 张`)
+    }
+  }
+  return errors
+}
+
 async function persistDeck(): Promise<void> {
+  // 未配冲击卡组时自动补默认 9 张，避免多数用户卡在这一步
+  if (rushCount.value === 0) {
+    try {
+      const ok = await applyDefaultRushDeck(true)
+      if (!ok) return
+      toast.info('冲击卡组为空，已自动填入默认 9 张')
+    } catch {
+      toast.error('自动填入冲击卡组失败')
+      return
+    }
+  }
+
+  const errors = collectSaveErrors()
+  if (errors.length > 0) {
+    toast.warning(errors.join('；'))
+    serverValid.value = false
+    return
+  }
+
   const payload = {
     deckName: deckName.value.trim(),
     mainDeck: mainDeck.value.map((e) => ({
@@ -470,38 +627,22 @@ async function persistDeck(): Promise<void> {
     })),
     tags: tags.value.trim(),
     coverCardCode: coverCardCode.value.trim(),
+    isPublic: isPublic.value,
+    isCopyable: isCopyable.value,
   }
   try {
     if (isNew.value) {
-      const id = await deckApi.create(payload, saving)
+      const code = await deckApi.create(payload, saving)
       dirty.value = false
+      serverValid.value = true
       toast.success('卡组已创建')
-      await router.replace(`/decks/${id}`)
+      await router.replace(`/decks/${code}/edit`)
     } else {
       await deckApi.update(deckId.value!, payload, saving)
       dirty.value = false
       const vo = await deckApi.get(deckId.value!)
-      serverValid.value = vo.isValid
+      serverValid.value = isDeckReady(vo)
       toast.success('卡组已保存')
-    }
-  } catch {
-    // HTTP 错误由全局 notifier 提示
-  }
-}
-
-async function handleValidate(): Promise<void> {
-  if (isNew.value || dirty.value) {
-    toast.warning('请先保存卡组再校验')
-    return
-  }
-  try {
-    const result = await deckApi.validate(deckId.value!, saving)
-    validateResult.value = result
-    serverValid.value = result.valid
-    if (result.valid) {
-      toast.success('校验通过')
-    } else {
-      toast.warning(result.errors.join('；') || '校验未通过')
     }
   } catch {
     // HTTP 错误由全局 notifier 提示
@@ -516,6 +657,11 @@ async function handleBack(): Promise<void> {
       positiveText: '返回',
     })
     if (!ok) return
+  }
+  // 按进入路径返回：列表→编辑→列表；预览→编辑→预览；无历史则回列表
+  if (router.options.history.state.back != null) {
+    router.back()
+    return
   }
   await router.push('/decks')
 }
@@ -545,7 +691,8 @@ function onPoolPageChange(page: number): void {
         冲击 {{ rushCount }}/{{ RUSH_TARGET }}
       </span>
       <span class="stat" :class="{ over: mainColorCount > COLOR_MAX }">
-        {{ mainColorCount }}/{{ COLOR_MAX }} 色
+        {{ mainColorLabel || '无色' }}
+        <span class="muted">· {{ mainColorCount }}/{{ COLOR_MAX }}</span>
       </span>
       <n-tag
         v-if="serverValid !== null"
@@ -553,23 +700,25 @@ function onPoolPageChange(page: number): void {
         :type="serverValid ? 'success' : 'default'"
         :bordered="false"
       >
-        {{ serverValid ? '合法' : '未合法' }}
+        {{ serverValid ? '可用' : '草稿' }}
       </n-tag>
       <n-tag v-if="dirty" size="small" type="info" :bordered="false">未保存</n-tag>
+      <div class="flags">
+        <label class="flag">
+          <n-switch v-model:value="isPublic" size="small" @update:value="markDirty" />
+          <span>公开</span>
+        </label>
+        <label class="flag">
+          <n-switch v-model:value="isCopyable" size="small" @update:value="markDirty" />
+          <span>可复制</span>
+        </label>
+      </div>
       <div class="actions">
-        <n-button :disabled="saving" @click="handleValidate">校验</n-button>
         <n-button type="primary" :disabled="saving || loading" :loading="saving" @click="handleSave">
           保存
         </n-button>
       </div>
     </header>
-
-    <div v-if="addHint" class="errors">
-      <p>{{ addHint }}</p>
-    </div>
-    <div v-if="validateResult && !validateResult.valid" class="errors">
-      <p v-for="(err, i) in validateResult.errors" :key="i">{{ err }}</p>
-    </div>
 
     <!-- 主体：左卡表 · 右竖卡池 -->
     <div class="workspace">
@@ -579,15 +728,24 @@ function onPoolPageChange(page: number): void {
             <h2>主卡组</h2>
             <span :class="{ warn: mainCount !== MAIN_TARGET }">{{ mainCount }}/{{ MAIN_TARGET }}</span>
           </div>
+          <n-input
+            v-if="mainDeck.length > 0"
+            v-model:value="mainDeckQuery"
+            class="deck-search"
+            size="small"
+            clearable
+            placeholder="搜索主卡组（名称/编号）"
+          />
           <div class="entry-list" @dragover="onEntryDragOver">
             <div
-              v-for="(entry, index) in mainDeck"
+              v-for="{ entry, index } in filteredMainDeck"
               :key="entry.cardCode + '-m-' + index"
               class="entry"
               draggable="true"
               @dragstart="onEntryDragStart('main', index, $event)"
               @drop="onEntryDrop('main', index, $event)"
               @dragend="onEntryDragEnd"
+              @click="openEntryDetail(entry.cardCode)"
             >
               <img
                 v-if="cardImage(entry.cardCode)"
@@ -610,14 +768,31 @@ function onPoolPageChange(page: number): void {
                 </n-button>
               </div>
             </div>
-            <p v-if="mainDeck.length === 0" class="hint">从右侧卡池点选角色卡</p>
+            <p v-if="mainDeck.length === 0" class="hint">点右侧卡面加入，眼睛按钮看详情</p>
+            <p
+              v-else-if="filteredMainDeck.length === 0"
+              class="hint"
+            >
+              没有匹配「{{ mainDeckQuery.trim() }}」的卡牌
+            </p>
           </div>
         </section>
 
         <section class="zone rush">
           <div class="zone-head">
             <h2>冲击卡组</h2>
-            <span :class="{ warn: rushCount !== RUSH_TARGET }">{{ rushCount }}/{{ RUSH_TARGET }}</span>
+            <div class="zone-actions">
+              <n-button
+                size="tiny"
+                secondary
+                :loading="fillingRush"
+                :disabled="fillingRush"
+                @click="fillDefaultRushDeck"
+              >
+                一键填入
+              </n-button>
+              <span :class="{ warn: rushCount !== RUSH_TARGET }">{{ rushCount }}/{{ RUSH_TARGET }}</span>
+            </div>
           </div>
           <div class="entry-list" @dragover="onEntryDragOver">
             <div
@@ -628,6 +803,7 @@ function onPoolPageChange(page: number): void {
               @dragstart="onEntryDragStart('rush', index, $event)"
               @drop="onEntryDrop('rush', index, $event)"
               @dragend="onEntryDragEnd"
+              @click="openEntryDetail(entry.cardCode)"
             >
               <img
                 v-if="cardImage(entry.cardCode)"
@@ -650,7 +826,9 @@ function onPoolPageChange(page: number): void {
                 </n-button>
               </div>
             </div>
-            <p v-if="rushDeck.length === 0" class="hint">从右侧卡池点选冲击卡</p>
+            <p v-if="rushDeck.length === 0" class="hint">
+              多数构筑可直接「一键填入」9 张普通冲击卡
+            </p>
           </div>
         </section>
       </aside>
@@ -815,15 +993,18 @@ function onPoolPageChange(page: number): void {
           <n-empty description="没有匹配卡牌" size="small" />
         </div>
         <div v-else class="pool-grid">
-          <button
+          <div
             v-for="card in pool"
             :key="card.id"
-            type="button"
             class="pool-card"
             :class="{ owned: (inDeckCount[card.cardCode] ?? 0) > 0 }"
+            role="button"
+            tabindex="0"
             :title="card.cardName"
             @click="addCard(card)"
+            @keydown.enter.prevent="addCard(card)"
           >
+            <span v-if="card.rarity" class="rarity">{{ card.rarity }}</span>
             <div class="art">
               <img
                 v-if="cardImage(card)"
@@ -833,12 +1014,19 @@ function onPoolPageChange(page: number): void {
                 @error="onImgError"
               />
               <div v-else class="art-ph">{{ card.cardType === 'RUSH_POINT' ? '冲击' : '角色' }}</div>
-              <span v-if="card.rarity" class="rarity">{{ card.rarity }}</span>
               <span v-if="(inDeckCount[card.cardCode] ?? 0) > 0" class="in-deck">
                 ×{{ inDeckCount[card.cardCode] }}
               </span>
+              <button
+                type="button"
+                class="act-eye"
+                title="查看详情"
+                @click.stop="openCardDetail(card)"
+              >
+                👁
+              </button>
             </div>
-          </button>
+          </div>
         </div>
 
         <div v-if="poolTotal > 0" class="pager">
@@ -854,6 +1042,13 @@ function onPoolPageChange(page: number): void {
         </div>
       </section>
     </div>
+
+    <CardDetailDialog
+      :open="detailOpen"
+      :card="detailCard"
+      @update:open="detailOpen = $event"
+      @close="closeCardDetail"
+    />
 
     <div v-if="coverPickerOpen" class="cover-mask" @click.self="cancelCoverPicker">
       <div class="cover-panel" role="dialog" aria-labelledby="cover-title">
@@ -931,6 +1126,7 @@ function onPoolPageChange(page: number): void {
 .stat.ok { color: var(--accent); }
 .stat.over { color: var(--accent-red); }
 .stat.rush.ok { color: var(--accent-gold); }
+.stat .muted { opacity: 0.65; font-weight: 500; }
 
 .actions {
   display: flex;
@@ -939,15 +1135,27 @@ function onPoolPageChange(page: number): void {
   flex-shrink: 0;
 }
 
-.errors {
-  margin: 8px 16px 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(229, 57, 53, 0.1);
-  color: var(--accent-red);
-  font-size: 13px;
+.flags {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
-.errors p { margin: 0 0 2px; }
+
+.flags + .actions {
+  margin-left: 0;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
 
 .workspace {
   flex: 1;
@@ -1014,7 +1222,18 @@ function onPoolPageChange(page: number): void {
 }
 .zone-head .warn { color: var(--accent); }
 
+.zone-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .zone.rush .zone-head h2 { color: var(--accent-gold); }
+
+.deck-search {
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
 
 .entry-list {
   display: flex;
@@ -1204,13 +1423,14 @@ function onPoolPageChange(page: number): void {
   grid-template-columns: repeat(auto-fill, var(--card-face-w));
   grid-auto-rows: max-content;
   gap: 12px 10px;
-  padding: 2px 2px 16px;
+  padding: 8px 2px 16px;
   align-content: start;
   align-items: start;
   justify-content: start;
 }
 
 .pool-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: var(--card-face-w);
@@ -1222,10 +1442,8 @@ function onPoolPageChange(page: number): void {
   border-radius: 10px;
   background: var(--bg-surface);
   color: inherit;
+  overflow: visible;
   cursor: pointer;
-  overflow: hidden;
-  text-align: left;
-  appearance: none;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -1245,6 +1463,7 @@ function onPoolPageChange(page: number): void {
   height: var(--card-face-h);
   flex: none;
   overflow: hidden;
+  border-radius: 10px;
   background: var(--bg-surface-2);
 }
 
@@ -1267,21 +1486,61 @@ function onPoolPageChange(page: number): void {
   color: var(--text-secondary);
 }
 
+.act-eye {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a1a1a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.pool-card:hover .act-eye,
+.pool-card:focus-within .act-eye {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.act-eye:hover {
+  background: #fff;
+  transform: scale(1.08);
+}
+
 .rarity {
   position: absolute;
-  left: 5px;
-  top: 5px;
-  padding: 1px 5px;
-  border-radius: 999px;
+  left: 26px;
+  top: -6px;
+  z-index: 2;
+  padding: 2px 6px;
+  border-radius: 2px;
   font-size: 10px;
-  background: rgba(0, 0, 0, 0.55);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  background: var(--accent-red);
   color: #fff;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .in-deck {
   position: absolute;
   right: 5px;
   top: 5px;
+  z-index: 2;
   padding: 1px 6px;
   border-radius: 999px;
   font-size: 11px;

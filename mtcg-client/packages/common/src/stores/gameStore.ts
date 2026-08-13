@@ -20,7 +20,8 @@ const POLL_INTERVAL_MS = 1800
 
 export const useGameStore = defineStore('game', () => {
   // ========== 状态 ==========
-  const gameId = ref<number | null>(null)
+  /** 对外对局编码（G-…） */
+  const gameId = ref<string | null>(null)
   const gameState = ref<GameStateVO | null>(null)
   const localPlayerId = ref<string>('')
   const loading = ref(false)
@@ -128,15 +129,15 @@ export const useGameStore = defineStore('game', () => {
     localPlayerId.value = id
   }
 
-  /** 创建对局并加载局面，返回 gameId */
-  async function createGame(dto: GameCreateDTO): Promise<number> {
+  /** 创建对局并加载局面，返回 gameCode */
+  async function createGame(dto: GameCreateDTO): Promise<string> {
     syncLocalPlayerId()
     loading.value = true
     error.value = null
     try {
-      const id = await gameApi.create(dto)
-      await loadGame(id)
-      return id
+      const code = await gameApi.create(dto)
+      await loadGame(code)
+      return code
     } catch (e) {
       error.value = '创建对局失败'
       throw e
@@ -145,18 +146,18 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  /** 加载对局状态 */
-  async function loadGame(id: number | string): Promise<GameStateVO> {
+  /** 加载对局状态（id 可为数字主键或 G- 编码） */
+  async function loadGame(idOrCode: number | string): Promise<GameStateVO> {
     syncLocalPlayerId()
-    const numericId = typeof id === 'string' ? Number(id) : id
-    if (!Number.isFinite(numericId) || numericId <= 0) {
-      throw new Error('无效的对局 ID')
+    const key = String(idOrCode).trim()
+    if (!key) {
+      throw new Error('无效的对局编码')
     }
     loading.value = true
     error.value = null
     try {
-      const vo = await gameApi.getState(numericId)
-      gameId.value = numericId
+      const vo = await gameApi.getState(key)
+      gameId.value = vo.gameId || key
       gameState.value = vo
       syncPolling()
       return vo

@@ -6,7 +6,6 @@ export * from './card' // API 类型（CardVO + DTO）
 export * from './card-ui' // 前端 UI 类型（下拉选项 + 工具函数）
 export * from './product'
 export * from './product-ui'
-export * from './card-feature'
 export * from './dashboard'
 export * from './deck'
 export * from './game'

@@ -34,7 +34,7 @@ public class CardQueryDTO {
     /** 攻击距离（精确匹配） */
     private Short attackRange;
 
-    /** 特征关键词（模糊匹配 traits 字段，如「复仇者联盟」） */
+    /** 特征关键词（模糊匹配 traits 斜杠分隔中文标签，如「复仇者联盟」） */
     private String trait;
 
     /** 当前页码，默认 1 */

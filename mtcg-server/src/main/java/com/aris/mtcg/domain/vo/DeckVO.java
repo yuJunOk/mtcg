@@ -1,5 +1,6 @@
 package com.aris.mtcg.domain.vo;
 
+import com.aris.mtcg.common.enums.EnumDeckStatus;
 import com.aris.mtcg.domain.dto.DeckCardEntry;
 import com.aris.mtcg.domain.dto.DeckCreateDTO;
 import com.aris.mtcg.domain.entity.DeckDO;
@@ -10,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * 卡组展示对象
@@ -26,6 +28,9 @@ public class DeckVO {
 
     private Long userId;
 
+    /** 对外业务编码（D-xxxxxxxx） */
+    private String deckCode;
+
     private String deckName;
 
     /** 主卡组有序条目（位置=卡组内排序） */
@@ -35,6 +40,17 @@ public class DeckVO {
     private List<DeckCardEntry> rushDeck;
 
     private Boolean isValid;
+
+    /**
+     * 卡组状态 code：READY=可用 / DRAFT=草稿（由 isValid 自动派生）
+     */
+    private String status;
+
+    /** 是否公开可见 */
+    private Boolean isPublic;
+
+    /** 是否允许他人复制 */
+    private Boolean isCopyable;
 
     /** 用户自定义排序（卡组列表） */
     private Integer sortOrder;
@@ -47,6 +63,11 @@ public class DeckVO {
 
     /** 封面卡图路径（由封面卡或第一张卡派生） */
     private String coverImagePath;
+
+    /**
+     * 主卡组涉及的颜色 code（如 RED、GREEN），按枚举序；展示层转中文短名。
+     */
+    private List<String> colors;
 
     /** 主卡组总张数 = sum(quantity) */
     private Integer mainDeckSize;
@@ -66,10 +87,14 @@ public class DeckVO {
         DeckVO vo = new DeckVO();
         vo.setId(deck.getId());
         vo.setUserId(deck.getUserId());
+        vo.setDeckCode(deck.getDeckCode());
         vo.setDeckName(deck.getDeckName());
         vo.setMainDeck(parseEntries(deck.getMainDeckCodes()));
         vo.setRushDeck(parseEntries(deck.getRushDeckCodes()));
         vo.setIsValid(deck.getIsValid());
+        vo.setStatus(resolveStatus(deck));
+        vo.setIsPublic(deck.getIsPublic());
+        vo.setIsCopyable(deck.getIsCopyable());
         vo.setSortOrder(deck.getSortOrder());
         vo.setTags(deck.getTags());
         vo.setCoverCardCode(deck.getCoverCardCode());
@@ -78,6 +103,13 @@ public class DeckVO {
         vo.setCreateTime(deck.getCreateTime() != null ? deck.getCreateTime().format(FMT) : null);
         vo.setUpdateTime(deck.getUpdateTime() != null ? deck.getUpdateTime().format(FMT) : null);
         return vo;
+    }
+
+    private static String resolveStatus(DeckDO deck) {
+        if (StringUtils.isNotBlank(deck.getStatus()) && EnumDeckStatus.of(deck.getStatus()) != null) {
+            return deck.getStatus();
+        }
+        return EnumDeckStatus.fromValid(Boolean.TRUE.equals(deck.getIsValid())).getCode();
     }
 
     /** 从 DTO 转换为本类 */

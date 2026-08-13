@@ -34,4 +34,10 @@ public class DeckCreateDTO {
     /** 封面卡编号（须在主卡组或冲击卡组内） */
     @Size(max = 32, message = "封面卡编号长度不能超过 32")
     private String coverCardCode;
+
+    /** 可选，是否公开；空则默认 false */
+    private Boolean isPublic;
+
+    /** 可选，是否允许复制；空则默认 false */
+    private Boolean isCopyable;
 }

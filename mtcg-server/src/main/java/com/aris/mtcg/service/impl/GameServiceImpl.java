@@ -4,6 +4,8 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.aris.mtcg.common.exception.BusinessException;
 import com.aris.mtcg.common.result.ErrorCode;
+import com.aris.mtcg.common.util.PublicCodeUtils;
+import com.aris.mtcg.common.util.TraitUtils;
 import com.aris.mtcg.dao.CardMapper;
 import com.aris.mtcg.dao.DeckMapper;
 import com.aris.mtcg.dao.GameMapper;
@@ -89,6 +91,7 @@ public class GameServiceImpl implements GameService {
     private static final int DEFAULT_HISTORY_PAGE = 1;
     private static final int DEFAULT_HISTORY_SIZE = 20;
     private static final int MAX_HISTORY_SIZE = 100;
+    private static final int CODE_ALLOC_MAX_RETRY = 16;
 
     @Resource private GameMapper gameMapper;
     @Resource private DeckMapper deckMapper;
@@ -99,7 +102,7 @@ public class GameServiceImpl implements GameService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createGame(Long userId, GameCreateDTO dto) {
+    public String createGame(Long userId, GameCreateDTO dto) {
         if (MODE_AI.equals(dto.getGameMode())) {
             throw new BusinessException(ErrorCode.AI_NOT_AVAILABLE);
         }
@@ -116,6 +119,7 @@ public class GameServiceImpl implements GameService {
         DeckDO deck2 = requireValidDeck(dto.getDeck2Id(), dto.getPlayer2Id());
 
         GameDO record = new GameDO();
+        record.setGameCode(allocateUniqueGameCode());
         record.setPlayer1Id(userId);
         record.setPlayer2Id(dto.getPlayer2Id());
         record.setDeck1Id(dto.getDeck1Id());
@@ -132,13 +136,13 @@ public class GameServiceImpl implements GameService {
                 dto.getFirstPlayer(),
                 dto.getMulligan1Indices(),
                 dto.getMulligan2Indices());
-        return record.getId();
+        return record.getGameCode();
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long joinGame(Long userId, Long gameId, GameJoinDTO dto) {
-        GameDO record = requireGame(gameId);
+    public String joinGame(Long userId, String idOrCode, GameJoinDTO dto) {
+        GameDO record = requireGame(idOrCode);
         if (!STATUS_WAITING.equals(record.getStatus()) || record.getPlayer2Id() != null) {
             throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE);
         }
@@ -151,7 +155,7 @@ public class GameServiceImpl implements GameService {
         record.setDeck2Id(dto.getDeckId());
         record.setStatus(STATUS_IN_PROGRESS);
         startDuel(record, deck1, deck2, null, null, null);
-        return record.getId();
+        return record.getGameCode();
     }
 
     @Override
@@ -162,48 +166,52 @@ public class GameServiceImpl implements GameService {
         if (open == null) {
             return GameMatchVO.miss();
         }
-        Long gameId = joinGame(userId, open.getId(), dto);
-        return GameMatchVO.hit(gameId);
+        String key =
+                StringUtils.isNotBlank(open.getGameCode())
+                        ? open.getGameCode()
+                        : String.valueOf(open.getId());
+        return GameMatchVO.hit(joinGame(userId, key, dto));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void cancelWaiting(Long userId, Long gameId) {
-        GameDO record = requireGame(gameId);
+    public void cancelWaiting(Long userId, String idOrCode) {
+        GameDO record = requireGame(idOrCode);
         if (!STATUS_WAITING.equals(record.getStatus())) {
             throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE, "只能取消等待中的房间");
         }
         if (!Objects.equals(userId, record.getPlayer1Id())) {
             throw new BusinessException(ErrorCode.NOT_GAME_PARTICIPANT);
         }
-        gameMapper.deleteById(gameId);
+        gameMapper.deleteById(record.getId());
     }
 
     @Override
-    public GameStateVO getGameState(Long userId, Long gameId) {
-        GameContext cached = gameManager.get(String.valueOf(gameId));
-        if (cached != null) {
-            assertParticipant(userId, cached.getRecord());
-            return toGameStateVO(cached, userId);
-        }
-        GameDO record = requireGame(gameId);
+    public GameStateVO getGameState(Long userId, String idOrCode) {
+        GameDO record = requireGame(idOrCode);
         assertParticipant(userId, record);
         if (STATUS_WAITING.equals(record.getStatus())) {
             return toWaitingStateVO(record);
         }
-        GameContext context = getOrLoadContext(gameId);
+        String gameCode = record.getGameCode();
+        GameContext cached = gameManager.get(gameCode);
+        if (cached != null) {
+            return toGameStateVO(cached, userId);
+        }
+        GameContext context = getOrLoadContext(record);
         return toGameStateVO(context, userId);
     }
 
-    private Long createWaitingRoom(Long userId, DeckDO deck1, String gameMode) {
+    private String createWaitingRoom(Long userId, DeckDO deck1, String gameMode) {
         GameDO record = new GameDO();
+        record.setGameCode(allocateUniqueGameCode());
         record.setPlayer1Id(userId);
         record.setDeck1Id(deck1.getId());
         record.setGameMode(gameMode);
         record.setStatus(STATUS_WAITING);
         record.setActionLog("[]");
         gameMapper.insert(record);
-        return record.getId();
+        return record.getGameCode();
     }
 
     private void startDuel(
@@ -219,8 +227,7 @@ public class GameServiceImpl implements GameService {
         List<CardSnapshot> p2Main = expandDeck(deck2.getMainDeckCodes(), snapshotMap);
         List<CardSnapshot> p2Rush = expandDeck(deck2.getRushDeckCodes(), snapshotMap);
 
-        Long gameId = record.getId();
-        String gameIdStr = String.valueOf(gameId);
+        String gameCode = record.getGameCode();
         String player1Id = String.valueOf(record.getPlayer1Id());
         String player2Id = String.valueOf(record.getPlayer2Id());
 
@@ -235,7 +242,7 @@ public class GameServiceImpl implements GameService {
         GameInitializer initializer = new GameInitializer();
         GameState state =
                 initializer.initialize(
-                        gameIdStr, firstId, secondId, firstMain, firstRush, secondMain, secondRush);
+                        gameCode, firstId, secondId, firstMain, firstRush, secondMain, secondRush);
 
         List<Integer> firstMulligan = player1First ? mulligan1 : mulligan2;
         List<Integer> secondMulligan = player1First ? mulligan2 : mulligan1;
@@ -253,13 +260,13 @@ public class GameServiceImpl implements GameService {
         record.setTurnSnapshot(gameStateSerializer.serializeSnapshot(state, 0L));
         gameMapper.update(record);
 
-        GameContext context = new GameContext(gameIdStr, engine, record);
-        gameManager.put(gameIdStr, context);
+        GameContext context = new GameContext(gameCode, engine, record);
+        gameManager.put(gameCode, context);
     }
 
     private GameStateVO toWaitingStateVO(GameDO record) {
         GameStateVO vo = new GameStateVO();
-        vo.setGameId(String.valueOf(record.getId()));
+        vo.setGameId(record.getGameCode());
         vo.setStatus(STATUS_WAITING);
         vo.setTurnCount(0);
         PlayerStateVO p1 = new PlayerStateVO();
@@ -272,8 +279,8 @@ public class GameServiceImpl implements GameService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ActionResultVO executeAction(Long userId, Long gameId, ActionRequestDTO dto) {
-        GameContext context = getOrLoadContext(gameId);
+    public ActionResultVO executeAction(Long userId, String idOrCode, ActionRequestDTO dto) {
+        GameContext context = getOrLoadContext(idOrCode);
         GameDO record = context.getRecord();
         assertParticipant(userId, record);
         if (!STATUS_IN_PROGRESS.equals(record.getStatus())) {
@@ -286,7 +293,7 @@ public class GameServiceImpl implements GameService {
             assertCanAct(context.getEngine().getState(), playerId, actionType);
         }
 
-        ActionRequest request = toActionRequest(String.valueOf(gameId), playerId, dto, actionType);
+        ActionRequest request = toActionRequest(context.getGameId(), playerId, dto, actionType);
         context.lock();
         try {
             GameState state = context.getEngine().getState();
@@ -325,15 +332,15 @@ public class GameServiceImpl implements GameService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void surrender(Long userId, Long gameId) {
+    public void surrender(Long userId, String idOrCode) {
         ActionRequestDTO dto = new ActionRequestDTO();
         dto.setActionType(ActionType.SURRENDER.name());
-        executeAction(userId, gameId, dto);
+        executeAction(userId, idOrCode, dto);
     }
 
     @Override
-    public ReplayVO getReplay(Long gameId) {
-        GameDO record = requireGame(gameId);
+    public ReplayVO getReplay(String idOrCode) {
+        GameDO record = requireGame(idOrCode);
         ReplayVO vo = ReplayVO.fromDO(record);
         List<ActionLog> logs = gameStateSerializer.deserializeActionLog(record.getActionLog());
         List<ActionReplayEntryVO> entries = new ArrayList<>(logs.size());
@@ -384,13 +391,17 @@ public class GameServiceImpl implements GameService {
 
     // === 缓存 / 恢复 ===
 
-    private GameContext getOrLoadContext(Long gameId) {
-        String gameIdStr = String.valueOf(gameId);
-        GameContext cached = gameManager.get(gameIdStr);
+    private GameContext getOrLoadContext(String idOrCode) {
+        GameDO record = requireGame(idOrCode);
+        return getOrLoadContext(record);
+    }
+
+    private GameContext getOrLoadContext(GameDO record) {
+        String gameCode = record.getGameCode();
+        GameContext cached = gameManager.get(gameCode);
         if (cached != null) {
             return cached;
         }
-        GameDO record = requireGame(gameId);
         if (STATUS_WAITING.equals(record.getStatus())) {
             throw new BusinessException(ErrorCode.GAME_NOT_JOINABLE, "对局尚未开始");
         }
@@ -406,7 +417,7 @@ public class GameServiceImpl implements GameService {
     }
 
     private GameContext recoverGame(GameDO record) {
-        String gameIdStr = String.valueOf(record.getId());
+        String gameCode = record.getGameCode();
         GameStateSerializer.SnapshotWrapper wrapper =
                 gameStateSerializer.deserializeSnapshot(record.getTurnSnapshot());
         if (wrapper == null || wrapper.getGameState() == null) {
@@ -428,11 +439,11 @@ public class GameServiceImpl implements GameService {
                 if (ACTION_WIN.equals(logEntry.getActionType())) {
                     continue;
                 }
-                ActionRequest request = rebuildRequest(gameIdStr, logEntry);
+                ActionRequest request = rebuildRequest(gameCode, logEntry);
                 engine.dispatch(request);
             }
         } catch (RuntimeException e) {
-            log.error("对局恢复重放失败 gameId={}, err={}", record.getId(), e.getMessage(), e);
+            log.error("对局恢复重放失败 gameCode={}, err={}", gameCode, e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "对局恢复失败: " + e.getMessage());
         }
 
@@ -441,10 +452,10 @@ public class GameServiceImpl implements GameService {
         state.getActionLog().addAll(allLogs);
 
         long maxSeq = allLogs.stream().mapToLong(ActionLog::getSeq).max().orElse(snapshotSeq);
-        GameContext context = new GameContext(gameIdStr, engine, record);
+        GameContext context = new GameContext(gameCode, engine, record);
         context.setActionSeq(maxSeq);
         if (STATUS_IN_PROGRESS.equals(record.getStatus())) {
-            gameManager.put(gameIdStr, context);
+            gameManager.put(gameCode, context);
         }
         return context;
     }
@@ -523,12 +534,37 @@ public class GameServiceImpl implements GameService {
         return deck;
     }
 
-    private GameDO requireGame(Long gameId) {
-        GameDO record = gameMapper.selectOneById(gameId);
+    private GameDO requireGame(String idOrCode) {
+        String key = PublicCodeUtils.normalize(idOrCode);
+        if (StringUtils.isBlank(key)) {
+            throw new BusinessException(ErrorCode.GAME_NOT_FOUND);
+        }
+        GameDO record;
+        if (PublicCodeUtils.isGameCode(key)) {
+            record = gameMapper.selectOneByQuery(QueryWrapper.create().eq("game_code", key));
+        } else {
+            try {
+                record = gameMapper.selectOneById(Long.parseLong(key));
+            } catch (NumberFormatException e) {
+                throw new BusinessException(ErrorCode.GAME_NOT_FOUND);
+            }
+        }
         if (record == null) {
             throw new BusinessException(ErrorCode.GAME_NOT_FOUND);
         }
         return record;
+    }
+
+    /** 循环查重生成唯一 game_code */
+    private String allocateUniqueGameCode() {
+        for (int i = 0; i < CODE_ALLOC_MAX_RETRY; i++) {
+            String code = PublicCodeUtils.newGameCode();
+            long count = gameMapper.selectCountByQuery(QueryWrapper.create().eq("game_code", code));
+            if (count == 0) {
+                return code;
+            }
+        }
+        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成对局编码失败");
     }
 
     private void assertParticipant(Long userId, GameDO record) {
@@ -620,14 +656,6 @@ public class GameServiceImpl implements GameService {
     }
 
     private CardSnapshot toSnapshot(CardDO card) {
-        List<String> traits = Collections.emptyList();
-        if (StringUtils.isNotBlank(card.getTraits())) {
-            traits =
-                    Arrays.stream(card.getTraits().split(","))
-                            .map(String::trim)
-                            .filter(StringUtils::isNotBlank)
-                            .collect(Collectors.toList());
-        }
         return new CardSnapshot(
                 card.getCardCode(),
                 card.getCardName(),
@@ -635,7 +663,7 @@ public class GameServiceImpl implements GameService {
                 card.getColor(),
                 card.getAttackRange() == null ? null : card.getAttackRange().intValue(),
                 card.getPower() == null ? null : card.getPower().intValue(),
-                traits,
+                TraitUtils.split(card.getTraits()),
                 card.getEffectText(),
                 card.getCardType());
     }

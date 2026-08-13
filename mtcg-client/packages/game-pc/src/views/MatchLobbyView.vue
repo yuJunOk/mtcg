@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NEmpty, NInput, NSpin, NTag, NSpace } from 'naive-ui'
-import { deckApi, gameApi } from '@mtcg/common'
+import { deckApi, gameApi, isDeckReady } from '@mtcg/common'
 import { useGameStore } from '@mtcg/common/stores'
 import type { CreateAIGameDTO, DeckVO } from '@mtcg/common'
 import AiBattleDialog from '@/components/AiBattleDialog.vue'
@@ -25,10 +25,10 @@ const selectedId = ref<number | null>(null)
 const joinGameId = ref('')
 const formError = ref('')
 const phase = ref<LobbyPhase>('idle')
-const hostedGameId = ref<number | null>(null)
+const hostedGameId = ref<string | null>(null)
 const aiOpen = ref(false)
 
-const validDecks = computed(() => decks.value.filter((d) => d.isValid === true))
+const validDecks = computed(() => decks.value.filter((d) => isDeckReady(d)))
 
 const selected = computed<DeckVO | null>(() => {
   const id = selectedId.value
@@ -50,8 +50,8 @@ function requireDeck(): DeckVO | null {
   formError.value = ''
   const deck = selected.value
   if (!deck) {
-    formError.value = '请先完成一套合法卡组'
-    toast.warning('请先完成一套合法卡组')
+    formError.value = '请先完成一套可用卡组'
+    toast.warning('请先完成一套可用卡组')
     return null
   }
   return deck
@@ -64,10 +64,10 @@ function stopPoll(): void {
   }
 }
 
-async function enterBattle(gameId: number): Promise<void> {
+async function enterBattle(gameId: string): Promise<void> {
   stopPoll()
   await gameStore.loadGame(gameId)
-  await router.push(`/battle/${gameId}`)
+  await router.push(`/battle/${encodeURIComponent(gameId)}`)
 }
 
 async function handleMatch(): Promise<void> {
@@ -96,11 +96,11 @@ async function handleCreateRoom(): Promise<void> {
   if (!deck) return
   busy.value = true
   try {
-    const id = await gameApi.create({ deck1Id: deck.id, gameMode: 'CASUAL' })
-    hostedGameId.value = id
+    const code = await gameApi.create({ deck1Id: deck.id, gameMode: 'CASUAL' })
+    hostedGameId.value = code
     phase.value = 'hosting'
-    startHostPoll(id)
-    toast.success(`房间已创建，对局 ID ${id}`)
+    startHostPoll(code)
+    toast.success(`房间已创建，房间码 ${code}`)
   } catch {
     phase.value = 'idle'
   } finally {
@@ -108,14 +108,14 @@ async function handleCreateRoom(): Promise<void> {
   }
 }
 
-function startHostPoll(gameId: number): void {
+function startHostPoll(gameId: string): void {
   stopPoll()
   pollTimer = setInterval(() => {
     void pollHost(gameId)
   }, POLL_MS)
 }
 
-async function pollHost(gameId: number): Promise<void> {
+async function pollHost(gameId: string): Promise<void> {
   try {
     const vo = await gameApi.getState(gameId)
     if (vo.status === 'IN_PROGRESS') {
@@ -149,25 +149,25 @@ async function copyRoomId(): Promise<void> {
   const text = String(id)
   try {
     await navigator.clipboard.writeText(text)
-    toast.success('对局 ID 已复制')
+    toast.success('房间码已复制')
   } catch {
-    window.prompt('复制对局 ID', text)
-    toast.info('请手动复制对局 ID')
+    window.prompt('复制房间码', text)
+    toast.info('请手动复制房间码')
   }
 }
 
 async function handleJoin(): Promise<void> {
   const deck = requireDeck()
   if (!deck) return
-  const id = Number(joinGameId.value.trim())
-  if (!Number.isFinite(id) || id <= 0) {
-    formError.value = '请填写对局 ID'
-    toast.warning('请填写对局 ID')
+  const code = joinGameId.value.trim().toUpperCase()
+  if (!code) {
+    formError.value = '请填写房间码'
+    toast.warning('请填写房间码')
     return
   }
   busy.value = true
   try {
-    const gameId = await gameApi.join(id, { deckId: deck.id })
+    const gameId = await gameApi.join(code, { deckId: deck.id })
     toast.success('已加入对局')
     await enterBattle(gameId)
   } catch {
@@ -229,7 +229,7 @@ onUnmounted(() => {
     </div>
 
     <div v-else-if="validDecks.length === 0" class="empty-room">
-      <n-empty description="还没有合法卡组，无法出战。">
+      <n-empty description="还没有可用卡组，无法出战。">
         <template #icon>
           <span class="empty-ico">🃏</span>
         </template>
@@ -253,7 +253,7 @@ onUnmounted(() => {
           <p class="ready-kicker">出战卡组</p>
           <h2>{{ selected?.deckName }}</h2>
           <n-space class="meta" :size="8">
-            <n-tag type="success" size="small" :bordered="false">合法</n-tag>
+            <n-tag type="success" size="small" :bordered="false">可用</n-tag>
             <n-tag size="small" :bordered="false">主 {{ selected?.mainDeckSize ?? 0 }}/50</n-tag>
             <n-tag type="warning" size="small" :bordered="false">
               冲击 {{ selected?.rushDeckSize ?? 0 }}/9
@@ -273,10 +273,10 @@ onUnmounted(() => {
           <div v-else-if="phase === 'hosting'" class="status-box">
             <p class="status-title">房间已创建，等待对手加入</p>
             <div class="room-row">
-              <p class="room-id">对局 ID {{ hostedGameId }}</p>
+              <p class="room-id">房间码 {{ hostedGameId }}</p>
               <n-button size="small" @click="copyRoomId">复制</n-button>
             </div>
-            <p class="hint">把 ID 发给对手，对方在下方加入即可开打。</p>
+            <p class="hint">把房间码发给对手，对方在下方加入即可开打。</p>
             <n-button class="cancel-host" :disabled="busy" @click="handleCancelHost">
               取消房间
             </n-button>
@@ -307,9 +307,8 @@ onUnmounted(() => {
               <span class="field-label">加入房间</span>
               <n-input
                 v-model:value="joinGameId"
-                placeholder="输入对局 ID"
+                placeholder="输入房间码（如 G-7K2M9XPQ）"
                 :disabled="locked"
-                inputmode="numeric"
               />
             </div>
             <n-button attr-type="submit" :loading="busy" :disabled="locked">加入</n-button>

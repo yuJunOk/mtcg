@@ -7,8 +7,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    CardFeatureFormDialog: typeof import('./src/components/CardFeatureFormDialog.vue')['default']
-    CardFeatureSelector: typeof import('./src/components/CardFeatureSelector.vue')['default']
     CardFormDialog: typeof import('./src/components/CardFormDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAside: typeof import('element-plus/es')['ElAside']

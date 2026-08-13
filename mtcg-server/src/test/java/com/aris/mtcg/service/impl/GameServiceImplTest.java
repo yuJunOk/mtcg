@@ -72,6 +72,8 @@ class GameServiceImplTest {
     private static final Long DECK1 = 11L;
     private static final Long DECK2 = 22L;
     private static final Long GAME_ID = 100L;
+    private static final String GAME_CODE = "G-7K2M9XPQ";
+    private static final String GAME_ID_STR = String.valueOf(GAME_ID);
 
     @Mock private GameMapper gameMapper;
     @Mock private DeckMapper deckMapper;
@@ -86,7 +88,9 @@ class GameServiceImplTest {
     @BeforeEach
     void clearCache() {
         // 避免用例间缓存污染
-        gameManager.remove(String.valueOf(GAME_ID));
+        gameManager.remove(GAME_CODE);
+        gameManager.remove(GAME_ID_STR);
+        when(gameMapper.selectCountByQuery(any(QueryWrapper.class))).thenReturn(0L);
     }
 
     @Test
@@ -107,14 +111,17 @@ class GameServiceImplTest {
         dto.setGameMode("CASUAL");
         dto.setFirstPlayer("PLAYER1");
 
-        Long id = gameService.createGame(USER1, dto);
-        assertEquals(GAME_ID, id);
-        assertTrue(gameManager.contains(String.valueOf(GAME_ID)));
-        verify(gameMapper).insert(any(GameDO.class));
+        String code = gameService.createGame(USER1, dto);
+        assertNotNull(code);
+        assertTrue(code.startsWith("G-"));
+        assertTrue(gameManager.contains(code));
+        ArgumentCaptor<GameDO> insertCaptor = ArgumentCaptor.forClass(GameDO.class);
+        verify(gameMapper).insert(insertCaptor.capture());
+        when(gameMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(insertCaptor.getValue());
         verify(gameMapper, atLeastOnce()).update(any(GameDO.class));
 
-        GameStateVO vo = gameService.getGameState(USER1, GAME_ID);
-        assertEquals(String.valueOf(GAME_ID), vo.getGameId());
+        GameStateVO vo = gameService.getGameState(USER1, code);
+        assertEquals(code, vo.getGameId());
         assertEquals("IN_PROGRESS", vo.getStatus());
         assertNotNull(vo.getAvailableActions());
         assertTrue(vo.getAvailableActions().contains(ActionType.SURRENDER.name()));
@@ -152,12 +159,14 @@ class GameServiceImplTest {
         dto.setDeck1Id(DECK1);
         dto.setGameMode("CASUAL");
 
-        Long id = gameService.createGame(USER1, dto);
-        assertEquals(GAME_ID, id);
-        assertFalse(gameManager.contains(String.valueOf(GAME_ID)));
+        String code = gameService.createGame(USER1, dto);
+        assertNotNull(code);
+        assertTrue(code.startsWith("G-"));
+        assertFalse(gameManager.contains(code));
         ArgumentCaptor<GameDO> captor = ArgumentCaptor.forClass(GameDO.class);
         verify(gameMapper).insert(captor.capture());
         assertEquals("WAITING", captor.getValue().getStatus());
+        assertEquals(code, captor.getValue().getGameCode());
         assertNull(captor.getValue().getPlayer2Id());
     }
 
@@ -175,16 +184,18 @@ class GameServiceImplTest {
     void getGameState_waiting_shouldReturnWaitingVo() {
         GameDO waiting = new GameDO();
         waiting.setId(GAME_ID);
+        waiting.setGameCode(GAME_CODE);
         waiting.setPlayer1Id(USER1);
         waiting.setDeck1Id(DECK1);
         waiting.setGameMode("CASUAL");
         waiting.setStatus("WAITING");
         when(gameMapper.selectOneById(GAME_ID)).thenReturn(waiting);
 
-        GameStateVO vo = gameService.getGameState(USER1, GAME_ID);
+        GameStateVO vo = gameService.getGameState(USER1, GAME_ID_STR);
         assertEquals("WAITING", vo.getStatus());
+        assertEquals(GAME_CODE, vo.getGameId());
         assertNull(vo.getPlayer2());
-        assertFalse(gameManager.contains(String.valueOf(GAME_ID)));
+        assertFalse(gameManager.contains(GAME_CODE));
     }
 
     @Test
@@ -192,6 +203,7 @@ class GameServiceImplTest {
         stubValidDecksAndCards();
         GameDO waiting = new GameDO();
         waiting.setId(GAME_ID);
+        waiting.setGameCode(GAME_CODE);
         waiting.setPlayer1Id(USER1);
         waiting.setDeck1Id(DECK1);
         waiting.setGameMode("CASUAL");
@@ -201,9 +213,9 @@ class GameServiceImplTest {
 
         GameJoinDTO dto = new GameJoinDTO();
         dto.setDeckId(DECK2);
-        Long id = gameService.joinGame(USER2, GAME_ID, dto);
-        assertEquals(GAME_ID, id);
-        assertTrue(gameManager.contains(String.valueOf(GAME_ID)));
+        String code = gameService.joinGame(USER2, GAME_ID_STR, dto);
+        assertEquals(GAME_CODE, code);
+        assertTrue(gameManager.contains(GAME_CODE));
         verify(gameMapper, atLeastOnce()).update(any(GameDO.class));
     }
 
@@ -222,14 +234,14 @@ class GameServiceImplTest {
     void getGameState_shouldHideOpponentHandAndCounters() {
         putInProgressContext();
 
-        GameStateVO asP1 = gameService.getGameState(USER1, GAME_ID);
+        GameStateVO asP1 = gameService.getGameState(USER1, GAME_ID_STR);
         assertFalse(asP1.getPlayer1().getHand().isEmpty());
         assertNotNull(asP1.getPlayer1().getBaseDeployCount());
         assertTrue(asP1.getPlayer2().getHand().isEmpty());
         assertNull(asP1.getPlayer2().getBaseDeployCount());
         assertTrue(asP1.getPlayer2().getHandCount() > 0);
 
-        GameStateVO asP2 = gameService.getGameState(USER2, GAME_ID);
+        GameStateVO asP2 = gameService.getGameState(USER2, GAME_ID_STR);
         assertTrue(asP2.getPlayer1().getHand().isEmpty());
         assertFalse(asP2.getPlayer2().getHand().isEmpty());
     }
@@ -249,7 +261,7 @@ class GameServiceImplTest {
         faceDown.setCurrentZone(Zone.BASE);
         p1.getField().getBase()[0] = faceDown;
 
-        GameStateVO asOpponent = gameService.getGameState(USER2, GAME_ID);
+        GameStateVO asOpponent = gameService.getGameState(USER2, GAME_ID_STR);
         CardInstanceVO found = findBaseCard(asOpponent, "fd-1");
         assertNotNull(found);
         assertTrue(Boolean.TRUE.equals(found.getIsFaceDown()));
@@ -262,7 +274,7 @@ class GameServiceImplTest {
         putInProgressContext();
         BusinessException ex =
                 assertThrows(
-                        BusinessException.class, () -> gameService.getGameState(999L, GAME_ID));
+                        BusinessException.class, () -> gameService.getGameState(999L, GAME_ID_STR));
         assertEquals(ErrorCode.NOT_GAME_PARTICIPANT, ex.getErrorCode());
     }
 
@@ -270,9 +282,9 @@ class GameServiceImplTest {
     void surrender_shouldFinishAndRemoveCache() {
         putInProgressContext();
 
-        gameService.surrender(USER1, GAME_ID);
+        gameService.surrender(USER1, GAME_ID_STR);
 
-        assertFalse(gameManager.contains(String.valueOf(GAME_ID)));
+        assertFalse(gameManager.contains(GAME_CODE));
         ArgumentCaptor<GameDO> captor = ArgumentCaptor.forClass(GameDO.class);
         verify(gameMapper, atLeastOnce()).update(captor.capture());
         GameDO updated = captor.getValue();
@@ -287,7 +299,7 @@ class GameServiceImplTest {
         ActionRequestDTO dto = new ActionRequestDTO();
         dto.setActionType(ActionType.END_PHASE.name());
 
-        ActionResultVO result = gameService.executeAction(USER1, GAME_ID, dto);
+        ActionResultVO result = gameService.executeAction(USER1, GAME_ID_STR, dto);
         assertTrue(Boolean.TRUE.equals(result.getSuccess()));
         assertNotNull(result.getGameState());
         // 先攻首回合跳过战斗，会进入后攻回合
@@ -303,7 +315,7 @@ class GameServiceImplTest {
         BusinessException ex =
                 assertThrows(
                         BusinessException.class,
-                        () -> gameService.executeAction(USER2, GAME_ID, dto));
+                        () -> gameService.executeAction(USER2, GAME_ID_STR, dto));
         assertEquals(ErrorCode.NOT_YOUR_TURN, ex.getErrorCode());
     }
 
@@ -315,9 +327,9 @@ class GameServiceImplTest {
         record.setActionLog("[]");
         when(gameMapper.selectOneById(GAME_ID)).thenReturn(record);
 
-        GameStateVO vo = gameService.getGameState(USER1, GAME_ID);
+        GameStateVO vo = gameService.getGameState(USER1, GAME_ID_STR);
         assertEquals("IN_PROGRESS", vo.getStatus());
-        assertTrue(gameManager.contains(String.valueOf(GAME_ID)));
+        assertTrue(gameManager.contains(GAME_CODE));
     }
 
     @Test
@@ -346,8 +358,8 @@ class GameServiceImplTest {
         record.setActionLog(gameStateSerializer.serializeActionLog(List.of(log1, log2)));
         when(gameMapper.selectOneById(GAME_ID)).thenReturn(record);
 
-        ReplayVO replay = gameService.getReplay(GAME_ID);
-        assertEquals(GAME_ID, replay.getGameId());
+        ReplayVO replay = gameService.getReplay(GAME_ID_STR);
+        assertEquals(GAME_CODE, replay.getGameId());
         assertEquals(2, replay.getActions().size());
         assertEquals(1L, replay.getActions().get(0).getSeq());
         assertEquals("SURRENDER", replay.getActions().get(1).getActionType());
@@ -370,6 +382,7 @@ class GameServiceImplTest {
 
         PageVO<GameHistoryVO> page = gameService.listHistory(USER1, 1, 20);
         assertEquals(1, page.getTotal());
+        assertEquals(GAME_CODE, page.getRecords().get(0).getGameId());
         assertEquals("对手昵称", page.getRecords().get(0).getOpponentName());
         assertEquals("我的卡组", page.getRecords().get(0).getDeckName());
         assertEquals("WIN", page.getRecords().get(0).getResult());
@@ -398,20 +411,21 @@ class GameServiceImplTest {
         GameDO record = baseRecord();
         record.setTurnSnapshot(gameStateSerializer.serializeSnapshot(engine.getState(), 0L));
         record.setActionLog("[]");
-        GameContext ctx = new GameContext(String.valueOf(GAME_ID), engine, record);
-        gameManager.put(String.valueOf(GAME_ID), ctx);
+        GameContext ctx = new GameContext(GAME_CODE, engine, record);
+        gameManager.put(GAME_CODE, ctx);
         when(gameMapper.selectOneById(GAME_ID)).thenReturn(record);
         return ctx;
     }
 
     private GameEngine newEngineWithUserIds() {
         return newStartedEngine(
-                7L, String.valueOf(GAME_ID), String.valueOf(USER1), String.valueOf(USER2));
+                7L, GAME_CODE, String.valueOf(USER1), String.valueOf(USER2));
     }
 
     private GameDO baseRecord() {
         GameDO record = new GameDO();
         record.setId(GAME_ID);
+        record.setGameCode(GAME_CODE);
         record.setPlayer1Id(USER1);
         record.setPlayer2Id(USER2);
         record.setDeck1Id(DECK1);

@@ -3,12 +3,14 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cardApi, adminCardApi } from '@mtcg/common/api'
+import { resolveCardImageUrl } from '@mtcg/common'
 import { CardFormDialog, ProductSelector } from '@/components'
 import type { CardFormMode } from '@/components/CardFormDialog.vue'
 import {
   CARD_TYPE_OPTIONS,
   CARD_COLOR_OPTIONS,
   CARD_RARITY_OPTIONS,
+  CARD_TRAIT_FILTER_OPTIONS,
   codeToDesc,
   CardType,
   CardColor,
@@ -27,6 +29,7 @@ const query = reactive({
   cardType: '',
   color: '',
   rarity: '',
+  trait: '',
   productCode: (route.query.productCode as string) || '',
   pageNum: 1,
   pageSize: 10,
@@ -43,6 +46,7 @@ function handleReset() {
   query.cardType = ''
   query.color = ''
   query.rarity = ''
+  query.trait = ''
   query.productCode = ''
   query.pageNum = 1
   loadData()
@@ -144,6 +148,22 @@ onMounted(() => {
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="特征">
+          <el-select
+            v-model="query.trait"
+            placeholder="全部"
+            clearable
+            filterable
+            style="width: 140px"
+          >
+            <el-option
+              v-for="t in CARD_TRAIT_FILTER_OPTIONS"
+              :key="t"
+              :label="t"
+              :value="t"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="产品" style="width: 220px">
           <ProductSelector v-model="query.productCode" placeholder="点击选择产品" />
         </el-form-item>
@@ -158,16 +178,31 @@ onMounted(() => {
     <el-card class="table-card">
       <el-table :data="tableData" v-loading="loading" stripe height="100%">
         <el-table-column prop="cardCode" label="编号" width="120" />
-        <el-table-column prop="cardName" label="名称" min-width="160" show-overflow-tooltip />
-        <el-table-column label="类型" width="100">
+        <el-table-column label="卡图" width="88">
+          <template #default="{ row }">
+            <el-image
+              v-if="row.imagePath"
+              :src="resolveCardImageUrl(row.imagePath)"
+              fit="contain"
+              class="thumb"
+              :preview-src-list="[resolveCardImageUrl(row.imagePath)]"
+              preview-teleported
+            />
+            <span v-else class="no-img">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="cardName" label="名称" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="productCode" label="所属产品" width="110" show-overflow-tooltip />
+        <el-table-column prop="traits" label="特征" min-width="160" show-overflow-tooltip />
+        <el-table-column label="类型" width="90">
           <template #default="{ row }">{{ typeLabel(row.cardType) }}</template>
         </el-table-column>
-        <el-table-column label="颜色" width="80">
+        <el-table-column label="颜色" width="70">
           <template #default="{ row }">{{ colorLabel(row.color ?? '') }}</template>
         </el-table-column>
-        <el-table-column prop="level" label="Lv" width="60" />
-        <el-table-column prop="power" label="战力" width="80" />
-        <el-table-column prop="attackRange" label="R" width="60" />
+        <el-table-column prop="level" label="Lv" width="56" />
+        <el-table-column prop="power" label="战力" width="72" />
+        <el-table-column prop="attackRange" label="R" width="52" />
         <el-table-column label="稀有度" width="100">
           <template #default="{ row }">
             <el-tag :type="rarityTagType(row.rarity ?? '')">{{ rarityLabel(row.rarity ?? '') }}</el-tag>
@@ -238,5 +273,15 @@ onMounted(() => {
 .pagination {
   display: flex;
   justify-content: flex-end;
+}
+.thumb {
+  width: 48px;
+  height: 68px;
+  border-radius: 4px;
+  background: #f5f7fa;
+}
+.no-img {
+  color: #c0c4cc;
+  font-size: 12px;
 }
 </style>

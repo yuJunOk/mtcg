@@ -32,6 +32,9 @@ public class ProductVO {
 
     private String description;
 
+    /** 产品分类：STARTER / BOOSTER / OTHER */
+    private String category;
+
     /** 封面图（imagePaths 首张；兼容旧客户端） */
     private String imagePath;
 
@@ -53,6 +56,7 @@ public class ProductVO {
         vo.setProductName(product.getProductName());
         vo.setReleaseDate(product.getReleaseDate());
         vo.setDescription(product.getDescription());
+        vo.setCategory(product.getCategory());
         List<String> paths = parseImagePaths(product.getImagePaths());
         if (paths.isEmpty() && StringUtils.isNotBlank(product.getImagePath())) {
             paths = new ArrayList<>();
@@ -74,6 +78,7 @@ public class ProductVO {
         vo.setProductName(dto.getProductName());
         vo.setReleaseDate(dto.getReleaseDate());
         vo.setDescription(dto.getDescription());
+        vo.setCategory(dto.getCategory());
         vo.setImagePaths(new ArrayList<>());
         return vo;
     }
@@ -89,6 +94,7 @@ public class ProductVO {
         product.setProductName(vo.getProductName());
         product.setReleaseDate(vo.getReleaseDate());
         product.setDescription(vo.getDescription());
+        product.setCategory(vo.getCategory());
         List<String> paths =
                 vo.getImagePaths() != null
                         ? new ArrayList<>(vo.getImagePaths())
@@ -110,6 +116,7 @@ public class ProductVO {
         dto.setProductName(vo.getProductName());
         dto.setReleaseDate(vo.getReleaseDate());
         dto.setDescription(vo.getDescription());
+        dto.setCategory(vo.getCategory());
         return dto;
     }
 

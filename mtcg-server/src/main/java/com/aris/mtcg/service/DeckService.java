@@ -15,17 +15,17 @@ import java.util.List;
  */
 public interface DeckService {
 
-    /** 创建卡组 */
-    Long createDeck(Long userId, DeckCreateDTO dto);
+    /** 创建卡组，返回对外业务编码 deckCode */
+    String createDeck(Long userId, DeckCreateDTO dto);
 
-    /** 编辑卡组 */
-    void updateDeck(Long userId, Long deckId, DeckUpdateDTO dto);
+    /** 编辑卡组（id 可为数字主键或 D- 编码） */
+    void updateDeck(Long userId, String idOrCode, DeckUpdateDTO dto);
 
-    /** 删除卡组 */
-    void deleteDeck(Long userId, Long deckId);
+    /** 删除卡组（id 可为数字主键或 D- 编码） */
+    void deleteDeck(Long userId, String idOrCode);
 
-    /** 获取卡组详情 */
-    DeckVO getDeck(Long userId, Long deckId);
+    /** 获取卡组详情（id 可为数字主键或 D- 编码） */
+    DeckVO getDeck(Long userId, String idOrCode);
 
     /** 查询我的卡组列表（按 sort_order；tag 非空时精确包含筛选） */
     List<DeckVO> listDecks(Long userId, String tag);
@@ -33,10 +33,17 @@ public interface DeckService {
     /** 批量重排卡组 */
     void reorderDecks(Long userId, DeckReorderDTO dto);
 
-    /** 校验卡组合法性（实时校验） */
-    DeckValidateResultVO validateDeck(Long userId, Long deckId);
+    /** 校验卡组合法性（实时校验；id 可为数字主键或 D- 编码） */
+    DeckValidateResultVO validateDeck(Long userId, String idOrCode);
 
     /** 校验卡牌条目列表（张数按 sum(quantity)） */
     DeckValidateResultVO validateEntries(
             List<DeckCardEntry> mainDeck, List<DeckCardEntry> rushDeck);
+
+    /**
+     * 按卡组编码复制到当前用户（源卡组须允许复制，或属于本人）。
+     *
+     * @return 新卡组 deckCode
+     */
+    String copyDeckByCode(Long userId, String deckCode);
 }

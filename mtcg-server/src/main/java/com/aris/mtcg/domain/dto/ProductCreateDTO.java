@@ -24,4 +24,7 @@ public class ProductCreateDTO {
     private LocalDate releaseDate;
 
     private String description;
+
+    /** 产品分类：STARTER / BOOSTER / OTHER，缺省时按编号推断 */
+    private String category;
 }

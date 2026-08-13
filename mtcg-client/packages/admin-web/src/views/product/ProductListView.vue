@@ -6,7 +6,12 @@ import { productApi, adminProductApi } from '@mtcg/common/api'
 import { resolveCardImageUrl, productCoverPath } from '@mtcg/common'
 import { ProductFormDialog } from '@/components'
 import type { ProductFormMode } from '@/components/ProductFormDialog.vue'
-import type { ProductVO } from '@mtcg/common/types'
+import {
+  PRODUCT_CATEGORY_OPTIONS,
+  getProductCategoryLabel,
+  resolveProductCategory,
+} from '@mtcg/common/types'
+import type { ProductCategory, ProductVO } from '@mtcg/common/types'
 
 const router = useRouter()
 
@@ -17,6 +22,7 @@ const total = ref(0)
 const query = reactive({
   productName: '',
   productCode: '',
+  category: '' as ProductCategory | '',
   pageNum: 1,
   pageSize: 10,
 })
@@ -30,8 +36,18 @@ async function loadData() {
 function handleReset() {
   query.productName = ''
   query.productCode = ''
+  query.category = ''
   query.pageNum = 1
   loadData()
+}
+
+function categoryLabel(row: ProductVO): string {
+  return getProductCategoryLabel(resolveProductCategory(row))
+}
+
+function imageCount(row: ProductVO): number {
+  if (row.imagePaths?.length) return row.imagePaths.length
+  return row.imagePath ? 1 : 0
 }
 
 // ========== 弹窗 ==========
@@ -81,6 +97,16 @@ onMounted(() => {
         <el-form-item label="名称">
           <el-input v-model="query.productName" placeholder="模糊搜索" clearable style="width: 200px" />
         </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="query.category" placeholder="全部" clearable style="width: 120px">
+            <el-option
+              v-for="o in PRODUCT_CATEGORY_OPTIONS"
+              :key="o.code"
+              :label="o.desc"
+              :value="o.code"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadData">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
@@ -94,18 +120,30 @@ onMounted(() => {
         <el-table-column prop="productCode" label="产品编号" width="140" />
         <el-table-column label="产品图" width="88">
           <template #default="{ row }">
-            <el-image
-              v-if="productCoverPath(row)"
-              :src="resolveCardImageUrl(productCoverPath(row))"
-              fit="contain"
-              class="thumb"
-              :preview-src-list="(row.imagePaths?.length ? row.imagePaths : [row.imagePath]).filter(Boolean).map((p: string) => resolveCardImageUrl(p))"
-              preview-teleported
-            />
-            <span v-else class="no-img">📦</span>
+            <div class="thumb-wrap">
+              <el-image
+                v-if="productCoverPath(row)"
+                :src="resolveCardImageUrl(productCoverPath(row))"
+                fit="contain"
+                class="thumb"
+                :preview-src-list="(row.imagePaths?.length ? row.imagePaths : [row.imagePath]).filter(Boolean).map((p: string) => resolveCardImageUrl(p))"
+                preview-teleported
+              />
+              <span v-else class="thumb no-img">📦</span>
+              <span
+                v-if="imageCount(row) > 1"
+                class="img-badge"
+                :title="`${imageCount(row)} 张产品图`"
+              >
+                {{ imageCount(row) }}
+              </span>
+            </div>
           </template>
         </el-table-column>
         <el-table-column prop="productName" label="产品名称" min-width="200" show-overflow-tooltip />
+        <el-table-column label="分类" width="100">
+          <template #default="{ row }">{{ categoryLabel(row) }}</template>
+        </el-table-column>
         <el-table-column prop="releaseDate" label="发售日期" width="130" />
         <el-table-column prop="description" label="描述" min-width="260" show-overflow-tooltip />
         <el-table-column prop="createTime" label="创建时间" width="180" />
@@ -179,14 +217,50 @@ onMounted(() => {
   flex: 1;
 }
 .pagination { display: flex; justify-content: flex-end; }
+.thumb-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
 .thumb {
   width: 48px;
-  height: 48px;
+  height: 68px;
   border-radius: 4px;
   background: #f5f7fa;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.thumb :deep(.el-image__inner) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.img-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 1;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
 }
 .no-img {
   color: #c0c4cc;
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1;
 }
 </style>

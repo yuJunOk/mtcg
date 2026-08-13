@@ -19,6 +19,9 @@ public class GameDO {
     @Id(keyType = KeyType.Auto)
     private Long id;
 
+    /** 对外业务编码（G-xxxxxxxx） */
+    private String gameCode;
+
     /** 发起方用户 ID（不等于先攻；先攻由应用层/引擎决定） */
     private Long player1Id;
 

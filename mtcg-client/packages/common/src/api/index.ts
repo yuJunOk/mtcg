@@ -3,7 +3,7 @@
  *
  * 使用方式：
  *   // 公开 API（无需登录）
- *   import { authApi, userApi, cardApi, productApi, cardFeatureApi } from '@mtcg/common/api'
+ *   import { authApi, userApi, cardApi, productApi } from '@mtcg/common/api'
  *
  *   // 管理员 API（需登录 Token）
  *   import { adminUserApi, adminProductApi, adminCardApi, dashboardApi } from '@mtcg/common/api'
@@ -20,7 +20,6 @@ export { authApi } from './authApi'
 export { userApi } from './userApi'
 export { cardApi } from './cardApi'
 export { productApi } from './productApi'
-export { cardFeatureApi } from './cardFeatureApi'
 
 // 需登录
 export { deckApi } from './deckApi'

@@ -13,10 +13,10 @@ public class GameMatchVO {
     /** 是否匹配到对手并已开局 */
     private boolean matched;
 
-    /** 开局后的对局 ID；未匹配时为 null */
-    private Long gameId;
+    /** 开局后的对外业务编码；未匹配时为 null */
+    private String gameId;
 
-    public static GameMatchVO hit(Long gameId) {
+    public static GameMatchVO hit(String gameId) {
         GameMatchVO vo = new GameMatchVO();
         vo.setMatched(true);
         vo.setGameId(gameId);

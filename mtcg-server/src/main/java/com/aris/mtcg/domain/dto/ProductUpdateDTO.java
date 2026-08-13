@@ -18,4 +18,7 @@ public class ProductUpdateDTO {
     private LocalDate releaseDate;
 
     private String description;
+
+    /** 产品分类：STARTER / BOOSTER / OTHER */
+    private String category;
 }

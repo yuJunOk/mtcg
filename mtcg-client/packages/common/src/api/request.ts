@@ -57,6 +57,15 @@ axios.defaults.headers.common['Content-Type'] = 'application/json'
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY)
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // FormData 须由浏览器自动带 multipart boundary，不能沿用默认 application/json
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    const headers = config.headers as { delete?: (key: string) => void } & Record<string, unknown>
+    if (typeof headers.delete === 'function') {
+      headers.delete('Content-Type')
+    } else {
+      delete headers['Content-Type']
+    }
+  }
   return config
 })
 

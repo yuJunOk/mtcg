@@ -25,21 +25,7 @@ CREATE TABLE IF NOT EXISTS "mtcg_user" (
 CREATE INDEX IF NOT EXISTS idx_user_role ON "mtcg_user" (role);
 
 -- =====================================================
--- 卡牌特征表
--- =====================================================
-CREATE TABLE IF NOT EXISTS mtcg_card_feature (
-    id              BIGSERIAL       PRIMARY KEY,
-    code            VARCHAR(32)      NOT NULL UNIQUE,
-    name            VARCHAR(64)      NOT NULL,
-    bg_color        VARCHAR(16),
-    create_time     TIMESTAMP        NOT NULL DEFAULT NOW(),
-    update_time     TIMESTAMP        NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_card_feature_code ON mtcg_card_feature (code);
-
--- =====================================================
--- 卡牌表
+-- 卡牌表（特征 traits：中文标签斜杠分隔，枚举见 EnumTrait）
 -- =====================================================
 CREATE TABLE IF NOT EXISTS mtcg_card (
     id              BIGSERIAL       PRIMARY KEY,
@@ -80,15 +66,27 @@ CREATE TABLE IF NOT EXISTS mtcg_product (
     product_name    VARCHAR(128)    NOT NULL,
     release_date    DATE,
     description     TEXT,
+    category        VARCHAR(16)     NOT NULL DEFAULT 'OTHER',
     image_path      VARCHAR(256),
     create_time     TIMESTAMP       NOT NULL DEFAULT NOW(),
-    update_time     TIMESTAMP       NOT NULL DEFAULT NOW()
+    update_time     TIMESTAMP       NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_product_category CHECK (category IN ('STARTER', 'BOOSTER', 'OTHER'))
 );
 
 ALTER TABLE mtcg_product ADD COLUMN IF NOT EXISTS image_path VARCHAR(256);
 
 -- 商品多图：JSON 数组文本，如 ["product/BP01/a.png","product/BP01/b.png"]
 ALTER TABLE mtcg_product ADD COLUMN IF NOT EXISTS image_paths TEXT;
+
+-- 产品分类（存量库补列；SD→基础卡组，BP→补充包）
+ALTER TABLE mtcg_product ADD COLUMN IF NOT EXISTS category VARCHAR(16);
+UPDATE mtcg_product SET category = 'OTHER' WHERE category IS NULL;
+UPDATE mtcg_product SET category = 'STARTER'
+WHERE category = 'OTHER' AND upper(product_code) LIKE 'SD%';
+UPDATE mtcg_product SET category = 'BOOSTER'
+WHERE category = 'OTHER' AND upper(product_code) LIKE 'BP%';
+ALTER TABLE mtcg_product ALTER COLUMN category SET DEFAULT 'OTHER';
+ALTER TABLE mtcg_product ALTER COLUMN category SET NOT NULL;
 
 -- 将旧单图迁入数组（仅当 image_paths 为空且 image_path 有值）
 UPDATE mtcg_product
@@ -97,19 +95,10 @@ WHERE (image_paths IS NULL OR btrim(image_paths) = '' OR btrim(image_paths) = '[
   AND image_path IS NOT NULL
   AND btrim(image_path) <> '';
 
--- =====================================================
--- 卡牌-特征关联表
--- =====================================================
-CREATE TABLE IF NOT EXISTS mtcg_card_feature_rel (
-    id              BIGSERIAL       PRIMARY KEY,
-    card_id         BIGINT          NOT NULL,
-    feature_id      BIGINT          NOT NULL,
-    create_time     TIMESTAMP       NOT NULL DEFAULT NOW(),
-    CONSTRAINT uk_card_feature_rel UNIQUE (card_id, feature_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_card_feature_rel_card ON mtcg_card_feature_rel (card_id);
-CREATE INDEX IF NOT EXISTS idx_card_feature_rel_feature ON mtcg_card_feature_rel (feature_id);
+-- 废弃特征字典表（已有库执行一次即可；新建库无此表则忽略）
+DROP TRIGGER IF EXISTS trigger_mtcg_card_feature_update_time ON mtcg_card_feature;
+DROP TABLE IF EXISTS mtcg_card_feature_rel;
+DROP TABLE IF EXISTS mtcg_card_feature;
 
 -- =====================================================
 -- 审计日志表
@@ -134,21 +123,51 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_create_time ON mtcg_audit_log (create_t
 CREATE TABLE IF NOT EXISTS mtcg_deck (
     id                  BIGSERIAL       PRIMARY KEY,
     user_id             BIGINT          NOT NULL,
+    deck_code           VARCHAR(16)     NOT NULL,
     deck_name           VARCHAR(64)     NOT NULL,
     main_deck_codes     TEXT            NOT NULL DEFAULT '[]',
     rush_deck_codes     TEXT            NOT NULL DEFAULT '[]',
     is_valid            BOOLEAN         NOT NULL DEFAULT FALSE,
+    status              VARCHAR(16)     NOT NULL DEFAULT 'DRAFT',
+    is_public           BOOLEAN         NOT NULL DEFAULT FALSE,
+    is_copyable         BOOLEAN         NOT NULL DEFAULT FALSE,
     sort_order          INTEGER         NOT NULL DEFAULT 0,
     tags                VARCHAR(256),
     cover_card_code     VARCHAR(32),
     create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
-    update_time         TIMESTAMP       NOT NULL DEFAULT NOW()
+    update_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_deck_code UNIQUE (deck_code)
 );
 
 ALTER TABLE mtcg_deck ADD COLUMN IF NOT EXISTS cover_card_code VARCHAR(32);
 
+-- 对外卡组编码 + 公开/可复制开关（存量回填）
+ALTER TABLE mtcg_deck ADD COLUMN IF NOT EXISTS deck_code VARCHAR(16);
+ALTER TABLE mtcg_deck ADD COLUMN IF NOT EXISTS is_public BOOLEAN;
+ALTER TABLE mtcg_deck ADD COLUMN IF NOT EXISTS is_copyable BOOLEAN;
+UPDATE mtcg_deck
+SET deck_code = 'D-' || upper(substr(md5(random()::text || id::text), 1, 8))
+WHERE deck_code IS NULL OR btrim(deck_code) = '';
+UPDATE mtcg_deck SET is_public = FALSE WHERE is_public IS NULL;
+UPDATE mtcg_deck SET is_copyable = FALSE WHERE is_copyable IS NULL;
+ALTER TABLE mtcg_deck ALTER COLUMN deck_code SET NOT NULL;
+ALTER TABLE mtcg_deck ALTER COLUMN is_public SET DEFAULT FALSE;
+ALTER TABLE mtcg_deck ALTER COLUMN is_public SET NOT NULL;
+ALTER TABLE mtcg_deck ALTER COLUMN is_copyable SET DEFAULT FALSE;
+ALTER TABLE mtcg_deck ALTER COLUMN is_copyable SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_deck_code ON mtcg_deck (deck_code);
+
 CREATE INDEX IF NOT EXISTS idx_deck_user_id ON mtcg_deck (user_id);
 CREATE INDEX IF NOT EXISTS idx_deck_user_sort ON mtcg_deck (user_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_deck_public ON mtcg_deck (is_public) WHERE is_public = TRUE;
+
+-- 卡组状态枚举（READY=可用 / DRAFT=草稿），与 is_valid 同步
+ALTER TABLE mtcg_deck ADD COLUMN IF NOT EXISTS status VARCHAR(16);
+UPDATE mtcg_deck
+SET status = CASE WHEN is_valid THEN 'READY' ELSE 'DRAFT' END
+WHERE status IS NULL OR btrim(status) = '';
+ALTER TABLE mtcg_deck ALTER COLUMN status SET DEFAULT 'DRAFT';
+ALTER TABLE mtcg_deck ALTER COLUMN status SET NOT NULL;
 
 -- =====================================================
 -- 迭代三：卡牌收藏表
@@ -174,6 +193,7 @@ CREATE INDEX IF NOT EXISTS idx_collection_user_id ON mtcg_card_collection (user_
 -- =====================================================
 CREATE TABLE IF NOT EXISTS mtcg_game_record (
     id                  BIGSERIAL       PRIMARY KEY,
+    game_code           VARCHAR(16)     NOT NULL,
     player1_id          BIGINT          NOT NULL,
     player2_id          BIGINT,
     deck1_id            BIGINT          NOT NULL,
@@ -186,6 +206,7 @@ CREATE TABLE IF NOT EXISTS mtcg_game_record (
     create_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
     update_time         TIMESTAMP       NOT NULL DEFAULT NOW(),
     end_time            TIMESTAMP,
+    CONSTRAINT uk_game_code UNIQUE (game_code),
     CONSTRAINT ck_game_winner CHECK (winner IS NULL OR winner IN ('PLAYER1', 'PLAYER2', 'DRAW')),
     CONSTRAINT ck_game_mode   CHECK (game_mode IN ('CASUAL', 'RANKED', 'AI')),
     CONSTRAINT ck_game_status CHECK (status IN ('WAITING', 'IN_PROGRESS', 'FINISHED'))
@@ -194,6 +215,14 @@ CREATE TABLE IF NOT EXISTS mtcg_game_record (
 CREATE INDEX IF NOT EXISTS idx_game_player1     ON mtcg_game_record (player1_id);
 CREATE INDEX IF NOT EXISTS idx_game_player2     ON mtcg_game_record (player2_id);
 CREATE INDEX IF NOT EXISTS idx_game_create_time ON mtcg_game_record (create_time DESC);
+
+-- 对外对局编码（存量回填）
+ALTER TABLE mtcg_game_record ADD COLUMN IF NOT EXISTS game_code VARCHAR(16);
+UPDATE mtcg_game_record
+SET game_code = 'G-' || upper(substr(md5(random()::text || id::text), 1, 8))
+WHERE game_code IS NULL OR btrim(game_code) = '';
+ALTER TABLE mtcg_game_record ALTER COLUMN game_code SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_game_code ON mtcg_game_record (game_code);
 
 -- 已有库：等待房间需要 player2/deck2 可空，status 含 WAITING
 ALTER TABLE mtcg_game_record ALTER COLUMN player2_id DROP NOT NULL;
@@ -234,12 +263,6 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_mtcg_product_update_time') THEN
         CREATE TRIGGER trigger_mtcg_product_update_time
             BEFORE UPDATE ON mtcg_product
-            FOR EACH ROW EXECUTE FUNCTION update_update_time();
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_mtcg_card_feature_update_time') THEN
-        CREATE TRIGGER trigger_mtcg_card_feature_update_time
-            BEFORE UPDATE ON mtcg_card_feature
             FOR EACH ROW EXECUTE FUNCTION update_update_time();
     END IF;
 

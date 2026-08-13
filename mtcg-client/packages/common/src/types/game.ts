@@ -151,7 +151,8 @@ export interface GameJoinDTO {
 /** 在线匹配结果 */
 export interface GameMatchVO {
   matched: boolean
-  gameId: number | null
+  /** 开局后的对局编码（G-…）；未匹配时为 null */
+  gameId: string | null
 }
 
 /** 执行操作入参（对齐 ActionRequestDTO；playerId 由服务端确定） */
@@ -178,7 +179,8 @@ export interface ActionResultVO {
 
 /** 对局历史条目（对齐 GameHistoryVO） */
 export interface GameHistoryVO {
-  gameId: number
+  /** 对外业务编码 G-… */
+  gameId: string
   opponentName: string | null
   /** PLAYER1 / PLAYER2 */
   selfSide: string | null
@@ -215,7 +217,8 @@ export interface ActionReplayEntryVO {
 
 /** 复盘回放视图（对齐 ReplayVO） */
 export interface ReplayVO {
-  gameId: number
+  /** 对外业务编码 G-… */
+  gameId: string
   player1Id: number | null
   player2Id: number | null
   winner: string | null

@@ -33,6 +33,9 @@ public class ProductDO {
     /** 描述 */
     private String description;
 
+    /** 产品分类，见 {@link com.aris.mtcg.common.enums.EnumProductCategory} */
+    private String category;
+
     /** 产品图相对路径（首图冗余，兼容旧字段；权威列表见 imagePaths） */
     private String imagePath;
 

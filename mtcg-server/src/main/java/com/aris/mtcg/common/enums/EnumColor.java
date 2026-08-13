@@ -9,12 +9,12 @@ import lombok.Getter;
  */
 @Getter
 public enum EnumColor {
-    RED("RED", "红色"),
-    YELLOW("YELLOW", "黄色"),
-    BLUE("BLUE", "蓝色"),
-    GREEN("GREEN", "绿色"),
-    ORANGE("ORANGE", "橙色"),
-    PURPLE("PURPLE", "紫色");
+    RED("RED", "红"),
+    YELLOW("YELLOW", "黄"),
+    BLUE("BLUE", "蓝"),
+    GREEN("GREEN", "绿"),
+    ORANGE("ORANGE", "橙"),
+    PURPLE("PURPLE", "紫");
 
     private final String code;
 

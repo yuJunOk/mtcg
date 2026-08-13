@@ -5,8 +5,8 @@
 BEGIN;
 
 -- ========== 产品 ==========
-INSERT INTO mtcg_product (product_code, product_name, release_date, description)
-SELECT 'BP01', '复仇者联盟', '2026-06-17', NULL
+INSERT INTO mtcg_product (product_code, product_name, release_date, description, category)
+SELECT 'BP01', '复仇者联盟', '2026-06-17', NULL, 'BOOSTER'
 WHERE NOT EXISTS (SELECT 1 FROM mtcg_product WHERE product_code = 'BP01');
 
 -- ========== 卡牌 ==========

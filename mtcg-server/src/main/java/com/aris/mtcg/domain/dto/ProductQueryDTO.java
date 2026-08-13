@@ -16,6 +16,9 @@ public class ProductQueryDTO {
     /** 产品编号（模糊匹配） */
     private String productCode;
 
+    /** 产品分类：STARTER / BOOSTER / OTHER */
+    private String category;
+
     /** 当前页码，默认 1 */
     private Integer pageNum = 1;
 

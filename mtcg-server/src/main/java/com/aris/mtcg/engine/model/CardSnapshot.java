@@ -29,7 +29,7 @@ public final class CardSnapshot {
     /** 战力（印刷值），冲击卡为 null（201.12） */
     private final Integer power;
 
-    /** 特征列表，如 ["人类","复仇者联盟"]（201.9） */
+    /** 特征列表（中文印刷标签），如 ["人类","复仇者联盟"]（201.9） */
     private final List<String> traits;
 
     /** 效果描述原文（当前阶段不解析，迭代六处理）（201.10） */
@@ -85,6 +85,24 @@ public final class CardSnapshot {
 
     public List<String> getTraits() {
         return traits;
+    }
+
+    /**
+     * 特征是否含有指定印刷标签（规则 301.36：精确成员匹配，供效果条件使用）。
+     *
+     * @param label 如「机械」「复仇者联盟」
+     */
+    public boolean hasTrait(String label) {
+        if (label == null || label.isBlank()) {
+            return false;
+        }
+        String target = label.trim();
+        for (String t : traits) {
+            if (target.equals(t)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String getEffectText() {

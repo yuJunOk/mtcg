@@ -5,8 +5,8 @@
 BEGIN;
 
 -- ========== 产品 ==========
-INSERT INTO mtcg_product (product_code, product_name, release_date, description)
-SELECT 'SD01', '现实', '2026-06-17', NULL
+INSERT INTO mtcg_product (product_code, product_name, release_date, description, category)
+SELECT 'SD01', '现实', '2026-06-17', NULL, 'STARTER'
 WHERE NOT EXISTS (SELECT 1 FROM mtcg_product WHERE product_code = 'SD01');
 
 -- ========== 卡牌 ==========

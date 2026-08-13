@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 对战 REST API
  *
  * <p>路径前缀 {@code /games}；context-path 已含 {@code /api}。 {@code /history}、{@code /stats} 须写在 {@code
- * /{id}} 之前，避免被路径变量吞掉。
+ * /{id}} 之前，避免被路径变量吞掉。路径 id 可为数字主键或 G- 编码。
  *
  * @author pengYuJun
  */
@@ -62,9 +62,9 @@ public class GameController {
         return Result.success(gameService.matchGame(userId, dto));
     }
 
-    /** 创建对局或等待房间（FR4.1），返回 gameId */
+    /** 创建对局或等待房间（FR4.1），返回对外业务编码 gameCode */
     @PostMapping
-    public Result<Long> createGame(
+    public Result<String> createGame(
             @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
             @Valid @RequestBody GameCreateDTO dto) {
         return Result.success(gameService.createGame(userId, dto));
@@ -72,9 +72,9 @@ public class GameController {
 
     /** 加入等待中的房间 */
     @PostMapping("/{id}/join")
-    public Result<Long> joinGame(
+    public Result<String> joinGame(
             @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody GameJoinDTO dto) {
         return Result.success(gameService.joinGame(userId, id, dto));
     }
@@ -82,7 +82,7 @@ public class GameController {
     /** 取消本人发起的等待房间 */
     @PostMapping("/{id}/cancel")
     public Result<Void> cancelWaiting(
-            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable Long id) {
+            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable String id) {
         gameService.cancelWaiting(userId, id);
         return Result.success();
     }
@@ -90,7 +90,7 @@ public class GameController {
     /** 查询对局状态（FR4.2） */
     @GetMapping("/{id}")
     public Result<GameStateVO> getGameState(
-            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable Long id) {
+            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable String id) {
         return Result.success(gameService.getGameState(userId, id));
     }
 
@@ -98,7 +98,7 @@ public class GameController {
     @PostMapping("/{id}/actions")
     public Result<ActionResultVO> executeAction(
             @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId,
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody ActionRequestDTO dto) {
         return Result.success(gameService.executeAction(userId, id, dto));
     }
@@ -106,14 +106,14 @@ public class GameController {
     /** 认输（FR4.4） */
     @PostMapping("/{id}/surrender")
     public Result<Void> surrender(
-            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable Long id) {
+            @RequestAttribute(SecurityConstant.ATTR_USER_ID) Long userId, @PathVariable String id) {
         gameService.surrender(userId, id);
         return Result.success();
     }
 
     /** 复盘数据（FR4.5） */
     @GetMapping("/{id}/replay")
-    public Result<ReplayVO> getReplay(@PathVariable Long id) {
+    public Result<ReplayVO> getReplay(@PathVariable String id) {
         return Result.success(gameService.getReplay(id));
     }
 }

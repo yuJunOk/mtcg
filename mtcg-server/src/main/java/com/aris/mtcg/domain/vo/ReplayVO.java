@@ -17,7 +17,8 @@ public class ReplayVO {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private Long gameId;
+    /** 对外业务编码（G-xxxxxxxx） */
+    private String gameId;
 
     private Long player1Id;
 
@@ -40,7 +41,7 @@ public class ReplayVO {
             return null;
         }
         ReplayVO vo = new ReplayVO();
-        vo.setGameId(game.getId());
+        vo.setGameId(game.getGameCode());
         vo.setPlayer1Id(game.getPlayer1Id());
         vo.setPlayer2Id(game.getPlayer2Id());
         vo.setWinner(game.getWinner());

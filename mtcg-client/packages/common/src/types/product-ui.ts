@@ -1,4 +1,4 @@
-/** 商品分类（对标官网：基础卡组 / 补充包 / 其他；后端暂无独立字段，由编号前缀推断） */
+/** 商品分类（对标官网：基础卡组 / 补充包 / 其他） */
 export type ProductCategory = 'STARTER' | 'BOOSTER' | 'OTHER'
 
 export const PRODUCT_CATEGORY_OPTIONS: Array<{ code: ProductCategory; desc: string }> = [
@@ -8,10 +8,24 @@ export const PRODUCT_CATEGORY_OPTIONS: Array<{ code: ProductCategory; desc: stri
 ]
 
 /**
- * 由 productCode 推断分类：SD→基础卡组，BP→补充包，其余→其他。
- * 与官网 category(base/supplement) 对齐。
+ * 解析产品分类：优先用库字段；缺省时按编号推断（SD→基础卡组，BP→补充包）。
  */
-export function resolveProductCategory(productCode: string | null | undefined): ProductCategory {
+export function resolveProductCategory(product: {
+  category?: ProductCategory | string | null
+  productCode?: string | null
+} | string | null | undefined): ProductCategory {
+  if (product == null) return 'OTHER'
+  if (typeof product === 'string') {
+    return inferCategoryFromCode(product)
+  }
+  const fromField = product.category?.trim()
+  if (fromField === 'STARTER' || fromField === 'BOOSTER' || fromField === 'OTHER') {
+    return fromField
+  }
+  return inferCategoryFromCode(product.productCode)
+}
+
+function inferCategoryFromCode(productCode: string | null | undefined): ProductCategory {
   const code = (productCode ?? '').trim().toUpperCase()
   if (code.startsWith('SD')) return 'STARTER'
   if (code.startsWith('BP')) return 'BOOSTER'

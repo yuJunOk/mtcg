@@ -91,12 +91,23 @@ def normalize_seed_card(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def infer_product_category(product_code: str) -> str:
+    code = (product_code or "").strip().upper()
+    if code.startswith("SD"):
+        return "STARTER"
+    if code.startswith("BP"):
+        return "BOOSTER"
+    return "OTHER"
+
+
 def product_insert_sql(product: dict[str, Any]) -> str:
     code = product["product_code"]
+    category = product.get("category") or infer_product_category(code)
     return (
-        "INSERT INTO mtcg_product (product_code, product_name, release_date, description)\n"
+        "INSERT INTO mtcg_product (product_code, product_name, release_date, description, category)\n"
         f"SELECT {sql_quote(code)}, {sql_quote(product.get('product_name'))}, "
-        f"{sql_quote(product.get('release_date'))}, {sql_quote(product.get('description'))}\n"
+        f"{sql_quote(product.get('release_date'))}, {sql_quote(product.get('description'))}, "
+        f"{sql_quote(category)}\n"
         f"WHERE NOT EXISTS (SELECT 1 FROM mtcg_product WHERE product_code = {sql_quote(code)});"
     )
 

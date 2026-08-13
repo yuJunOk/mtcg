@@ -479,13 +479,15 @@ onMounted(async () => {
   document.addEventListener('fullscreenchange', onFullscreenChange)
   startClockLoop()
   const raw = route.params.gameId
-  const id =
+  const key =
     typeof raw === 'string'
-      ? Number(raw)
-      : Number(Array.isArray(raw) ? raw[0] : raw)
-  if (Number.isFinite(id) && id > 0) {
+      ? raw.trim()
+      : Array.isArray(raw)
+        ? String(raw[0] ?? '').trim()
+        : ''
+  if (key) {
     try {
-      await store.loadGame(id)
+      await store.loadGame(decodeURIComponent(key))
     } catch {
       actionError.value = store.error ?? '加载对局失败'
     }

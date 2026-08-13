@@ -7,16 +7,14 @@ import {
   CARD_COLOR_OPTIONS,
   CARD_LEVEL_FILTER_OPTIONS,
   CARD_RARITY_FILTER_CODES,
-  CARD_RARITY_OPTIONS,
   CARD_TRAIT_FILTER_OPTIONS,
   CARD_TYPE_OPTIONS,
   cardApi,
-  codeToDesc,
   productApi,
   resolveCardImageUrl,
 } from '@mtcg/common'
 import type { CardColor, CardRarity, CardType, CardVO, ProductVO } from '@mtcg/common'
-import MtcgDialog from '@/components/MtcgDialog.vue'
+import CardDetailDialog from '@/components/CardDetailDialog.vue'
 
 //#region 状态
 const route = useRoute()
@@ -68,27 +66,6 @@ const hasActiveFilters = computed(() =>
       filters.attackRange != null ||
       filters.trait,
   ),
-)
-
-const selectedTypeLabel = computed(() =>
-  selected.value ? codeToDesc(CARD_TYPE_OPTIONS, selected.value.cardType as CardType) : '',
-)
-
-const selectedColorLabel = computed(() => {
-  const color = selected.value?.color
-  if (!color) return ''
-  return codeToDesc(CARD_COLOR_OPTIONS, color as CardColor)
-})
-
-const selectedRarityLabel = computed(() => {
-  const rarity = selected.value?.rarity
-  if (!rarity) return ''
-  const desc = codeToDesc(CARD_RARITY_OPTIONS, rarity as CardRarity)
-  return desc && desc !== rarity ? `${rarity} · ${desc}` : rarity
-})
-
-const detailTitle = computed(() =>
-  selected.value?.cardName ? `🃏 ${selected.value.cardName}` : '卡牌详情',
 )
 //#endregion
 
@@ -448,70 +425,12 @@ onUnmounted(() => {
       />
     </div>
 
-    <MtcgDialog
+    <CardDetailDialog
       :open="detailOpen"
-      :title="detailTitle"
-      width="720px"
-      body-height="min(64vh, 560px)"
-      :show-footer="false"
-      fullscreenable
+      :card="selected"
       @update:open="detailOpen = $event"
       @close="closeDetail"
-    >
-      <div v-if="selected" class="detail">
-        <div class="detail-art">
-          <span class="art-ph fill" aria-hidden="true">🃏</span>
-          <img
-            v-if="cardImage(selected)"
-            :src="cardImage(selected)"
-            :alt="selected.cardName"
-            @error="onImgError"
-          />
-        </div>
-        <dl class="meta">
-          <div>
-            <dt>编号</dt>
-            <dd>{{ selected.cardCode }}</dd>
-          </div>
-          <div>
-            <dt>类型</dt>
-            <dd>{{ selectedTypeLabel || selected.cardType }}</dd>
-          </div>
-          <div v-if="selectedColorLabel">
-            <dt>颜色</dt>
-            <dd>{{ selectedColorLabel }}</dd>
-          </div>
-          <div v-if="selected.rarity">
-            <dt>稀有度</dt>
-            <dd>{{ selectedRarityLabel }}</dd>
-          </div>
-          <div v-if="selected.level != null">
-            <dt>等级</dt>
-            <dd>{{ selected.level }}</dd>
-          </div>
-          <div v-if="selected.attackRange != null">
-            <dt>攻击距离</dt>
-            <dd>{{ selected.attackRange }}</dd>
-          </div>
-          <div v-if="selected.power != null">
-            <dt>力量</dt>
-            <dd>{{ selected.power }}</dd>
-          </div>
-          <div v-if="selected.traits">
-            <dt>特征</dt>
-            <dd>{{ selected.traits }}</dd>
-          </div>
-          <div v-if="selected.productCode">
-            <dt>系列</dt>
-            <dd>{{ selected.productCode }}</dd>
-          </div>
-          <div v-if="selected.effectText" class="effect">
-            <dt>效果</dt>
-            <dd>{{ selected.effectText }}</dd>
-          </div>
-        </dl>
-      </div>
-    </MtcgDialog>
+    />
   </div>
 </template>
 
@@ -711,21 +630,16 @@ onUnmounted(() => {
   box-shadow: 0 8px 20px color-mix(in srgb, #000 14%, transparent);
 }
 
-.art,
-.detail-art {
-  position: relative;
-  background: var(--bg-surface-2);
-}
-
 .art {
   display: block;
   width: var(--card-face-w);
   height: var(--card-face-h);
   flex: none;
+  position: relative;
+  background: var(--bg-surface-2);
 }
 
-.art img,
-.detail-art img {
+.art img {
   position: relative;
   z-index: 1;
   width: 100%;
@@ -745,10 +659,6 @@ onUnmounted(() => {
   line-height: 1;
   color: var(--text-secondary);
   pointer-events: none;
-}
-
-.art-ph.fill {
-  font-size: 40px;
 }
 
 .tile-name {
@@ -772,62 +682,5 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   margin-top: 20px;
-}
-
-.detail {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.detail-art {
-  width: 240px;
-  height: calc(240px * 2080 / 1488);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.meta {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.meta > div {
-  display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 8px;
-}
-
-.meta dt {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.meta dd {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.meta .effect dd {
-  font-weight: 400;
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-
-@media (max-width: 720px) {
-  .detail {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-art {
-    width: var(--card-face-w);
-    height: var(--card-face-h);
-    justify-self: center;
-  }
 }
 </style>

@@ -2,7 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NTag } from 'naive-ui'
-import { deckApi, productApi, productCoverPath, resolveCardImageUrl } from '@mtcg/common'
+import {
+  deckApi,
+  productApi,
+  productCoverPath,
+  resolveCardImageUrl,
+  isDeckReady,
+  deckStatusLabel,
+} from '@mtcg/common'
 import type { DeckVO, ProductVO } from '@mtcg/common'
 import { HERO_TRIO_PATHS } from '@/constants/heroArt'
 import CardRail from '@/components/CardRail.vue'
@@ -14,7 +21,7 @@ const series = ref<ProductVO[]>([])
 
 const previewDecks = computed(() => decks.value.slice(0, 8))
 const deckCount = computed(() => decks.value.length)
-const validCount = computed(() => decks.value.filter((d) => d.isValid === true).length)
+const validCount = computed(() => decks.value.filter((d) => isDeckReady(d)).length)
 
 /** 英雄区固定复联三巨头真卡面 */
 const heroCards = HERO_TRIO_PATHS.map((path, i) => ({
@@ -25,8 +32,8 @@ const heroCards = HERO_TRIO_PATHS.map((path, i) => ({
 
 const rosterHint = computed(() => {
   if (deckCount.value === 0) return '还没有卡组，先去构筑一套'
-  if (validCount.value === 0) return `${deckCount.value} 套卡组 · 尚未有合法出战套`
-  return `${validCount.value} 套可出战 · 共 ${deckCount.value} 套`
+  if (validCount.value === 0) return `${deckCount.value} 套卡组 · 均为草稿`
+  return `${validCount.value} 套可用 · 共 ${deckCount.value} 套`
 })
 
 function onImgError(e: Event): void {
@@ -100,7 +107,7 @@ onMounted(async () => {
         <header class="sec">
           <div class="sec-text">
             <h2>🃏 我的卡组</h2>
-            <p class="sec-hint">出战用的牌组，点封面进入编辑</p>
+            <p class="sec-hint">点封面查看 · 未完成自动为草稿</p>
           </div>
           <n-button text type="primary" @click="router.push('/decks')">全部 →</n-button>
         </header>
@@ -115,14 +122,14 @@ onMounted(async () => {
             :key="deck.id"
             type="button"
             class="strip-card"
-            @click="router.push(`/decks/${deck.id}`)"
+            @click="router.push(`/decks/${deck.deckCode || deck.id}`)"
           >
             <span class="strip-art">
               <DeckCover :image-path="deck.coverImagePath" placeholder="🃏" />
             </span>
             <span class="strip-name">{{ deck.deckName }}</span>
-            <span class="strip-meta" :class="{ on: deck.isValid }">
-              {{ deck.isValid ? '✓ 合法' : '… 未完成' }}
+            <span class="strip-meta" :class="{ on: isDeckReady(deck) }">
+              {{ deckStatusLabel(deck) }}
               · {{ deck.mainDeckSize ?? 0 }}/50
             </span>
           </button>

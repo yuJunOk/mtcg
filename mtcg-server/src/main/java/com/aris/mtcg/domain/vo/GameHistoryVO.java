@@ -16,7 +16,8 @@ public class GameHistoryVO {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private Long gameId;
+    /** 对外业务编码（G-xxxxxxxx） */
+    private String gameId;
 
     /** 对手昵称（联查 user 表） */
     private String opponentName;
@@ -48,7 +49,7 @@ public class GameHistoryVO {
             return null;
         }
         GameHistoryVO vo = new GameHistoryVO();
-        vo.setGameId(game.getId());
+        vo.setGameId(game.getGameCode());
         vo.setWinner(game.getWinner());
         vo.setGameMode(game.getGameMode());
         vo.setStatus(game.getStatus());

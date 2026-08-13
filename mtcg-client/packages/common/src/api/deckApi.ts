@@ -6,6 +6,7 @@
 import type { Ref } from 'vue'
 import { http } from './request'
 import type {
+  DeckCopyDTO,
   DeckCreateDTO,
   DeckReorderDTO,
   DeckUpdateDTO,
@@ -22,25 +23,29 @@ export const deckApi = {
       loadingRef,
     ),
 
-  /** 卡组详情 */
-  get: (id: number, loadingRef?: Ref<boolean>) =>
-    http.get<DeckVO>(`/decks/${id}`, loadingRef),
+  /** 卡组详情（id 可为数字主键或 D- 编码） */
+  get: (idOrCode: number | string, loadingRef?: Ref<boolean>) =>
+    http.get<DeckVO>(`/decks/${idOrCode}`, loadingRef),
 
-  /** 创建卡组，返回 deckId */
+  /** 创建卡组，返回 deckCode */
   create: (dto: DeckCreateDTO, loadingRef?: Ref<boolean>) =>
-    http.post<number>('/decks', dto, loadingRef),
+    http.post<string>('/decks', dto, loadingRef),
 
   /** 编辑卡组 */
-  update: (id: number, dto: DeckUpdateDTO, loadingRef?: Ref<boolean>) =>
-    http.post<void>(`/decks/${id}`, dto, loadingRef),
+  update: (idOrCode: number | string, dto: DeckUpdateDTO, loadingRef?: Ref<boolean>) =>
+    http.post<void>(`/decks/${idOrCode}`, dto, loadingRef),
 
   /** 删除卡组 */
-  delete: (id: number, loadingRef?: Ref<boolean>) =>
-    http.post<void>(`/decks/${id}/delete`, undefined, loadingRef),
+  delete: (idOrCode: number | string, loadingRef?: Ref<boolean>) =>
+    http.post<void>(`/decks/${idOrCode}/delete`, undefined, loadingRef),
 
   /** 校验卡组合法性 */
-  validate: (id: number, loadingRef?: Ref<boolean>) =>
-    http.post<DeckValidateResultVO>(`/decks/${id}/validate`, undefined, loadingRef),
+  validate: (idOrCode: number | string, loadingRef?: Ref<boolean>) =>
+    http.post<DeckValidateResultVO>(`/decks/${idOrCode}/validate`, undefined, loadingRef),
+
+  /** 按编码复制他人（或自己的）卡组，返回新 deckCode */
+  copyByCode: (dto: DeckCopyDTO, loadingRef?: Ref<boolean>) =>
+    http.post<string>('/decks/copy', dto, loadingRef),
 
   /** 卡组列表拖拽重排 */
   reorder: (dto: DeckReorderDTO, loadingRef?: Ref<boolean>) =>

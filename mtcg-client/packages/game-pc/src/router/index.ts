@@ -67,10 +67,16 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '新建卡组' },
   },
   {
-    path: '/decks/:id',
+    path: '/decks/:id/edit',
     name: 'deck-builder',
     component: () => import('@/views/DeckBuilderView.vue'),
     meta: { title: '卡组构筑' },
+  },
+  {
+    path: '/decks/:id',
+    name: 'deck-viewer',
+    component: () => import('@/views/DeckViewerView.vue'),
+    meta: { title: '卡组查看' },
   },
   {
     path: '/battle/:gameId?',

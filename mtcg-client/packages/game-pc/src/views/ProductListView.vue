@@ -29,7 +29,7 @@ const viewMode = ref<ViewMode>('grid')
 const filtered = computed(() => {
   const list = allProducts.value
   if (!category.value) return list
-  return list.filter((p) => resolveProductCategory(p.productCode) === category.value)
+  return list.filter((p) => resolveProductCategory(p) === category.value)
 })
 
 const total = computed(() => filtered.value.length)
@@ -49,7 +49,7 @@ function formatDate(raw: string | null | undefined): string {
 }
 
 function categoryOf(p: ProductVO): string {
-  return getProductCategoryLabel(resolveProductCategory(p.productCode))
+  return getProductCategoryLabel(resolveProductCategory(p))
 }
 
 function coverOf(p: ProductVO): string | null {

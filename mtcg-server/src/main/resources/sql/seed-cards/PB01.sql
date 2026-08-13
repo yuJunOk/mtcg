@@ -5,8 +5,8 @@
 BEGIN;
 
 -- ========== 产品 ==========
-INSERT INTO mtcg_product (product_code, product_name, release_date, description)
-SELECT 'PB01', '推广包01', NULL, '推广包'
+INSERT INTO mtcg_product (product_code, product_name, release_date, description, category)
+SELECT 'PB01', '推广包01', NULL, '推广包', 'OTHER'
 WHERE NOT EXISTS (SELECT 1 FROM mtcg_product WHERE product_code = 'PB01');
 
 -- ========== 卡牌 ==========

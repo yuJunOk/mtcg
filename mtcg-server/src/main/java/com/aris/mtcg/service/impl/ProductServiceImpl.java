@@ -1,5 +1,6 @@
 package com.aris.mtcg.service.impl;
 
+import com.aris.mtcg.common.enums.EnumProductCategory;
 import com.aris.mtcg.common.exception.BusinessException;
 import com.aris.mtcg.common.result.ErrorCode;
 import com.aris.mtcg.dao.CardMapper;
@@ -47,6 +48,7 @@ public class ProductServiceImpl implements ProductService {
                 QueryWrapper.create()
                         .like("product_name", query.getProductName(), StringUtils::isNotBlank)
                         .like("product_code", query.getProductCode(), StringUtils::isNotBlank)
+                        .eq("category", query.getCategory(), StringUtils::isNotBlank)
                         .orderBy("release_date", false)
                         .orderBy("create_time", false);
         int pageNum =
@@ -66,13 +68,13 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Long createProduct(ProductCreateDTO dto) {
-        // 产品编号唯一校验
         long count =
                 productMapper.selectCountByQuery(
                         QueryWrapper.create().eq("product_code", dto.getProductCode()));
         if (count > 0) {
             throw new BusinessException(ErrorCode.PRODUCT_CODE_DUPLICATE);
         }
+        dto.setCategory(resolveCategory(dto.getCategory(), dto.getProductCode()));
         ProductDO product = ProductVO.toDO(ProductVO.fromDTO(dto));
         productMapper.insert(product);
         auditService.record(
@@ -86,6 +88,9 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public void updateProduct(Long id, ProductUpdateDTO dto) {
         loadOrThrow(id);
+        if (dto.getCategory() != null && EnumProductCategory.of(dto.getCategory()) == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "非法产品分类");
+        }
         ProductDO update = new ProductDO();
         update.setId(id);
         if (dto.getProductName() != null) {
@@ -96,6 +101,9 @@ public class ProductServiceImpl implements ProductService {
         }
         if (dto.getDescription() != null) {
             update.setDescription(dto.getDescription());
+        }
+        if (dto.getCategory() != null) {
+            update.setCategory(dto.getCategory());
         }
         productMapper.update(update);
         auditService.record("UPDATE", "PRODUCT", String.valueOf(id), "更新产品");
@@ -172,6 +180,16 @@ public class ProductServiceImpl implements ProductService {
     }
 
     // ==================== 私有方法 ====================
+
+    private String resolveCategory(String category, String productCode) {
+        if (StringUtils.isNotBlank(category)) {
+            if (EnumProductCategory.of(category) == null) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "非法产品分类");
+            }
+            return category;
+        }
+        return EnumProductCategory.inferFromProductCode(productCode).getCode();
+    }
 
     private ProductDO loadOrThrow(Long id) {
         ProductDO product = productMapper.selectOneById(id);

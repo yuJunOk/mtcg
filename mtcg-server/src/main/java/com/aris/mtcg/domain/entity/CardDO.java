@@ -41,7 +41,7 @@ public class CardDO {
     /** 环境 */
     private String environment;
 
-    /** 特征（逗号分隔） */
+    /** 特征（中文标签、斜杠分隔，见 {@link com.aris.mtcg.common.enums.EnumTrait}） */
     private String traits;
 
     /** 攻击距离 */

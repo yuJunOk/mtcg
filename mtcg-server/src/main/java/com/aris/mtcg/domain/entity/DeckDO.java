@@ -22,6 +22,9 @@ public class DeckDO {
     /** 归属用户 */
     private Long userId;
 
+    /** 对外业务编码（D-xxxxxxxx） */
+    private String deckCode;
+
     /** 卡组名称 */
     private String deckName;
 
@@ -31,8 +34,19 @@ public class DeckDO {
     /** 冲击卡组有序条目 JSON */
     private String rushDeckCodes;
 
-    /** 最近一次校验结果（缓存） */
+    /** 最近一次校验结果（缓存；与 status 同步） */
     private Boolean isValid;
+
+    /**
+     * 卡组状态：READY=可用 / DRAFT=草稿（与 {@link #isValid} 同步，由校验自动写入）
+     */
+    private String status;
+
+    /** 是否公开可见 */
+    private Boolean isPublic;
+
+    /** 是否允许他人复制 */
+    private Boolean isCopyable;
 
     /** 用户自定义排序（同用户内越小越靠前） */
     private Integer sortOrder;

@@ -58,7 +58,6 @@ com.aris.mtcg
 │   ├── card/
 │   │   ├── CardController          // 公开卡牌 /cards
 │   │   ├── AdminCardController     // 管理员卡牌 /admin/cards
-│   │   └── CardFeatureController   // 卡牌特征 /cards/features
 │   ├── product/
 │   │   ├── ProductController       // 公开产品 /products
 │   │   └── AdminProductController  // 管理员产品 /admin/products

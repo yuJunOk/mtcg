@@ -11,7 +11,6 @@ import type {
 } from '../types/user'
 import type { ProductVO, ProductQueryDTO, ProductCreateDTO, ProductUpdateDTO } from '../types/product'
 import type { CardVO, CardQueryDTO, CardCreateDTO, CardUpdateDTO } from '../types/card'
-import type { CardFeatureVO } from '../types/card-feature'
 
 // ========================================================
 // 用户管理
@@ -58,7 +57,12 @@ export const adminProductApi = {
     http.post<void>('/admin/products/' + id + '/delete', undefined, loadingRef),
 
   uploadImage: (productId: number, formData: FormData, loadingRef?: Ref<boolean>) =>
-    http.postWithConfig<string>('/admin/products/' + productId + '/image', formData, {}, loadingRef),
+    http.postWithConfig<string>(
+      '/admin/products/' + productId + '/image',
+      formData,
+      { timeout: 60_000 },
+      loadingRef,
+    ),
 
   deleteImage: (productId: number, path: string, loadingRef?: Ref<boolean>) =>
     http.postWithConfig<void>(
@@ -84,14 +88,10 @@ export const adminCardApi = {
     http.post<void>('/admin/cards/' + id + '/delete', undefined, loadingRef),
 
   uploadImage: (cardId: number, formData: FormData, loadingRef?: Ref<boolean>) =>
-    http.postWithConfig<string>('/admin/cards/' + cardId + '/image', formData, {}, loadingRef),
-
-  listFeatures: (cardId: number, loadingRef?: Ref<boolean>) =>
-    http.get<CardFeatureVO[]>(`/admin/cards/${cardId}/features`, loadingRef),
-
-  addFeature: (cardId: number, featureId: number, loadingRef?: Ref<boolean>) =>
-    http.post<void>(`/admin/cards/${cardId}/features/${featureId}`, undefined, loadingRef),
-
-  removeFeature: (cardId: number, featureId: number, loadingRef?: Ref<boolean>) =>
-    http.post<void>(`/admin/cards/${cardId}/features/${featureId}/delete`, undefined, loadingRef),
+    http.postWithConfig<string>(
+      '/admin/cards/' + cardId + '/image',
+      formData,
+      { timeout: 60_000 },
+      loadingRef,
+    ),
 }

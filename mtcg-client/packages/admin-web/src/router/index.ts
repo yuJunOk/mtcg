@@ -41,16 +41,15 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '产品管理' },
       },
       {
-        path: 'cards/features',
-        name: 'card-feature-list',
-        component: () => import('@/views/card/CardFeatureListView.vue'),
-        meta: { title: '卡牌特征管理', requiresAdmin: true },
-      },
-      {
-        path: 'system/users',
+        path: 'users',
         name: 'user-list',
         component: () => import('@/views/system/UserListView.vue'),
         meta: { title: '用户管理', requiresAdmin: true },
+      },
+      // 兼容旧书签：系统管理已扁平化
+      {
+        path: 'system/users',
+        redirect: '/users',
       },
     ],
   },

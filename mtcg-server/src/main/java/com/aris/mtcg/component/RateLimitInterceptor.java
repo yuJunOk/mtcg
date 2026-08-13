@@ -41,7 +41,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             check("login:" + clientIp(request) + ":" + path, 10);
             return true;
         }
-        if (pathMatcher.match("/admin/cards/*/image", path)) {
+        if (pathMatcher.match("/admin/cards/*/image", path)
+                || pathMatcher.match("/admin/products/*/image", path)) {
             String identity = resolveIdentity(request);
             check("upload:" + identity + ":" + path, 30);
             return true;

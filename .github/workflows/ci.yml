@@ -25,7 +25,7 @@ jobs:
         run: ./mvnw -B test -Dtest='!*IT'
 
   frontend:
-    name: Admin Web build
+    name: Frontend (admin-web + game-pc)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,3 +41,5 @@ jobs:
         run: npm ci
       - name: Build admin-web
         run: npm run build:admin
+      - name: Build game-pc
+        run: npm run build:pc
