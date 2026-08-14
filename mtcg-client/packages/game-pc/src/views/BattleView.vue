@@ -626,7 +626,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- 中央战区舞台：基地 + 菱形 -->
+    <!-- 中央战区舞台：基地 + 阵型槽 -->
     <main class="stage">
       <div class="arena">
         <div class="side opp-side">
@@ -644,12 +644,11 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="diamond opp">
-            <div class="diamond-ring" aria-hidden="true" />
-            <div class="d-col">
+          <div class="formation opp" aria-label="对手阵型">
+            <div class="f-col">
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="侧翼"
                 :class="{
                   'is-target':
@@ -659,7 +658,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="opponentField.flankL"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(opponentField.flankL.instanceId),
                   }"
@@ -668,10 +667,10 @@ onUnmounted(() => {
                 </div>
               </button>
             </div>
-            <div class="d-col spine">
+            <div class="f-col spine">
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="后卫"
                 :class="{
                   'is-target':
@@ -681,7 +680,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="opponentField.rearguard"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(opponentField.rearguard.instanceId),
                   }"
@@ -691,7 +690,7 @@ onUnmounted(() => {
               </button>
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="先锋"
                 :class="{
                   'is-target':
@@ -701,7 +700,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="opponentField.vanguard"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(opponentField.vanguard.instanceId),
                   }"
@@ -710,10 +709,10 @@ onUnmounted(() => {
                 </div>
               </button>
             </div>
-            <div class="d-col">
+            <div class="f-col">
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="侧翼"
                 :class="{
                   'is-target':
@@ -723,7 +722,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="opponentField.flankR"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(opponentField.flankR.instanceId),
                   }"
@@ -740,12 +739,11 @@ onUnmounted(() => {
         </div>
 
         <div class="side local-side">
-          <div class="diamond local">
-            <div class="diamond-ring" aria-hidden="true" />
-            <div class="d-col">
+          <div class="formation local" aria-label="我方阵型">
+            <div class="f-col">
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="侧翼"
                 :class="{
                   'is-drop': canAct && !!selectedHandCode && hasSummon && !localField.flankL,
@@ -754,7 +752,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="localField.flankL"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(localField.flankL.instanceId),
                   }"
@@ -763,10 +761,10 @@ onUnmounted(() => {
                 </div>
               </button>
             </div>
-            <div class="d-col spine">
+            <div class="f-col spine">
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="先锋"
                 :class="{
                   'is-drop':
@@ -776,7 +774,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="localField.vanguard"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(localField.vanguard.instanceId),
                   }"
@@ -786,7 +784,7 @@ onUnmounted(() => {
               </button>
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="后卫"
                 :class="{
                   'is-drop':
@@ -796,7 +794,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="localField.rearguard"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(localField.rearguard.instanceId),
                   }"
@@ -805,10 +803,10 @@ onUnmounted(() => {
                 </div>
               </button>
             </div>
-            <div class="d-col">
+            <div class="f-col">
               <button
                 type="button"
-                class="d-slot"
+                class="f-slot"
                 data-label="侧翼"
                 :class="{
                   'is-drop': canAct && !!selectedHandCode && hasSummon && !localField.flankR,
@@ -817,7 +815,7 @@ onUnmounted(() => {
               >
                 <div
                   v-if="localField.flankR"
-                  class="d-card"
+                  class="f-card"
                   :class="{
                     'is-selected': isFieldSelected(localField.flankR.instanceId),
                   }"
@@ -1020,8 +1018,7 @@ onUnmounted(() => {
   --hand-h: clamp(96px, 14vh, 128px);
   --hand-w: calc(var(--hand-h) * 0.717);
   --d-gap: clamp(4px, 0.7vw, 8px);
-  --slot-inset: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 5%, transparent),
-    inset 0 2px 6px rgba(0, 0, 0, 0.22);
+  --slot-inset: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 
   display: grid;
   grid-template-rows: 40px auto minmax(0, 1fr) auto auto;
@@ -1066,12 +1063,13 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--text-disabled);
+  color: var(--text-secondary);
   border-radius: 999px;
 }
 
 .phase-step.done {
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  opacity: 0.72;
 }
 
 .phase-step.current {
@@ -1231,7 +1229,7 @@ onUnmounted(() => {
   gap: 5px;
   padding: 3px 6px 3px 3px;
   background: var(--bg-surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   box-shadow: var(--edge-highlight, none);
 }
@@ -1279,7 +1277,7 @@ onUnmounted(() => {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--text-disabled);
+  color: var(--text-secondary);
 }
 
 .meter-meta b {
@@ -1308,7 +1306,7 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--text-disabled);
+  color: var(--text-secondary);
 }
 
 .tl-head strong {
@@ -1327,13 +1325,13 @@ onUnmounted(() => {
 
 .tl-cell {
   border-radius: 3px;
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
+  background: var(--bg-base);
+  border: 1px solid var(--border-light);
 }
 
 .tl-cell.filled {
-  border-color: color-mix(in srgb, var(--accent-gold) 55%, var(--border));
-  background: color-mix(in srgb, var(--accent-gold) 55%, var(--bg-surface-2));
+  border-color: color-mix(in srgb, var(--accent-gold) 65%, var(--border));
+  background: color-mix(in srgb, var(--accent-gold) 62%, var(--bg-surface-2));
 }
 
 /* ========== 中央舞台 ========== */
@@ -1354,7 +1352,7 @@ onUnmounted(() => {
   inset: 0;
   z-index: 0;
   background: var(--shell-art) center 35% / cover no-repeat;
-  opacity: 0.14;
+  opacity: 0.08;
   filter: var(--shell-art-filter);
   pointer-events: none;
 }
@@ -1370,7 +1368,7 @@ onUnmounted(() => {
       var(--owner-tint, transparent),
       transparent 70%
     ),
-    color-mix(in srgb, var(--bg-base) 72%, transparent);
+    var(--bg-elevated);
   pointer-events: none;
 }
 
@@ -1383,10 +1381,10 @@ onUnmounted(() => {
   grid-template-rows: 1fr auto 1fr;
   gap: 4px;
   padding: 8px 14px;
-  background: color-mix(in srgb, var(--bg-surface) 42%, transparent);
-  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
-  box-shadow: var(--edge-highlight, none);
+  box-shadow: var(--shadow-md), var(--edge-highlight, none);
 }
 
 .side {
@@ -1417,10 +1415,10 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.2em;
-  color: var(--text-disabled);
+  color: var(--text-secondary);
   padding: 0 10px;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
   line-height: 16px;
 }
 
@@ -1433,7 +1431,7 @@ onUnmounted(() => {
   max-width: 100%;
   padding: 4px;
   background: var(--bg-surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   box-shadow: var(--slot-inset);
 }
@@ -1446,9 +1444,9 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  color: var(--text-primary);
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 0 6px;
   line-height: 1.45;
@@ -1477,8 +1475,8 @@ onUnmounted(() => {
   height: 100%;
   aspect-ratio: var(--card-aspect);
   flex-shrink: 0;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   box-shadow: var(--slot-inset);
   overflow: hidden;
@@ -1506,36 +1504,25 @@ onUnmounted(() => {
   position: absolute;
   right: 2px;
   bottom: 1px;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
-  color: var(--text-disabled);
+  color: var(--text-secondary);
   pointer-events: none;
   z-index: 1;
 }
 
-/* 菱形 */
-.diamond {
+/* 阵型槽：十字布局，无菱形装饰 */
+.formation {
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, calc(var(--card-w) + 6px));
   gap: var(--d-gap);
   align-items: center;
   justify-content: center;
-  padding: 8px 10px;
+  padding: 6px 8px;
 }
 
-.diamond-ring {
-  position: absolute;
-  inset: 2%;
-  z-index: 0;
-  pointer-events: none;
-  background: color-mix(in srgb, var(--bg-surface-2) 65%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 75%, var(--accent) 25%);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  opacity: 0.9;
-}
-
-.d-col {
+.f-col {
   position: relative;
   z-index: 1;
   display: flex;
@@ -1545,7 +1532,7 @@ onUnmounted(() => {
   gap: var(--d-gap);
 }
 
-.d-slot {
+.f-slot {
   position: relative;
   width: calc(var(--card-w) + 6px);
   height: calc(var(--card-h) + 6px);
@@ -1557,41 +1544,41 @@ onUnmounted(() => {
   cursor: default;
 }
 
-.d-slot.is-drop,
-.d-slot.is-target {
+.f-slot.is-drop,
+.f-slot.is-target {
   cursor: pointer;
 }
 
-.d-slot:not(:has(.d-card))::before {
+.f-slot:not(:has(.f-card))::before {
   content: attr(data-label);
   position: absolute;
   inset: 3px;
   display: grid;
   place-items: center;
-  border: 1px dashed var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  background: var(--bg-surface-2);
+  background: var(--bg-elevated);
   box-shadow: var(--slot-inset);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-disabled);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
   pointer-events: none;
 }
 
-.d-slot.is-drop:not(:has(.d-card))::before {
-  border-style: solid;
+.f-slot.is-drop:not(:has(.f-card))::before {
   border-color: var(--accent);
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
 }
 
-.d-slot.is-target:has(.d-card) {
-  outline: 1px solid var(--accent);
+.f-slot.is-target:has(.f-card) {
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-radius: var(--radius-sm);
 }
 
-.d-card {
+.f-card {
   position: relative;
   width: var(--card-w);
   height: var(--card-h);
@@ -1601,18 +1588,18 @@ onUnmounted(() => {
   transition: transform 0.15s, border-color var(--transition-fast);
 }
 
-.d-card :deep(.card-face) {
+.f-card :deep(.card-face) {
   position: absolute;
   inset: 0;
   border-radius: inherit;
 }
 
-.d-card.is-selected {
+.f-card.is-selected {
   border-color: var(--accent);
   box-shadow: var(--shadow-glow);
 }
 
-.d-slot:hover .d-card {
+.f-slot:hover .f-card {
   transform: translateY(-2px);
 }
 
