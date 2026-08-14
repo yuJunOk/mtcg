@@ -50,15 +50,25 @@ body {
   border-radius: 10px;
 }
 
-/* 列表页筛选/操作行：去掉 inline form-item 底部多余空白 */
+/* 列表页筛选/操作行：单行优先，窄屏横向滚动 */
 .search-card .el-card__body {
-  padding: 16px;
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+.search-card .el-form--inline {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: max-content;
+  min-width: 100%;
 }
 .search-card .el-form--inline .el-form-item {
   margin-bottom: 0;
-  margin-right: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 .search-card .el-form--inline .el-form-item:last-child {
   margin-right: 0;
+  margin-left: auto;
 }
 </style>

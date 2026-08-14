@@ -131,7 +131,7 @@ onMounted(() => { loadData() })
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadData">查询</el-button>
+          <el-button type="primary" :loading="loading" @click="loadData">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
           <el-button type="success" @click="openCreate">新增用户</el-button>
         </el-form-item>

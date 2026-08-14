@@ -116,10 +116,10 @@ onMounted(() => {
     <el-card class="search-card">
       <el-form :model="query" inline>
         <el-form-item label="名称">
-          <el-input v-model="query.cardName" placeholder="模糊搜索" clearable style="width: 180px" />
+          <el-input v-model="query.cardName" placeholder="模糊搜索" clearable style="width: 140px" />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="query.cardType" placeholder="全部" clearable style="width: 120px">
+          <el-select v-model="query.cardType" placeholder="全部" clearable style="width: 100px">
             <el-option
               v-for="o in CARD_TYPE_OPTIONS"
               :key="o.code"
@@ -129,7 +129,7 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="颜色">
-          <el-select v-model="query.color" placeholder="全部" clearable style="width: 100px">
+          <el-select v-model="query.color" placeholder="全部" clearable style="width: 88px">
             <el-option
               v-for="o in CARD_COLOR_OPTIONS"
               :key="o.code"
@@ -139,7 +139,7 @@ onMounted(() => {
           </el-select>
         </el-form-item>
         <el-form-item label="稀有度">
-          <el-select v-model="query.rarity" placeholder="全部" clearable style="width: 120px">
+          <el-select v-model="query.rarity" placeholder="全部" clearable style="width: 110px">
             <el-option
               v-for="o in CARD_RARITY_OPTIONS"
               :key="o.code"
@@ -154,7 +154,7 @@ onMounted(() => {
             placeholder="全部"
             clearable
             filterable
-            style="width: 140px"
+            style="width: 110px"
           >
             <el-option
               v-for="t in CARD_TRAIT_FILTER_OPTIONS"
@@ -164,11 +164,14 @@ onMounted(() => {
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品" style="width: 220px">
-          <ProductSelector v-model="query.productCode" placeholder="点击选择产品" />
+        <el-form-item label="产品" class="product-item">
+          <ProductSelector
+            v-model="query.productCode"
+            placeholder="点击选择产品"
+          />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadData">查询</el-button>
+        <el-form-item class="search-actions">
+          <el-button type="primary" :loading="loading" @click="loadData">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
           <el-button type="success" @click="openCreate">新增卡牌</el-button>
         </el-form-item>
@@ -247,6 +250,9 @@ onMounted(() => {
   gap: 12px;
 }
 .search-card { flex-shrink: 0; }
+.product-item :deep(.product-selector) {
+  width: 160px;
+}
 .table-card {
   flex: 1;
   min-height: 0;

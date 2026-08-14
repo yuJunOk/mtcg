@@ -214,7 +214,8 @@ let { a } = obj  // a 失去响应式
 - 分页置于 `el-card` 的 `#footer` 插槽（固定底部）
 - 表格卡片 `flex: 1`，内容区撑满
 - 表格加 `height="100%"` 让 Element Plus 自动计算滚动区域
-- 列表页搜索区：`el-form--inline` 的 `form-item` 去掉多余 `margin-bottom`，避免操作行下大块空白
+- **查询 loading**：`el-table` 上 `v-loading`，查询按钮 `:loading`；请求期间如实绑定即可，不要人为拖长 loading / 包特殊宿主层
+- 列表页搜索区：单行优先（`flex-wrap: nowrap`，过窄横向滚动）；`form-item` 去掉多余 `margin-bottom`；筛选项宽度宜紧凑，避免按钮被挤到第二行
 
 ---
 
