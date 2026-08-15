@@ -3,8 +3,9 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { CardInstanceVO, Zone } from '@mtcg/common'
 import { useGameStore } from '@mtcg/common/stores'
-import { Card } from '@mtcg/common/components'
 import BattleFieldCard from '@/components/battle/BattleFieldCard.vue'
+import TimelineTrack from '@/components/battle/TimelineTrack.vue'
+import PlaymatZones from '@/components/battle/PlaymatZones.vue'
 import { confirm } from '@/feedback'
 import { NButton } from 'naive-ui'
 
@@ -166,13 +167,6 @@ const localField = computed(() => {
 
 const opponentTimeline = computed(() => padSlots(store.opponent?.timeline, 9))
 const localTimeline = computed(() => padSlots(store.localPlayer?.timeline, 9))
-
-const opponentTimelineFilled = computed(
-  () => opponentTimeline.value.filter((c) => !!c).length,
-)
-const localTimelineFilled = computed(
-  () => localTimeline.value.filter((c) => !!c).length,
-)
 
 const resultLabel = computed(() => {
   if (!store.isGameOver) return ''
@@ -560,177 +554,139 @@ onUnmounted(() => {
       </n-button>
     </header>
 
-    <!-- 对手仪表条 -->
-    <section class="player-strip opp">
-      <div class="identity">
-        <span class="avatar" />
-        <div class="id-text">
-          <strong>{{ store.opponent?.playerId ?? '对手' }}</strong>
-          <span>手牌 {{ store.opponent?.handCount ?? 0 }}</span>
-        </div>
-      </div>
-
-      <div class="meters">
-        <div class="meter" title="角色卡组">
-          <div class="meter-face">
-            <Card v-if="opponentZones.characterDeck > 0" back-type="character" />
-          </div>
-          <div class="meter-meta">
-            <em>角色</em>
-            <b>{{ opponentZones.characterDeck }}</b>
-          </div>
-        </div>
-        <div class="meter" title="撤退区">
-          <div class="meter-face dim">
-            <Card v-if="opponentZones.retreat > 0" back-type="character" />
-          </div>
-          <div class="meter-meta">
-            <em>撤退</em>
-            <b>{{ opponentZones.retreat }}</b>
-          </div>
-        </div>
-        <div class="meter" title="虚空区">
-          <div class="meter-face dim">
-            <Card v-if="opponentZones.voidZone > 0" back-type="character" />
-          </div>
-          <div class="meter-meta">
-            <em>虚空</em>
-            <b>{{ opponentZones.voidZone }}</b>
-          </div>
-        </div>
-        <div class="meter rush" title="冲击卡组">
-          <div class="meter-face">
-            <Card v-if="opponentZones.rushDeck > 0" back-type="rush" />
-          </div>
-          <div class="meter-meta">
-            <em>冲击</em>
-            <b>{{ opponentZones.rushDeck }}</b>
-          </div>
-        </div>
-      </div>
-
-      <div class="timeline-meter" title="时间线（9 张冲击卡胜利）">
-        <div class="tl-head">
-          <span>时间线</span>
-          <strong>{{ opponentTimelineFilled }}/9</strong>
-        </div>
-        <div class="tl-track" aria-label="对手时间线进度">
-          <div
-            v-for="(card, i) in opponentTimeline"
-            :key="`ot-${i}`"
-            class="tl-cell"
-            :class="{ filled: !!card }"
-            :title="card?.cardCode || `空位 ${i + 1}`"
-          />
-        </div>
-      </div>
-    </section>
-
-    <!-- 中央战区舞台：基地 + 阵型槽 -->
+    <!-- 舞台：区牌/时间线嵌在 arena 阵型两侧空白，不再外挂侧栏 -->
     <main class="stage">
       <div class="arena">
         <div class="side opp-side">
-          <div class="bench">
-            <span class="bench-tag">基地</span>
-            <div class="bench-row reverse">
-              <div
-                v-for="(card, i) in opponentField.base"
-                :key="`ob-${i}`"
-                class="bench-slot"
-                :data-n="i + 1"
-              >
-                <BattleFieldCard v-if="card" :card="card" side="opponent" />
+          <div class="gutter zones-gutter">
+            <PlaymatZones
+              side="opponent"
+              :retreat="opponentZones.retreat"
+              :void-zone="opponentZones.voidZone"
+              :character-deck="opponentZones.characterDeck"
+              :player-name="store.opponent?.playerId ?? '对手'"
+              :hand-count="store.opponent?.handCount ?? 0"
+            />
+          </div>
+
+          <div class="core">
+            <div class="bench">
+              <span class="bench-tag">基地</span>
+              <div class="bench-row reverse">
+                <div
+                  v-for="(card, i) in opponentField.base"
+                  :key="`ob-${i}`"
+                  class="bench-slot"
+                  :data-n="i + 1"
+                >
+                  <BattleFieldCard v-if="card" :card="card" side="opponent" />
+                </div>
+              </div>
+            </div>
+
+            <div class="formation opp" aria-label="对手阵型">
+              <div class="f-col">
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="侧翼"
+                  :class="{
+                    'is-target':
+                      canAct && hasAttack && !!selectedField && !!opponentField.flankL,
+                  }"
+                  @click="onOpponentFieldSlotClick('FLANK_LEFT', 0, opponentField.flankL)"
+                >
+                  <div
+                    v-if="opponentField.flankL"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(opponentField.flankL.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="opponentField.flankL" side="opponent" />
+                  </div>
+                </button>
+              </div>
+              <div class="f-col spine">
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="后卫"
+                  :class="{
+                    'is-target':
+                      canAct &&
+                      hasAttack &&
+                      !!selectedField &&
+                      !!opponentField.rearguard,
+                  }"
+                  @click="onOpponentFieldSlotClick('REARGUARD', 0, opponentField.rearguard)"
+                >
+                  <div
+                    v-if="opponentField.rearguard"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(opponentField.rearguard.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="opponentField.rearguard" side="opponent" />
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="先锋"
+                  :class="{
+                    'is-target':
+                      canAct &&
+                      hasAttack &&
+                      !!selectedField &&
+                      !!opponentField.vanguard,
+                  }"
+                  @click="onOpponentFieldSlotClick('VANGUARD', 0, opponentField.vanguard)"
+                >
+                  <div
+                    v-if="opponentField.vanguard"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(opponentField.vanguard.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="opponentField.vanguard" side="opponent" />
+                  </div>
+                </button>
+              </div>
+              <div class="f-col">
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="侧翼"
+                  :class="{
+                    'is-target':
+                      canAct && hasAttack && !!selectedField && !!opponentField.flankR,
+                  }"
+                  @click="onOpponentFieldSlotClick('FLANK_RIGHT', 0, opponentField.flankR)"
+                >
+                  <div
+                    v-if="opponentField.flankR"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(opponentField.flankR.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="opponentField.flankR" side="opponent" />
+                  </div>
+                </button>
               </div>
             </div>
           </div>
 
-          <div class="formation opp" aria-label="对手阵型">
-            <div class="f-col">
-              <button
-                type="button"
-                class="f-slot"
-                data-label="侧翼"
-                :class="{
-                  'is-target':
-                    canAct && hasAttack && !!selectedField && !!opponentField.flankL,
-                }"
-                @click="onOpponentFieldSlotClick('FLANK_LEFT', 0, opponentField.flankL)"
-              >
-                <div
-                  v-if="opponentField.flankL"
-                  class="f-card"
-                  :class="{
-                    'is-selected': isFieldSelected(opponentField.flankL.instanceId),
-                  }"
-                >
-                  <BattleFieldCard :card="opponentField.flankL" side="opponent" />
-                </div>
-              </button>
-            </div>
-            <div class="f-col spine">
-              <button
-                type="button"
-                class="f-slot"
-                data-label="后卫"
-                :class="{
-                  'is-target':
-                    canAct && hasAttack && !!selectedField && !!opponentField.rearguard,
-                }"
-                @click="onOpponentFieldSlotClick('REARGUARD', 0, opponentField.rearguard)"
-              >
-                <div
-                  v-if="opponentField.rearguard"
-                  class="f-card"
-                  :class="{
-                    'is-selected': isFieldSelected(opponentField.rearguard.instanceId),
-                  }"
-                >
-                  <BattleFieldCard :card="opponentField.rearguard" side="opponent" />
-                </div>
-              </button>
-              <button
-                type="button"
-                class="f-slot"
-                data-label="先锋"
-                :class="{
-                  'is-target':
-                    canAct && hasAttack && !!selectedField && !!opponentField.vanguard,
-                }"
-                @click="onOpponentFieldSlotClick('VANGUARD', 0, opponentField.vanguard)"
-              >
-                <div
-                  v-if="opponentField.vanguard"
-                  class="f-card"
-                  :class="{
-                    'is-selected': isFieldSelected(opponentField.vanguard.instanceId),
-                  }"
-                >
-                  <BattleFieldCard :card="opponentField.vanguard" side="opponent" />
-                </div>
-              </button>
-            </div>
-            <div class="f-col">
-              <button
-                type="button"
-                class="f-slot"
-                data-label="侧翼"
-                :class="{
-                  'is-target':
-                    canAct && hasAttack && !!selectedField && !!opponentField.flankR,
-                }"
-                @click="onOpponentFieldSlotClick('FLANK_RIGHT', 0, opponentField.flankR)"
-              >
-                <div
-                  v-if="opponentField.flankR"
-                  class="f-card"
-                  :class="{
-                    'is-selected': isFieldSelected(opponentField.flankR.instanceId),
-                  }"
-                >
-                  <BattleFieldCard :card="opponentField.flankR" side="opponent" />
-                </div>
-              </button>
-            </div>
+          <div class="gutter tl-gutter">
+            <TimelineTrack
+              :slots="opponentTimeline"
+              side="opponent"
+              :rush-deck-count="opponentZones.rushDeck"
+              aria-label="对手时间线"
+            />
           </div>
         </div>
 
@@ -739,119 +695,142 @@ onUnmounted(() => {
         </div>
 
         <div class="side local-side">
-          <div class="formation local" aria-label="我方阵型">
-            <div class="f-col">
-              <button
-                type="button"
-                class="f-slot"
-                data-label="侧翼"
-                :class="{
-                  'is-drop': canAct && !!selectedHandCode && hasSummon && !localField.flankL,
-                }"
-                @click="onLocalFieldSlotClick('FLANK_LEFT', 0, localField.flankL)"
-              >
-                <div
-                  v-if="localField.flankL"
-                  class="f-card"
+          <div class="gutter tl-gutter">
+            <TimelineTrack
+              :slots="localTimeline"
+              side="local"
+              :rush-deck-count="localZones.rushDeck"
+              aria-label="我方时间线"
+            />
+          </div>
+
+          <div class="core">
+            <div class="formation local" aria-label="我方阵型">
+              <div class="f-col">
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="侧翼"
                   :class="{
-                    'is-selected': isFieldSelected(localField.flankL.instanceId),
+                    'is-drop':
+                      canAct && !!selectedHandCode && hasSummon && !localField.flankL,
                   }"
+                  @click="onLocalFieldSlotClick('FLANK_LEFT', 0, localField.flankL)"
                 >
-                  <BattleFieldCard :card="localField.flankL" side="local" />
-                </div>
-              </button>
+                  <div
+                    v-if="localField.flankL"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(localField.flankL.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="localField.flankL" side="local" />
+                  </div>
+                </button>
+              </div>
+              <div class="f-col spine">
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="先锋"
+                  :class="{
+                    'is-drop':
+                      canAct && !!selectedHandCode && hasSummon && !localField.vanguard,
+                  }"
+                  @click="onLocalFieldSlotClick('VANGUARD', 0, localField.vanguard)"
+                >
+                  <div
+                    v-if="localField.vanguard"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(localField.vanguard.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="localField.vanguard" side="local" />
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="后卫"
+                  :class="{
+                    'is-drop':
+                      canAct && !!selectedHandCode && hasSummon && !localField.rearguard,
+                  }"
+                  @click="onLocalFieldSlotClick('REARGUARD', 0, localField.rearguard)"
+                >
+                  <div
+                    v-if="localField.rearguard"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(localField.rearguard.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="localField.rearguard" side="local" />
+                  </div>
+                </button>
+              </div>
+              <div class="f-col">
+                <button
+                  type="button"
+                  class="f-slot"
+                  data-label="侧翼"
+                  :class="{
+                    'is-drop':
+                      canAct && !!selectedHandCode && hasSummon && !localField.flankR,
+                  }"
+                  @click="onLocalFieldSlotClick('FLANK_RIGHT', 0, localField.flankR)"
+                >
+                  <div
+                    v-if="localField.flankR"
+                    class="f-card"
+                    :class="{
+                      'is-selected': isFieldSelected(localField.flankR.instanceId),
+                    }"
+                  >
+                    <BattleFieldCard :card="localField.flankR" side="local" />
+                  </div>
+                </button>
+              </div>
             </div>
-            <div class="f-col spine">
-              <button
-                type="button"
-                class="f-slot"
-                data-label="先锋"
-                :class="{
-                  'is-drop':
-                    canAct && !!selectedHandCode && hasSummon && !localField.vanguard,
-                }"
-                @click="onLocalFieldSlotClick('VANGUARD', 0, localField.vanguard)"
-              >
+
+            <div class="bench">
+              <span class="bench-tag">基地</span>
+              <div class="bench-row">
                 <div
-                  v-if="localField.vanguard"
-                  class="f-card"
+                  v-for="(card, i) in localField.base"
+                  :key="`lb-${i}`"
+                  class="bench-slot"
                   :class="{
-                    'is-selected': isFieldSelected(localField.vanguard.instanceId),
+                    'is-drop':
+                      canAct &&
+                      !!selectedHandCode &&
+                      !card &&
+                      (hasBaseDeploy || hasSummon),
+                    'is-selected': card && isFieldSelected(card.instanceId),
                   }"
+                  :data-n="i + 1"
+                  @click="onLocalBaseSlotClick(i)"
                 >
-                  <BattleFieldCard :card="localField.vanguard" side="local" />
+                  <BattleFieldCard
+                    v-if="card"
+                    :card="card"
+                    side="local"
+                    @click.stop="onLocalFieldSlotClick('BASE', i, card)"
+                  />
                 </div>
-              </button>
-              <button
-                type="button"
-                class="f-slot"
-                data-label="后卫"
-                :class="{
-                  'is-drop':
-                    canAct && !!selectedHandCode && hasSummon && !localField.rearguard,
-                }"
-                @click="onLocalFieldSlotClick('REARGUARD', 0, localField.rearguard)"
-              >
-                <div
-                  v-if="localField.rearguard"
-                  class="f-card"
-                  :class="{
-                    'is-selected': isFieldSelected(localField.rearguard.instanceId),
-                  }"
-                >
-                  <BattleFieldCard :card="localField.rearguard" side="local" />
-                </div>
-              </button>
-            </div>
-            <div class="f-col">
-              <button
-                type="button"
-                class="f-slot"
-                data-label="侧翼"
-                :class="{
-                  'is-drop': canAct && !!selectedHandCode && hasSummon && !localField.flankR,
-                }"
-                @click="onLocalFieldSlotClick('FLANK_RIGHT', 0, localField.flankR)"
-              >
-                <div
-                  v-if="localField.flankR"
-                  class="f-card"
-                  :class="{
-                    'is-selected': isFieldSelected(localField.flankR.instanceId),
-                  }"
-                >
-                  <BattleFieldCard :card="localField.flankR" side="local" />
-                </div>
-              </button>
+              </div>
             </div>
           </div>
 
-          <div class="bench">
-            <span class="bench-tag">基地</span>
-            <div class="bench-row">
-              <div
-                v-for="(card, i) in localField.base"
-                :key="`lb-${i}`"
-                class="bench-slot"
-                :class="{
-                  'is-drop':
-                    canAct &&
-                    !!selectedHandCode &&
-                    !card &&
-                    (hasBaseDeploy || hasSummon),
-                  'is-selected': card && isFieldSelected(card.instanceId),
-                }"
-                :data-n="i + 1"
-                @click="onLocalBaseSlotClick(i)"
-              >
-                <BattleFieldCard
-                  v-if="card"
-                  :card="card"
-                  side="local"
-                  @click.stop="onLocalFieldSlotClick('BASE', i, card)"
-                />
-              </div>
-            </div>
+          <div class="gutter zones-gutter">
+            <PlaymatZones
+              side="local"
+              :retreat="localZones.retreat"
+              :void-zone="localZones.voidZone"
+              :character-deck="localZones.characterDeck"
+              :hand-count="handCount"
+            />
           </div>
         </div>
       </div>
@@ -872,64 +851,6 @@ onUnmounted(() => {
         </div>
       </div>
     </main>
-
-    <!-- 我方仪表条 -->
-    <section class="player-strip local">
-      <div class="timeline-meter" title="时间线（9 张冲击卡胜利）">
-        <div class="tl-head">
-          <span>时间线</span>
-          <strong>{{ localTimelineFilled }}/9</strong>
-        </div>
-        <div class="tl-track" aria-label="我方时间线进度">
-          <div
-            v-for="(card, i) in localTimeline"
-            :key="`lt-${i}`"
-            class="tl-cell"
-            :class="{ filled: !!card }"
-            :title="card?.cardCode || `空位 ${i + 1}`"
-          />
-        </div>
-      </div>
-
-      <div class="meters">
-        <div class="meter rush" title="冲击卡组">
-          <div class="meter-face">
-            <Card v-if="localZones.rushDeck > 0" back-type="rush" />
-          </div>
-          <div class="meter-meta">
-            <em>冲击</em>
-            <b>{{ localZones.rushDeck }}</b>
-          </div>
-        </div>
-        <div class="meter" title="虚空区">
-          <div class="meter-face dim">
-            <Card v-if="localZones.voidZone > 0" back-type="character" />
-          </div>
-          <div class="meter-meta">
-            <em>虚空</em>
-            <b>{{ localZones.voidZone }}</b>
-          </div>
-        </div>
-        <div class="meter" title="撤退区">
-          <div class="meter-face dim">
-            <Card v-if="localZones.retreat > 0" back-type="character" />
-          </div>
-          <div class="meter-meta">
-            <em>撤退</em>
-            <b>{{ localZones.retreat }}</b>
-          </div>
-        </div>
-        <div class="meter" title="角色卡组">
-          <div class="meter-face">
-            <Card v-if="localZones.characterDeck > 0" back-type="character" />
-          </div>
-          <div class="meter-meta">
-            <em>角色</em>
-            <b>{{ localZones.characterDeck }}</b>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- 操作坞：提示 + 指令 + 手牌 -->
     <footer class="command-dock">
@@ -1001,10 +922,6 @@ onUnmounted(() => {
           <BattleFieldCard :card="card" side="local" force-face-up />
         </div>
       </div>
-
-      <div class="dock-right">
-        <span class="hand-count">手牌 {{ handCount }}</span>
-      </div>
     </footer>
   </div>
 </template>
@@ -1013,15 +930,16 @@ onUnmounted(() => {
 .battle-pc {
   /* 卡面比例用小数，避免 calc(h * (747/1042)) 在部分浏览器里宽高塌成 0 */
   --card-aspect: 0.717;
-  --card-h: clamp(64px, 9.5vh, 88px);
+  /* 阵面 / 手牌：随视口弹性，避免写死过大导致溢出 */
+  --card-h: clamp(64px, 9.2vh, 108px);
   --card-w: calc(var(--card-h) * 0.717);
-  --hand-h: clamp(96px, 14vh, 128px);
+  --hand-h: clamp(88px, 13vh, 124px);
   --hand-w: calc(var(--hand-h) * 0.717);
-  --d-gap: clamp(4px, 0.7vw, 8px);
+  --d-gap: clamp(4px, 0.75vw, 12px);
   --slot-inset: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 
   display: grid;
-  grid-template-rows: 40px auto minmax(0, 1fr) auto auto;
+  grid-template-rows: 40px minmax(0, 1fr) auto;
   height: 100dvh;
   overflow: hidden;
   background: var(--bg-base);
@@ -1161,189 +1079,17 @@ onUnmounted(() => {
   background: var(--bg-surface-2);
 }
 
-/* ========== 玩家仪表条 ========== */
-.player-strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 12px;
-  min-height: 40px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  z-index: 6;
-}
-
-.player-strip.local {
-  border-bottom: none;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-surface) 88%, var(--owner-tint, transparent));
-}
-
-.player-strip.opp {
-  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
-}
-
-.identity {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  min-width: 120px;
-}
-
-.avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--accent-blue);
-  border: 2px solid var(--bg-surface-2);
-}
-
-.id-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-  gap: 1px;
-}
-
-.id-text strong {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.id-text span {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.meters {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.meter {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 6px 3px 3px;
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--edge-highlight, none);
-}
-
-.meter.rush {
-  border-color: color-mix(in srgb, var(--accent-gold) 45%, var(--border));
-}
-
-.meter-face {
-  position: relative;
-  width: 22px;
-  height: 30px;
-  border-radius: 3px;
-  overflow: hidden;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.meter-face.dim {
-  opacity: 0.85;
-}
-
-/* Card 根节点是 absolute；宿主必须 relative，并关掉横置旋转以免撑破仪表 */
-.meter-face :deep(.card-face) {
-  position: absolute !important;
-  inset: 0 !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: auto !important;
-  height: auto !important;
-  transform: none !important;
-  border-radius: 2px !important;
-  background-size: cover !important;
-}
-
-.meter-meta {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
-}
-
-.meter-meta em {
-  font-style: normal;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
-
-.meter-meta b {
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 时间线 = 胜利进度条 */
-.timeline-meter {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.tl-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 0 2px;
-}
-
-.tl-head span {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-}
-
-.tl-head strong {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent-gold);
-  font-variant-numeric: tabular-nums;
-}
-
-.tl-track {
-  display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 3px;
-  height: 10px;
-}
-
-.tl-cell {
-  border-radius: 3px;
-  background: var(--bg-base);
-  border: 1px solid var(--border-light);
-}
-
-.tl-cell.filled {
-  border-color: color-mix(in srgb, var(--accent-gold) 65%, var(--border));
-  background: color-mix(in srgb, var(--accent-gold) 62%, var(--bg-surface-2));
-}
-
 /* ========== 中央舞台 ========== */
 .stage {
   position: relative;
   min-height: 0;
   overflow: hidden;
   isolation: isolate;
+  z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 8px 16px;
+  padding: 8px 12px;
 }
 
 .stage::before {
@@ -1375,93 +1121,202 @@ onUnmounted(() => {
 .arena {
   position: relative;
   z-index: 1;
-  width: min(920px, 100%);
+  width: 100%;
+  max-width: 1200px;
   height: 100%;
   display: grid;
-  grid-template-rows: 1fr auto 1fr;
-  gap: 4px;
-  padding: 8px 14px;
-  background: var(--bg-surface);
+  /* 中间 VS 带固定高度，避免两半场先锋对撞 */
+  grid-template-rows: minmax(0, 1fr) 26px minmax(0, 1fr);
+  gap: 0;
+  padding: 10px 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-surface) 96%, #fff),
+      var(--bg-surface)
+    );
   border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md), var(--edge-highlight, none);
 }
 
+/* 半场 180° 镜像：两侧栏等宽，保证两方核心（基地/阵型）共一条中轴线
+   对手：区牌 | 核心 | 时间线
+   我方：时间线 | 核心 | 区牌（用 areas 换位，宽度仍对称） */
 .side {
   min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: clamp(44px, 5.4vw, 56px) minmax(0, 1fr) clamp(44px, 5.4vw, 56px);
+  grid-template-areas: 'gutter-a core gutter-b';
+  gap: clamp(4px, 0.7vw, 10px);
+  align-items: stretch;
+}
+
+.opp-side .zones-gutter {
+  grid-area: gutter-a;
+}
+
+.opp-side .tl-gutter {
+  grid-area: gutter-b;
+}
+
+.local-side .tl-gutter {
+  grid-area: gutter-a;
+}
+
+.local-side .zones-gutter {
+  grid-area: gutter-b;
+}
+
+.core {
+  grid-area: core;
+}
+
+.gutter {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.zones-gutter {
+  justify-content: stretch;
+}
+
+.zones-gutter :deep(.playmat-zones) {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.tl-gutter {
+  min-width: 0;
+  min-height: 0;
+}
+
+.tl-gutter :deep(.rush-timeline) {
+  height: 100%;
+  max-height: 100%;
+  width: 100%;
+}
+
+/* 核心：基地 + 阵型水平居中；垂直按外缘贴靠（对手靠上、我方靠下） */
+.core {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: clamp(4px, 0.8vh, 10px);
+  overflow: hidden;
 }
 
-.opp-side {
+.opp-side .core {
   justify-content: flex-start;
+  padding-top: 0.4vh;
 }
 
-.local-side {
+.local-side .core {
   justify-content: flex-end;
+  padding-bottom: 0.4vh;
 }
 
 .vs-line {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 18px;
+  height: 26px;
+  flex-shrink: 0;
+  z-index: 2;
 }
 
 .vs-line span {
-  font-size: 10px;
+  position: relative;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.28em;
   color: var(--text-secondary);
-  padding: 0 10px;
-  border-top: 1px solid var(--border-light);
-  border-bottom: 1px solid var(--border-light);
-  line-height: 16px;
+  padding: 0 14px;
+  line-height: 18px;
 }
 
-/* 基地长条 */
+.vs-line span::before,
+.vs-line span::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--border) 85%, transparent)
+  );
+}
+
+.vs-line span::before {
+  right: 100%;
+  transform: translateY(-50%);
+}
+
+.vs-line span::after {
+  left: 100%;
+  transform: translateY(-50%) scaleX(-1);
+}
+
+/* 基地长条：固定卡组宽度，在核心列水平居中 */
 .bench {
   position: relative;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  align-self: center;
   height: var(--card-h);
-  width: calc(var(--card-w) * 6 + 3px * 5 + 8px);
-  max-width: 100%;
+  width: min(100%, calc(var(--card-w) * 6 + 3px * 5 + 8px));
   padding: 4px;
-  background: var(--bg-surface-2);
+  box-sizing: border-box;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-surface-2) 90%, #fff),
+      var(--bg-surface-2)
+    );
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  box-shadow: var(--slot-inset);
+  box-shadow: var(--slot-inset), var(--shadow-sm);
 }
 
+/* 标识居中贴边：避免左上/右下角标造成基地「偏左/偏右」观感 */
 .bench-tag {
   position: absolute;
-  z-index: 2;
-  top: -9px;
-  left: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  z-index: 4;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   color: var(--text-primary);
-  background: var(--bg-surface-3);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 0 6px;
-  line-height: 1.45;
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.35;
   pointer-events: none;
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
 }
 
 .local-side .bench-tag {
   top: auto;
-  bottom: -9px;
-  left: auto;
-  right: 8px;
+  bottom: 3px;
 }
 
 .bench-row {
   display: flex;
+  justify-content: center;
   gap: 3px;
   height: 100%;
 }
@@ -1511,15 +1366,20 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* 阵型槽：十字布局，无菱形装饰 */
+/* 阵面：与基地同中轴 */
 .formation {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, calc(var(--card-w) + 6px));
+  grid-template-columns: repeat(3, calc(var(--card-w) + 8px));
+  grid-template-rows: auto;
   gap: var(--d-gap);
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 6px 8px;
+  justify-items: center;
+  padding: 2px 4px;
+  max-width: 100%;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .f-col {
@@ -1528,14 +1388,23 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: var(--d-gap);
+}
+
+.f-col.spine {
+  justify-content: center;
+}
+
+/* 侧翼列与脊柱同高，槽位在列内垂直居中 → 落在先锋/后卫之间 */
+.formation .f-col:not(.spine) {
+  justify-content: center;
+  align-self: stretch;
 }
 
 .f-slot {
   position: relative;
-  width: calc(var(--card-w) + 6px);
-  height: calc(var(--card-h) + 6px);
+  width: calc(var(--card-w) + 8px);
+  height: calc(var(--card-h) + 8px);
   padding: 0;
   border: none;
   background: transparent;
@@ -1555,13 +1424,18 @@ onUnmounted(() => {
   inset: 3px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border-light);
+  border: 1.5px dashed color-mix(in srgb, var(--border) 88%, var(--text-secondary));
   border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  box-shadow: var(--slot-inset);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 94%, #fff),
+      color-mix(in srgb, var(--bg-surface-2) 55%, var(--bg-elevated))
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--text-secondary);
   pointer-events: none;
 }
@@ -1582,10 +1456,13 @@ onUnmounted(() => {
   position: relative;
   width: var(--card-w);
   height: var(--card-h);
-  border-radius: 5px;
+  border-radius: 6px;
   border: 2px solid transparent;
   overflow: hidden;
-  transition: transform 0.15s, border-color var(--transition-fast);
+  transition:
+    transform 0.15s,
+    border-color var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .f-card :deep(.card-face) {
@@ -1600,37 +1477,47 @@ onUnmounted(() => {
 }
 
 .f-slot:hover .f-card {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
 }
 
 /* ========== 操作坞 ========== */
 .command-dock {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto minmax(80px, 1fr);
+  /* 左右等宽且可收缩，避免左侧按钮把中轴挤偏 */
+  grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
   align-items: end;
-  gap: 8px;
-  padding: 4px 12px 8px;
+  gap: clamp(6px, 1vw, 12px);
+  padding: 0.4vh 1.2vw 0.8vh;
   background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
   border-top: 1px solid var(--border);
   z-index: 8;
-  min-height: calc(var(--hand-h) + 28px);
+  min-height: calc(var(--hand-h) + 2.2vh);
   overflow: visible;
 }
 
 .dock-left {
+  grid-column: 1;
+  justify-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.5vh;
   justify-content: flex-end;
+  align-items: flex-start;
   min-width: 0;
-  padding-bottom: 6px;
+  max-width: 100%;
+  padding-bottom: 0.5vh;
+  overflow: hidden;
 }
 
 .hint {
   margin: 0;
-  font-size: 11px;
+  font-size: clamp(10px, 1.2vh, 12px);
   color: var(--text-secondary);
-  min-height: 14px;
+  min-height: 1.2em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hint.error {
@@ -1640,17 +1527,22 @@ onUnmounted(() => {
 .cmds {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.5vh;
+  max-width: 100%;
 }
 
-/* 手牌托盘：flex 重叠扇形，宽高写死，不再依赖 absolute 塌缩 */
+/* 手牌托盘：相对视口水平居中 */
 .hand-tray {
+  grid-column: 2;
+  justify-self: center;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   height: var(--hand-h);
-  max-width: min(640px, 58vw);
-  padding: 0 8px;
+  width: max-content;
+  max-width: min(72vw, 860px);
+  padding: 0;
+  margin: 0;
   overflow: visible;
 }
 
@@ -1685,20 +1577,6 @@ onUnmounted(() => {
 .hand-slot:hover {
   z-index: 60 !important;
   transform: translateY(-18px) scale(1.06) !important;
-}
-
-.dock-right {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  padding-bottom: 10px;
-}
-
-.hand-count {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ========== 终局 ========== */
@@ -1746,12 +1624,9 @@ onUnmounted(() => {
     justify-self: center;
   }
 
-  .meters {
-    display: none;
-  }
-
-  .player-strip.opp .identity {
-    min-width: auto;
+  .side {
+    gap: 0.4vw;
+    grid-template-columns: clamp(40px, 5.2vw, 52px) minmax(0, 1fr) clamp(40px, 5.2vw, 52px);
   }
 }
 </style>
