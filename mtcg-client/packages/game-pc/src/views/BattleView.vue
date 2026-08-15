@@ -1292,8 +1292,8 @@ onUnmounted(() => {
 .bench-tag {
   position: absolute;
   z-index: 4;
-  top: 3px;
-  left: 50%;
+  top: 2%;
+  left: -1%;
   transform: translateX(-50%);
   font-size: 9px;
   font-weight: 800;
@@ -1311,7 +1311,8 @@ onUnmounted(() => {
 
 .local-side .bench-tag {
   top: auto;
-  bottom: 3px;
+  bottom: 2%;
+  left: 101%;
 }
 
 .bench-row {
