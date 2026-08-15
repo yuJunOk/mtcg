@@ -27,8 +27,10 @@ withDefaults(
     -->
     <template v-if="side === 'opponent'">
       <div class="id-row" :title="playerName || '对手'">
-        <span class="dot opponent" aria-hidden="true" />
-        <strong class="id-name">对手</strong>
+        <span class="id-who">
+          <span class="dot opponent" aria-hidden="true" />
+          <strong class="id-name">对手</strong>
+        </span>
         <span v-if="handCount != null" class="id-hand">
           手 <b>{{ handCount }}</b>
         </span>
@@ -99,10 +101,12 @@ withDefaults(
       </div>
 
       <div class="id-row" title="我方">
-        <span class="dot local" aria-hidden="true" />
-        <strong class="id-name">我方</strong>
         <span v-if="handCount != null" class="id-hand">
           手 <b>{{ handCount }}</b>
+        </span>
+        <span class="id-who">
+          <span class="dot local" aria-hidden="true" />
+          <strong class="id-name">我方</strong>
         </span>
       </div>
     </template>
@@ -141,6 +145,15 @@ withDefaults(
   background: var(--bg-surface);
   border: 1px solid var(--border-light);
   line-height: 1;
+}
+
+/* 圆点与身份名强制同一行 */
+.id-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .dot {
