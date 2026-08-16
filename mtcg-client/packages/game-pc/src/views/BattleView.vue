@@ -931,7 +931,7 @@ onUnmounted(() => {
   /* 卡面比例用小数，避免 calc(h * (747/1042)) 在部分浏览器里宽高塌成 0 */
   --card-aspect: 0.717;
   /* 阵面 / 手牌：随视口弹性，避免写死过大导致溢出 */
-  --card-h: clamp(64px, 9.2vh, 108px);
+  --card-h: clamp(64px, 10.8vh, 108px);
   --card-w: calc(var(--card-h) * 0.717);
   --hand-h: clamp(88px, 13vh, 124px);
   --hand-w: calc(var(--hand-h) * 0.717);
